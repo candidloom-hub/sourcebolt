@@ -21,6 +21,7 @@ func NewHTTPClient() *http.Client {
 		MaxIdleConnsPerHost:   16,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: time.Second,
 		TLSClientConfig:       &tls.Config{ClientSessionCache: tls.NewLRUClientSessionCache(64), MinVersion: tls.VersionTLS12},
 	}
