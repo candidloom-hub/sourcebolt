@@ -24,7 +24,12 @@ go test ./... -race                          # all tests
 go test ./internal/wire -run TestDecode -v   # one package / one test
 go vet ./...
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/sourcebolt.exe ./cmd/sourcebolt
+go test -short ./...                         # skips the binary-building CLI test
 ```
+
+`-race` needs cgo; this Windows machine has no C compiler, so race runs only in CI.
+
+CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` for streamable HTTP), `call <tool> '<json>'` (any MCP tool in-process), `login --import <file|->`, `logout`, `status`, `doctor`. Env: `NOTEBOOKLM_PROFILE`, `NOTEBOOKLM_HOST`, `NOTEBOOKLM_CONFIG_DIR`, `NOTEBOOKLM_RPC_IDS`. Tests set `NOTEBOOKLM_CONFIG_DIR` to a temp dir so they never touch real profiles.
 - Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
 - Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. Approved 2026-10-14.
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.

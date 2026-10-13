@@ -46,7 +46,7 @@ func newStub() *stub {
 	}
 }
 
-func (s *stub) Name() string          { return "rpc" }
+func (s *stub) Name() string         { return "rpc" }
 func (s *stub) Supports(string) bool { return true }
 func (s *stub) Do(ctx context.Context, c transport.Call) (transport.Result, error) {
 	s.mu.Lock()
