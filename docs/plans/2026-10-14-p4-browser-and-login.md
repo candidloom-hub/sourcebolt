@@ -60,7 +60,7 @@
 
 ### Task 4: Login flows
 
-**Files:** Create `internal/transport/browser/login.go`, `internal/mcpserver/tools_auth.go`; Modify `cmd/notebooklm-mcp/login.go`; Test `internal/transport/browser/login_test.go`
+**Files:** Create `internal/transport/browser/login.go`, `internal/mcpserver/tools_auth.go`; Modify `cmd/sourcebolt/login.go`; Test `internal/transport/browser/login_test.go`
 
 **Interfaces:**
 - Produces: `func LoginInteractive(ctx, o Options, h session.Host) (*session.Jar, session.Host, error)` (waits until a page on a notebook host has `SNlM0e`, records landed host); `func AttachCDP(ctx, url string, h session.Host) (*session.Jar, error)`; tools `auth_login` (methods `browser`, `attach`, `import`) and `auth_logout`; CLI `login --browser`, `login --attach <cdp-url>`. Every path validates with a real `wXbhsf` before `Store.Save`.

@@ -1,6 +1,6 @@
 # Architecture spec: Go NotebookLM MCP server
 
-Date: 2026-10-14. Status: **draft, pending owner approval** (gate before Phase 5).
+Date: 2026-10-14. Status: **approved by owner 2026-10-14**; defaults D1–D15 accepted; name sourcebolt.
 Sources: [feature-matrix](../../research/feature-matrix.md), [rpc-catalog](../../research/rpc-catalog.md), [best-practices](../../research/best-practices.md), [performance](../../research/performance.md), [decisions-needed](../../research/decisions-needed.md).
 
 ## 1. Goal
@@ -20,16 +20,16 @@ One MCP server for Google NotebookLM that covers the union of upstream features 
 | JSON | stdlib `encoding/json/v2` + `jsontext`, lazy decode |
 | Browser | chromedp, user-installed Chrome/Edge or `chrome-headless-shell` in Docker; dedicated profile dir |
 
-## 3. Defaults adopted from research (owner may override at the gate)
+## 3. Defaults adopted from research (accepted by owner)
 
 D1-A no Android schema. D2-B Enterprise after 1.0. D3-B `cookies.txt` import in v1, Firefox in v1.x. D4-B no Chromium store decryption. D5-B MCP only (no REST). D6-A minimal CLI with `call`. D7-A refresh-command hook + headless re-mint on dedicated profile, no master token. D8-B stdlib TLS, uTLS optional flag. D9-A cookie-binding = transport error. D10-B in-page fetch, then DOM for chat + add-source only. D11-B 32 default tools, `minimal` 8, `batch` group off. D12-A no account rotation. D13-A fire-and-return + status tools. D14-A disk cache opt-in.
 
 ## 4. Package layout
 
-Module: `github.com/candidloom-hub/notebooklm-mcp-go` (rename with the project name). Binary: `notebooklm-mcp` (placeholder).
+Module: `github.com/candidloom-hub/sourcebolt` . Binary: `sourcebolt`.
 
 ```
-cmd/notebooklm-mcp/      CLI entry: serve, call, login, logout, status, doctor, capture
+cmd/sourcebolt/      CLI entry: serve, call, login, logout, status, doctor, capture
 internal/wire/           batchexecute encode/decode, stream decode, gRPC status mapping, positional accessors
 internal/rpcids/         RPC id registry + JSON override file
 internal/session/        host, token bootstrap, cookie jar, import, encrypted store, rotation
@@ -82,7 +82,7 @@ MCP error envelope (structured content of a failed tool result): `{status:"error
 
 ## 7. Auth ladder
 
-On `KindAuth`: (1) re-bootstrap tokens from `GET /`; (2) `RotateCookies` (≤ 1 per 60 s per profile); (3) operator `NOTEBOOKLM_REFRESH_CMD`; (4) headless re-mint on the dedicated browser profile (opt-out); (5) return `KindAuth` with guidance `run: notebooklm-mcp login`. Network and 5xx never enter the ladder. Credentials saved atomically with a revision counter.
+On `KindAuth`: (1) re-bootstrap tokens from `GET /`; (2) `RotateCookies` (≤ 1 per 60 s per profile); (3) operator `NOTEBOOKLM_REFRESH_CMD`; (4) headless re-mint on the dedicated browser profile (opt-out); (5) return `KindAuth` with guidance `run: sourcebolt login`. Network and 5xx never enter the ladder. Credentials saved atomically with a revision counter.
 
 Storage: cookie jar in an AES-256-GCM file under the user config dir; 32-byte key in the OS keyring (`zalando/go-keyring` v0.2.8). Keyring unavailable (headless Linux, Docker): key file with 0600 and a warning in `doctor`.
 

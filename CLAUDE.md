@@ -14,10 +14,10 @@ The work has three phases:
 
 ## Current state (2026-10-14)
 
-- Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/notebooklm-mcp-go (working name).
+- Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/sourcebolt.
 - Go 1.27 installed. No Go module yet. Add build, lint and test commands here once `go.mod` exists; do not guess them.
 - Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
-- Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. **Awaiting owner approval before any implementation.**
+- Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. Approved 2026-10-14.
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.
 
 ## Recon rules
@@ -48,8 +48,11 @@ The work has three phases:
 - Transport: both. Internal RPC first, browser automation as fallback.
 - Language: Go, with the official MCP SDK `github.com/modelcontextprotocol/go-sdk`.
 - License: Apache-2.0, free, no paid tier. GPL/AGPL upstream code must not be ported.
+- Name: **sourcebolt** (module `github.com/candidloom-hub/sourcebolt`, binary `sourcebolt`). Repo private.
+- Research defaults D1–D15 in `research/decisions-needed.md` accepted as recommended.
+- Plans in `docs/plans/` approved; executing with superpowers:executing-plans.
 - Distribution: all channels (npm, PyPI, Docker, plus GitHub release binaries). npm and PyPI packages wrap the prebuilt native binary per platform.
 
 ## Decisions pending (owner: user)
 
-- Project name.
+- None open. Next owner gates: live-capture login, repo public, publishing.
