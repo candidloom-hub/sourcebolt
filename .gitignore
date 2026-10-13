@@ -1,0 +1,24 @@
+# Cloned upstream code: untrusted, analyze only
+research/upstreams/
+
+# Secrets and Google session data
+.env
+.env.*
+!.env.example
+*.cookies
+cookies*.json
+storage_state*.json
+browser-profile/
+.chrome-profile/
+auth/
+
+# Local Claude settings
+.claude/settings.local.json
+
+# Go build output
+dist/
+bin/
+*.exe
+*.test
+*.out
+coverage.*
