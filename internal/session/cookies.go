@@ -81,10 +81,10 @@ func (j *Jar) forHost(host string) []Cookie {
 			best[c.Name] = c
 			continue
 		}
-		if cur.Domain == ".google.com" {
+		if strings.EqualFold(cur.Domain, ".google.com") {
 			continue
 		}
-		if c.Domain == ".google.com" || len(c.Domain) > len(cur.Domain) {
+		if strings.EqualFold(c.Domain, ".google.com") || len(c.Domain) > len(cur.Domain) {
 			best[c.Name] = c
 		}
 	}
@@ -156,6 +156,14 @@ func (j *Jar) SetCookies(u *url.URL, cs []*http.Cookie) {
 		}
 		j.Add(c)
 	}
+}
+
+// Replace swaps the jar contents in place, so every holder of the jar
+// pointer sees the new session (a fresh login picked up by a running server).
+func (j *Jar) Replace(cs []Cookie) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.cookies = slices.Clone(cs)
 }
 
 // Merge stores every Set-Cookie of resp.

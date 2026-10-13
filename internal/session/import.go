@@ -31,6 +31,9 @@ func ImportNetscape(r io.Reader) (*Jar, error) {
 			continue
 		}
 		c := Cookie{Domain: f[0], Path: f[2], Secure: strings.EqualFold(f[3], "TRUE"), Name: f[5], Value: f[6], HTTPOnly: httpOnly}
+		if strings.EqualFold(f[1], "TRUE") && !strings.HasPrefix(c.Domain, ".") {
+			c.Domain = "." + c.Domain // include-subdomains flag
+		}
 		if n, err := strconv.ParseInt(f[4], 10, 64); err == nil && n > 0 {
 			c.Expires = unixAuto(float64(n))
 		}

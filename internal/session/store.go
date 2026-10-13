@@ -127,8 +127,18 @@ func (s *fileStore) Save(p *Profile) error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
+	unlock, err := s.lock(p.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	_, statErr := os.Stat(s.path(p.Name, profileExt))
+	exists := statErr == nil
 	key, inFile, err := s.getKey(p.Name)
-	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, keyring.ErrNotFound) {
+	if err != nil && !exists {
+		// Mint a key only for a brand-new profile. For an existing profile a
+		// missing or unreadable key must never be replaced: that would make
+		// the saved cookies undecryptable forever.
 		key, inFile, err = s.newKey(p.Name)
 	}
 	if err != nil {
@@ -181,13 +191,19 @@ func (s *fileStore) List() ([]string, error) {
 }
 
 // getKey returns the profile key from the keyring, else from the key file.
+// A keyring failure other than "not found" is returned as is, so callers
+// never mistake a locked keyring for a missing key.
 func (s *fileStore) getKey(name string) ([]byte, bool, error) {
-	if v, err := s.kr.Get(keyringService, name); err == nil {
+	v, kerr := s.kr.Get(keyringService, name)
+	if kerr == nil {
 		k, err := base64.StdEncoding.DecodeString(v)
 		return k, false, err
 	}
 	b, err := os.ReadFile(s.path(name, keyExt))
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) && !errors.Is(kerr, keyring.ErrNotFound) {
+			return nil, false, fmt.Errorf("session: keyring: %w", kerr)
+		}
 		return nil, true, err
 	}
 	k, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(b)))
@@ -278,5 +294,52 @@ func writeAtomic(path string, data []byte) error {
 			return err
 		}
 	}
-	return os.Rename(tmpName, path)
+	return renameRetry(tmpName, path)
+}
+
+var (
+	osRename = os.Rename
+	renameFn = os.Rename // test hook
+)
+
+// renameRetry retries briefly when Windows reports the target as in use
+// (another process has it open), instead of silently losing the save.
+func renameRetry(from, to string) error {
+	var err error
+	for range 20 {
+		if err = renameFn(from, to); err == nil || !errors.Is(err, fs.ErrPermission) {
+			return err
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	return err
+}
+
+const (
+	lockWait  = 3 * time.Second
+	lockStale = 15 * time.Second
+)
+
+// lock serializes check-and-write across processes with an O_EXCL lock file.
+func (s *fileStore) lock(name string) (func(), error) {
+	path := s.path(name, ".lock")
+	deadline := time.Now().Add(lockWait)
+	for {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			f.Close()
+			return func() { os.Remove(path) }, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, err
+		}
+		if st, serr := os.Stat(path); serr == nil && time.Since(st.ModTime()) > lockStale {
+			os.Remove(path)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("session: profile %q is locked by another process", name)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
