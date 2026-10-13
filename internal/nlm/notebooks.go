@@ -42,9 +42,17 @@ type NotebookDetail struct {
 	Warnings  []string `json:"warnings,omitempty"`
 }
 
-func listNotebooksParams() []any        { return []any{nil, 1, nil, []any{2}} }
-func getNotebookParams(id string) []any { return []any{id, nil, []any{2}, nil, 0} }
-func guideParams(id string) []any       { return []any{id, []any{2}} }
+// Payload shapes pinned by live capture (2026-10-13, notebook.google.com).
+// See testdata/fixtures/<rpc>/live_*.json and TestLiveRequestShapes.
+func listNotebooksParams() []any {
+	return []any{nil, 1, nil, requestOptions(), nil, []any{[]any{nil, nil, []any{}}, []any{[]any{}}, []any{nil, []any{}}}}
+}
+
+func getNotebookParams(id string) []any {
+	return []any{id, nil, requestOptions(), nil, 0, []any{[]any{nil, nil, []any{}}}}
+}
+
+func guideParams(id string) []any { return []any{id, requestOptions()} }
 
 // ListNotebooks returns the account's notebooks (wXbhsf).
 func (c *Client) ListNotebooks(ctx context.Context) ([]Notebook, error) {
