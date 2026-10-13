@@ -57,7 +57,7 @@ func New(o Options) *Transport {
 	return &Transport{o: o}
 }
 
-func (t *Transport) Name() string          { return "rpc" }
+func (t *Transport) Name() string         { return "rpc" }
 func (t *Transport) Supports(string) bool { return true }
 
 // Warm fetches page tokens (and with them opens the pooled connection).
