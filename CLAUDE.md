@@ -15,7 +15,16 @@ The work has three phases:
 ## Current state (2026-10-14)
 
 - Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/sourcebolt.
-- Go 1.27 installed. No Go module yet. Add build, lint and test commands here once `go.mod` exists; do not guess them.
+- Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27). P1 in progress on branch `feat/p1-core`; ledger in `.superpowers/sdd/2026-10-14-p1-core/progress.md` (git-ignored).
+
+## Commands
+
+```bash
+go test ./... -race                          # all tests
+go test ./internal/wire -run TestDecode -v   # one package / one test
+go vet ./...
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/sourcebolt.exe ./cmd/sourcebolt
+```
 - Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
 - Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. Approved 2026-10-14.
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.
