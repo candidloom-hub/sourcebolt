@@ -199,3 +199,13 @@ func TestElems(t *testing.T) {
 		t.Fatal("Elems(null) should be nil")
 	}
 }
+
+func TestSegments(t *testing.T) {
+	segs, err := Segments([]byte(xssi + chunk(3, `[["di",1]]`) + chunk(3, "[[\"a\",\"x\ny\"]]")))
+	if err != nil || len(segs) != 2 || string(segs[1]) != `[["a","x\ny"]]` {
+		t.Fatalf("segs=%q err=%v", segs, err)
+	}
+	if _, err := Segments([]byte("<html>")); err == nil {
+		t.Fatal("html must error")
+	}
+}

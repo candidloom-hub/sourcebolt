@@ -23,3 +23,6 @@ bin/
 *.out
 coverage.*
 .superpowers/
+
+# Browser captures (contain session cookies)
+*.har

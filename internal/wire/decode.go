@@ -156,3 +156,18 @@ func Pick(frames []Frame, id string, policy NullPolicy) (jsontext.Value, error) 
 	}
 	return nil, nil
 }
+
+// Segments returns the raw top-level JSON segments of a response body with
+// raw control characters escaped. Tools (fixture sanitizer) use it to
+// rewrite bodies without depending on chunk lengths.
+func Segments(body []byte) ([][]byte, error) {
+	rest, hasPrefix := stripPrefix(body)
+	if !hasPrefix && bytes.HasPrefix(rest, []byte("<")) {
+		return nil, &Error{SignedOut: true, Msg: "html page"}
+	}
+	segs, unterminated := splitTopLevel(escapeControl(rest))
+	if unterminated {
+		return segs, &Error{Malformed: true, Msg: "unterminated segment"}
+	}
+	return segs, nil
+}
