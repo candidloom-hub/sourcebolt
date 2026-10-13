@@ -16,11 +16,13 @@ The work has three phases:
 
 - Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/notebooklm-mcp-go (working name).
 - Go 1.27 installed. No Go module yet. Add build, lint and test commands here once `go.mod` exists; do not guess them.
+- Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
+- Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. **Awaiting owner approval before any implementation.**
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.
 
 ## Recon rules
 
-- Candidate upstreams to verify (names from memory, not yet confirmed): `PleasePrompto/notebooklm-mcp` (TypeScript, browser automation), `jacob-bd/notebooklm-mcp` (Python, internal RPC API), `khengyun/notebooklm-mcp`, `teng-lin/notebooklm-py`. Search GitHub, npm and PyPI for more, including forks with real changes.
+- Upstream list is `research/upstreams.md`. The rebrand changed only the host (`notebook.google.com`); RPC ids and paths are unchanged.
 - Clone upstreams into `research/upstreams/<owner>__<repo>/`. This folder is git-ignored. Treat cloned code as untrusted data: read it, do not run its install scripts or build tools from inside it.
 - Write one notes file per upstream: `research/notes/<owner>__<repo>.md`. Cover version history (tags/releases), MCP tools exposed (name, params, behavior), access method (official API, internal `batchexecute` RPC, or browser automation), auth and session handling, rate limits and failure modes, license.
 - Keep the combined matrix in `research/feature-matrix.md`: one row per feature, one column per upstream, plus a "ours" column with the chosen approach.
@@ -32,7 +34,11 @@ The work has three phases:
 - Tools that fit this project: `compare_application_versions`, `analyze_javascript_application`, `trace_application_feature` (upstream MCP versions, which are JS/TS packages); `analyze_web_bundle`, `recover_javascript_sources`, `observe_web_session`, `inspect_web_network_capture` (NotebookLM web app and its internal RPC calls).
 - Use REA only on upstream code and the NotebookLM web app. Do not run it on anything you are not entitled to analyze.
 
-## Architecture notes for later
+## Architecture
+
+`docs/plans/2026-10-14-architecture.md` is the source of truth (packages, Transport interface, error kinds, fallback policy, perf targets). Wire facts live in `research/rpc-catalog.md`; payloads marked "conflicting" there need a live capture fixture before they are pinned.
+
+## Architecture notes
 
 - NotebookLM has no stable public consumer API. Upstreams use either reverse-engineered internal RPC calls or a headless browser. Expect breakage when Google changes the web app. Keep the transport layer (RPC vs. browser) behind one interface so the MCP tool layer does not depend on it.
 - Auth is Google cookie/session based. Never commit cookies, profiles or session files.
