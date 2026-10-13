@@ -68,3 +68,13 @@ func Int(v jsontext.Value, path ...int) (int64, bool) {
 	}
 	return int64(f), true
 }
+
+// Elems returns the elements of the array at path (nil if absent or not an array).
+func Elems(v jsontext.Value, path ...int) []jsontext.Value {
+	x, ok := At(v, path...)
+	if !ok {
+		return nil
+	}
+	es, _ := elems(x)
+	return es
+}

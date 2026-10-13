@@ -1,0 +1,14 @@
+{
+  "rpc": "VfAZjd",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md#notebooks VfAZjd",
+  "request": [
+    "0b1c2d3e-0000-4000-8000-000000000001",
+    [
+      2
+    ]
+  ],
+  "response_body": ")]}'\n\n168\n[[\"wrb.fr\",\"VfAZjd\",\"[[[\\\"This notebook covers the Q3 roadmap.\\\"],[[\\\"What ships first?\\\",\\\"prompt1\\\"],[\\\"Who owns launch?\\\",\\\"prompt2\\\"]]]]\",null,null,null,\"generic\"]]\n25\n[[\"di\",120],[\"af.httprm\",120,\"-1\",4]]\n",
+  "captured": "",
+  "host": ""
+}

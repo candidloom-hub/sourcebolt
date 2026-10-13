@@ -186,3 +186,16 @@ func TestAccessors(t *testing.T) {
 		t.Fatalf("Str nested = %q", s)
 	}
 }
+
+func TestElems(t *testing.T) {
+	es := Elems([]byte(`[[1],[2],[3]]`), 0)
+	if len(es) != 1 || string(es[0]) != "1" {
+		t.Fatalf("Elems(v,0) = %q", es)
+	}
+	if len(Elems([]byte(`[[1],[2],[3]]`))) != 3 {
+		t.Fatal("Elems(v) should list top-level elements")
+	}
+	if Elems([]byte(`null`)) != nil {
+		t.Fatal("Elems(null) should be nil")
+	}
+}
