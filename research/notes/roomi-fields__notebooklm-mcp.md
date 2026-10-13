@@ -149,7 +149,7 @@ Binary download: `fetchBinary` follows redirects manually (max 6) re-sending Coo
 
 ## MCP tools
 
-Canonical v2 names are `namespace_action` (tools/tool-names.ts:16-61); legacy flat names still accepted. 42 definitions in `buildToolDefinitions` (tools/index.ts:451-1800), all with a shared output schema and annotations (1810+). Transport column: R = RPC with browser fallback, RO = RPC only, B = browser only, L = local.
+Canonical v2 names are `namespace_action` (tools/tool-names.ts:16-61); legacy flat names still accepted. about 40 definitions in `buildToolDefinitions` (tools/index.ts:451-1800), all with a shared output schema and annotations (1810+). Transport column: R = RPC with browser fallback, RO = RPC only, B = browser only, L = local.
 
 | Tool (canonical / legacy) | Params (from schema) | Behavior | Transport |
 |---|---|---|---|
