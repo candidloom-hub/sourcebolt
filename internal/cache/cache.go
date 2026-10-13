@@ -23,17 +23,18 @@ type entry struct {
 
 // Cache keys are "<profile>/<kind>/<id>".
 type Cache struct {
-	now func() time.Time
-	sf  singleflight.Group
-	mu  sync.RWMutex
-	m   map[string]*entry
+	now     func() time.Time
+	sf      singleflight.Group
+	mu      sync.RWMutex
+	m       map[string]*entry
+	flights map[string]*flight
 }
 
 func New(now func() time.Time) *Cache {
 	if now == nil {
 		now = time.Now
 	}
-	return &Cache{now: now, m: map[string]*entry{}}
+	return &Cache{now: now, m: map[string]*entry{}, flights: map[string]*flight{}}
 }
 
 // Get returns the cached value for key or loads it.
@@ -54,14 +55,55 @@ func (c *Cache) Get(ctx context.Context, key string, ttl time.Duration, load fun
 		c.refreshInBackground(ctx, key, load)
 		return val, nil
 	}
-	v, err, _ := c.sf.Do(key, func() (any, error) {
-		v, err := load(ctx)
-		if err == nil {
-			c.store(key, v)
+	return c.join(ctx, key, load)
+}
+
+// flight is one in-progress load shared by every caller of a key. Its
+// context is cancelled only when the last waiting caller gives up, so one
+// cancelled MCP call never fails the others.
+type flight struct {
+	done    chan struct{}
+	val     any
+	err     error
+	waiters int
+	cancel  context.CancelFunc
+}
+
+func (c *Cache) join(ctx context.Context, key string, load func(context.Context) (any, error)) (any, error) {
+	c.mu.Lock()
+	f := c.flights[key]
+	if f == nil {
+		lctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		f = &flight{done: make(chan struct{}), cancel: cancel}
+		c.flights[key] = f
+		go func() {
+			defer cancel()
+			v, err := load(lctx)
+			if err == nil {
+				c.store(key, v)
+			}
+			c.mu.Lock()
+			f.val, f.err = v, err
+			delete(c.flights, key)
+			c.mu.Unlock()
+			close(f.done)
+		}()
+	}
+	f.waiters++
+	c.mu.Unlock()
+
+	select {
+	case <-f.done:
+		return f.val, f.err
+	case <-ctx.Done():
+		c.mu.Lock()
+		f.waiters--
+		if f.waiters == 0 {
+			f.cancel()
 		}
-		return v, err
-	})
-	return v, err
+		c.mu.Unlock()
+		return nil, ctx.Err()
+	}
 }
 
 func (c *Cache) refreshInBackground(ctx context.Context, key string, load func(context.Context) (any, error)) {

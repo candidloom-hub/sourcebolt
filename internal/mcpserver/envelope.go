@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
+	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
 )
 
@@ -44,7 +45,7 @@ var guidance = map[transport.Kind]string{
 
 // toEnvelope converts any handler error into the error envelope.
 func toEnvelope(err error) error {
-	env := Envelope{Status: "error", Error: err.Error(), Code: "INTERNAL"}
+	env := Envelope{Status: "error", Error: safety.Redact(err.Error()), Code: "INTERNAL"}
 	var te *transport.Error
 	var amb *resolve.ErrAmbiguous
 	var nf *resolve.ErrNotFound

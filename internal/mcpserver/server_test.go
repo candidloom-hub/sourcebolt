@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -257,5 +258,24 @@ func TestServerInfo(t *testing.T) {
 	}
 	if out.Name != "sourcebolt" || out.Profile != "default" || out.Host != "notebook.google.com" || out.ToolProfile != "default" {
 		t.Fatalf("out = %+v", out)
+	}
+}
+
+func TestEnvelopeRedactsSecrets(t *testing.T) {
+	st := newStub()
+	leak := errors.New("POST https://h/x?f.sid=-1234567&at=AJpMsecret:1 Cookie: SID=sidsecret")
+	st.errs["wXbhsf"] = &transport.Error{Kind: transport.KindTransport, RPC: "notebooks.list", Cause: leak}
+	st.errs["VfAZjd"] = &transport.Error{Kind: transport.KindTransport, RPC: "notebooks.guide", Cause: leak}
+	cs := connect(t, st, "default")
+	for _, res := range []*mcp.CallToolResult{
+		call(t, cs, "notebook_list", nil),
+		call(t, cs, "notebook_open", map[string]any{"notebook": idA}),
+	} {
+		s := text(res)
+		for _, secret := range []string{"-1234567", "AJpMsecret", "sidsecret"} {
+			if strings.Contains(s, secret) {
+				t.Errorf("tool output leaks %q: %s", secret, s)
+			}
+		}
 	}
 }

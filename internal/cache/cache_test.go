@@ -141,3 +141,53 @@ func BenchmarkHit(b *testing.B) {
 		c.Get(ctx, "k", time.Hour, load)
 	}
 }
+
+func TestCancelOneWaiterOthersSucceed(t *testing.T) {
+	c := New(newClock().now)
+	release := make(chan struct{})
+	load := func(ctx context.Context) (any, error) {
+		select {
+		case <-release:
+			return "v", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	ctxA, cancelA := context.WithCancel(context.Background())
+	errA := make(chan error, 1)
+	go func() { _, err := c.Get(ctxA, "k", time.Minute, load); errA <- err }()
+	time.Sleep(20 * time.Millisecond)
+	resB := make(chan any, 1)
+	go func() {
+		v, err := c.Get(context.Background(), "k", time.Minute, load)
+		if err != nil {
+			resB <- err
+		} else {
+			resB <- v
+		}
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancelA()
+	if err := <-errA; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled caller: %v", err)
+	}
+	close(release)
+	if v := <-resB; v != "v" {
+		t.Fatalf("other waiter must still get the value, got %v", v)
+	}
+}
+
+func TestLastWaiterCancelStopsLoad(t *testing.T) {
+	c := New(newClock().now)
+	stopped := make(chan struct{})
+	load := func(ctx context.Context) (any, error) { <-ctx.Done(); close(stopped); return nil, ctx.Err() }
+	ctx, cancel := context.WithCancel(context.Background())
+	go c.Get(ctx, "k", time.Minute, load)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("load must stop when its only caller cancels")
+	}
+}

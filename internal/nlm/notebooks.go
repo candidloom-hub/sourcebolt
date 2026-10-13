@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
 
@@ -116,7 +117,7 @@ func (c *Client) GetNotebook(ctx context.Context, id string) (NotebookDetail, er
 		}
 	}
 	if gerr != nil {
-		d.Warnings = append(d.Warnings, "summary unavailable: "+gerr.Error())
+		d.Warnings = append(d.Warnings, "summary unavailable: "+safety.Redact(gerr.Error()))
 	} else {
 		d.Summary = wire.Str(guide, 0, 0, 0)
 		for _, q := range wire.Elems(guide, 0, 1) {

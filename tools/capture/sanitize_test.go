@@ -103,3 +103,22 @@ func TestKeepTitles(t *testing.T) {
 		t.Fatal("emails are always replaced")
 	}
 }
+
+func TestSanitizeAllRowsAndURLs(t *testing.T) {
+	inner := `[["https://myblog.example.org/private-post?id=7","https://lh3.googleusercontent.com/a/ACg8ocJ-owner-avatar=s96","108234567890123456789"]]`
+	row := `[["wrb.fr","rLM1Ne",` + mustJSON(t, inner) + `,null,null,null,"generic"],["af.httprm",13,"-1234567890123456789",9]]`
+	body := ")]}'\n\n1\n" + row + "\n"
+	s := newSanitizer(Options{})
+	out, err := s.body(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"myblog.example.org", "private-post", "ACg8ocJ-owner-avatar", "108234567890123456789", "1234567890123456789"} {
+		if strings.Contains(out, secret) {
+			t.Errorf("leaks %q: %s", secret, out)
+		}
+	}
+	if !strings.Contains(out, "googleusercontent.com") {
+		t.Error("keep the Google media host so decoders still see the URL kind")
+	}
+}

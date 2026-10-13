@@ -107,10 +107,22 @@ type sanitizer struct {
 	o     Options
 	ids   map[string]string
 	texts map[string]string
+	urls  map[string]string
+	nums  map[string]string
 }
 
 func newSanitizer(o Options) *sanitizer {
-	return &sanitizer{o: o, ids: map[string]string{}, texts: map[string]string{}}
+	return &sanitizer{o: o, ids: map[string]string{}, texts: map[string]string{}, urls: map[string]string{}, nums: map[string]string{}}
+}
+
+// stable maps each distinct value to the same replacement every time.
+func (s *sanitizer) stable(m map[string]string, x string, mk func(n int) string) string {
+	if f, ok := m[x]; ok {
+		return f
+	}
+	f := mk(len(m) + 1)
+	m[x] = f
+	return f
 }
 
 // requests decodes f.req into rpc id -> sanitized params, in request order.
@@ -171,13 +183,21 @@ func (s *sanitizer) body(body string) (string, error) {
 		}
 		for _, r := range rows {
 			row, ok := r.([]any)
-			if !ok || len(row) < 3 {
+			if !ok || len(row) < 2 {
 				continue
 			}
-			if tag, _ := row[0].(string); tag == "wrb.fr" {
-				if p, ok := row[2].(string); ok {
-					row[2] = s.payloadString(p)
+			// Every metadata row is sanitized too (af.httprm carries f.sid).
+			// wrb.fr keeps its tag, rpc id and trailing index verbatim.
+			tag, _ := row[0].(string)
+			for i := 1; i < len(row); i++ {
+				if tag == "wrb.fr" && (i == 1 || i == 6) {
+					continue
 				}
+				if p, ok := row[i].(string); ok && tag == "wrb.fr" && i == 2 {
+					row[i] = s.payloadString(p)
+					continue
+				}
+				row[i] = s.walk(row[i])
 			}
 		}
 		out, err := json.Marshal(rows)
@@ -228,8 +248,9 @@ func (s *sanitizer) walk(v any) any {
 }
 
 var (
-	reUUID  = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
-	reEmail = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+	reUUID    = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	reLongNum = regexp.MustCompile(`^-?[0-9]{15,}$`)
+	reEmail   = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 )
 
 func (s *sanitizer) str(x string) string {
@@ -243,11 +264,23 @@ func (s *sanitizer) str(x string) string {
 		return f
 	})
 	x = reEmail.ReplaceAllString(x, "user@example.com")
-	if u, err := url.Parse(x); err == nil && u.Scheme != "" && u.Host != "" {
-		if strings.HasSuffix(u.Hostname(), "google.com") || strings.HasSuffix(u.Hostname(), "googleusercontent.com") {
-			u.RawQuery = ""
+	if reLongNum.MatchString(x) {
+		sign := strings.Repeat("-", len(x)-len(strings.TrimLeft(x, "-")))
+		return s.stable(s.nums, x, func(n int) string { return fmt.Sprintf("%s%018d", sign, n) })
+	}
+	if u, err := url.Parse(x); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		h := u.Hostname()
+		switch {
+		case strings.HasSuffix(h, "googleusercontent.com"):
+			// Media and avatar paths identify the account: keep only the host.
+			return s.stable(s.urls, x, func(n int) string { return "https://" + h + "/redacted-" + strconv.Itoa(n) })
+		case h == "google.com" || strings.HasSuffix(h, ".google.com"):
+			u.RawQuery, u.Fragment = "", ""
+			return u.String()
+		default:
+			// Source URLs belong to the owner: replace them entirely.
+			return s.stable(s.urls, x, func(n int) string { return "https://example.com/source-" + strconv.Itoa(n) })
 		}
-		return u.String()
 	}
 	if !s.o.KeepTitles && freeText(x) {
 		if f, ok := s.texts[x]; ok {
