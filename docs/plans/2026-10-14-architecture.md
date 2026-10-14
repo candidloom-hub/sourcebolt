@@ -70,7 +70,7 @@ type Transport interface {
 
 Error classes (`internal/transport/errors.go`): `KindAuth`, `KindCookieBinding`, `KindDrift`, `KindTransport`, `KindRateLimited`, `KindQuota`, `KindPermission`, `KindNotFound`, `KindInvalidArgument`, `KindPending`, `KindUnsupported`, `KindInternal`. One type `*Error{Kind, RPC, GRPCCode, Message, Retriable bool, Transport string, Cause error}`. Router falls back only when `Kind ∈ {KindTransport, KindDrift, KindCookieBinding}`.
 
-MCP error envelope (structured content of a failed tool result): `{status:"error", error, code, retriable, guidance, suggestions[], transport}`.
+MCP error envelope (structured content of a failed tool result): `{status:"error", error, code, retriable, guidance, suggestions[], transport, retry_after_seconds}` (`retry_after_seconds` only when Google sent Retry-After).
 
 ## 6. Data flow (RPC path)
 

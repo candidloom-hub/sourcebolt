@@ -4,6 +4,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
@@ -20,6 +21,8 @@ type Envelope struct {
 	Guidance    string   `json:"guidance,omitempty"`
 	Suggestions []string `json:"suggestions,omitempty"`
 	Transport   string   `json:"transport,omitempty"`
+	// RetryAfterSeconds is Google's Retry-After, rounded up; 0 when absent.
+	RetryAfterSeconds int `json:"retry_after_seconds,omitzero"`
 }
 
 // envelopeError carries an Envelope through the SDK's error path.
@@ -53,6 +56,9 @@ func toEnvelope(err error) error {
 	case errors.As(err, &te):
 		env.Code, env.Retriable, env.Transport = te.Kind.Code(), te.Retriable, te.Transport
 		env.Guidance = guidance[te.Kind]
+		if te.RetryAfter > 0 {
+			env.RetryAfterSeconds = int((te.RetryAfter + time.Second - 1) / time.Second)
+		}
 		if te.Kind == transport.KindRateLimited && te.Transport == "" {
 			// No transport answered: the limit is ours (detached-job cap), not Google's.
 			env.Guidance = "Too many detached jobs are running. Check chat_status, cancel with job_cancel, or ask with wait=true."
