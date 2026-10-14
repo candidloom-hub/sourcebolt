@@ -1,0 +1,17 @@
+{
+ "rpc": "yR9Yof",
+ "synthetic": true,
+ "source": "synthetic: shaped from rpc-catalog consensus row, not live-verified",
+ "request": [
+  null,
+  [
+   "00000000-0000-4000-8000-0000000000aa"
+  ],
+  [
+   2
+  ]
+ ],
+ "response_body": ")]}'\n\n51\n[[\"wrb.fr\",\"yR9Yof\",\"[]\",null,null,null,\"generic\"]]\n",
+ "captured": "2026-10-14",
+ "host": "notebook.google.com"
+}
