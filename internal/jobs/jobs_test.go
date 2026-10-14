@@ -220,3 +220,74 @@ func TestGetReturnsCopy(t *testing.T) {
 	j.Status = "tampered"
 	waitStatus(t, tb, id, StatusDone)
 }
+
+func TestSubmitLimitPerKind(t *testing.T) {
+	tb, _ := newTable()
+	release := make(chan struct{})
+	block := func(ctx context.Context) (any, error) { <-release; return nil, nil }
+	var ids []string
+	for range 2 {
+		id, err := tb.Submit("chat", block, Limit(2))
+		if err != nil {
+			t.Fatalf("Submit under the limit: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	if _, err := tb.Submit("chat", block, Limit(2)); !errors.Is(err, ErrBusy) {
+		t.Fatalf("Submit over the limit: err = %v, want ErrBusy", err)
+	}
+	// Other kinds are not counted.
+	if _, err := tb.Submit("research", block, Limit(2)); err != nil {
+		t.Fatalf("other kind: %v", err)
+	}
+	close(release)
+	waitStatus(t, tb, ids[0], StatusDone)
+	waitStatus(t, tb, ids[1], StatusDone)
+	if _, err := tb.Submit("chat", block, Limit(2)); err != nil {
+		t.Fatalf("Submit after jobs finished: %v", err)
+	}
+}
+
+func TestCloseCancelsRunningJobs(t *testing.T) {
+	tb, _ := newTable()
+	stopped := make(chan struct{})
+	id := tb.Start("x", func(ctx context.Context) (any, error) {
+		<-ctx.Done()
+		close(stopped)
+		return nil, ctx.Err()
+	})
+	tb.Close()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close did not cancel the running job")
+	}
+	if j, _ := tb.Get(id); j.Status != StatusCancelled {
+		t.Fatalf("status after Close = %q", j.Status)
+	}
+	if _, err := tb.Submit("x", func(context.Context) (any, error) { return 1, nil }); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Submit after Close: err = %v, want ErrClosed", err)
+	}
+	tb.Close() // idempotent
+}
+
+func TestMetaDroppedWhenJobFinishes(t *testing.T) {
+	tb, _ := newTable()
+	release := make(chan struct{})
+	id, err := tb.Submit("chat", func(ctx context.Context) (any, error) { <-release; return 1, nil }, Meta("conversation_id", "conv-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j, _ := tb.Get(id); j.Meta["conversation_id"] != "conv-1" {
+		t.Fatalf("running meta = %v", j.Meta)
+	}
+	close(release)
+	if j := waitStatus(t, tb, id, StatusDone); j.Meta != nil {
+		t.Fatalf("meta after finish = %v, want nil", j.Meta)
+	}
+	id, _ = tb.Submit("chat", func(ctx context.Context) (any, error) { <-ctx.Done(); return nil, nil }, Meta("conversation_id", "conv-2"))
+	tb.Cancel(id)
+	if j, _ := tb.Get(id); j.Meta != nil {
+		t.Fatalf("meta after cancel = %v, want nil", j.Meta)
+	}
+}

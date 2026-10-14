@@ -1,0 +1,44 @@
+{
+ "rpc": "gArtLc",
+ "synthetic": true,
+ "source": "synthetic from rpc-catalog consensus rows",
+ "request": [
+  [
+   2,
+   null,
+   null,
+   [
+    1,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    [
+     1
+    ]
+   ],
+   [
+    [
+     1,
+     4,
+     8,
+     10,
+     14,
+     2,
+     3,
+     6
+    ]
+   ]
+  ],
+  "0b1c2d3e-0000-4000-8000-000000000001",
+  "NOT artifact.status = \"ARTIFACT_STATUS_SUGGESTED\""
+ ],
+ "response_body": ")]}'\n\n354\n[[\"wrb.fr\",\"gArtLc\",\"[[[\\\"art-1\\\",\\\"Deep dive\\\",1,null,3,null,null,null,null,null,null,null,null,null,null,[1760000000,5]],[\\\"art-2\\\",\\\"Brief\\\",2,null,4,null,null,null,null,null,null,null,null,null,null,[1760000100,0]],[\\\"art-3\\\",\\\"Quiz\\\",4,null,1],[\\\"art-4\\\",\\\"Hidden\\\",8,null,5],[\\\"art-5\\\",\\\"Mystery\\\",99,null,2]]]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+ "captured": "2026-10-14",
+ "host": "notebook.google.com"
+}

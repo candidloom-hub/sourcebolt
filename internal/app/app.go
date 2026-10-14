@@ -3,16 +3,22 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
+	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/mcpserver"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/rpcids"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
+	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/candidloom-hub/sourcebolt/internal/transport/browser"
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
 )
 
@@ -22,6 +28,17 @@ type Config struct {
 	Profile   string       // NOTEBOOKLM_PROFILE, default "default"
 	Host      session.Host // NOTEBOOKLM_HOST overrides the profile's host
 	RPCIDs    string       // NOTEBOOKLM_RPC_IDS, default <config>/rpc-ids.json if present
+	// BrowserFallback enables the lazy headless-browser fallback transport.
+	// Default true; NOTEBOOKLM_BROWSER_FALLBACK=0 (or false/off/no) disables.
+	BrowserFallback bool
+}
+
+func browserFallbackFromEnv() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("NOTEBOOKLM_BROWSER_FALLBACK"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
 }
 
 // ConfigFromEnv reads the NOTEBOOKLM_* variables.
@@ -31,6 +48,8 @@ func ConfigFromEnv() (Config, error) {
 		Profile:   os.Getenv("NOTEBOOKLM_PROFILE"),
 		Host:      session.Host(os.Getenv("NOTEBOOKLM_HOST")),
 		RPCIDs:    os.Getenv("NOTEBOOKLM_RPC_IDS"),
+
+		BrowserFallback: browserFallbackFromEnv(),
 	}
 	if c.ConfigDir == "" {
 		base, err := os.UserConfigDir()
@@ -53,9 +72,54 @@ func (c Config) Store() session.Store {
 // Runtime is a fully wired server for one profile.
 type Runtime struct {
 	Deps      mcpserver.Deps
-	Transport *rpc.Transport
+	Transport *rpc.Transport      // the rpc transport (Warm, doctor)
+	Active    transport.Transport // what the nlm client calls: Router, or Transport when fallback is off
+	Router    *transport.Router   // nil when the browser fallback is disabled
 	Profile   *session.Profile
 	Store     session.Store
+
+	// The fallback browser launcher is created on first use but owned
+	// here, so Close can stop a headless browser that would otherwise
+	// outlive the process and keep the profile dir locked.
+	mu          sync.Mutex
+	browserOpts browser.Options
+	launcher    *browser.Launcher
+	closed      bool
+}
+
+// newBrowser builds the fallback transport around the runtime's launcher.
+// The launcher starts no browser until the first call.
+func (rt *Runtime) newBrowser(context.Context) (transport.Transport, error) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.closed {
+		return nil, browser.ErrClosed
+	}
+	if rt.launcher == nil {
+		rt.launcher = browser.NewLauncher(rt.browserOpts)
+	}
+	return browser.NewTransport(rt.launcher.Get, rt.Profile.Host), nil
+}
+
+// Close cancels running detached jobs and stops the fallback browser (if
+// one was ever launched). It is idempotent and safe on a runtime that
+// never used the browser.
+func (rt *Runtime) Close() error {
+	rt.mu.Lock()
+	if rt.closed {
+		rt.mu.Unlock()
+		return nil
+	}
+	rt.closed = true
+	l := rt.launcher
+	rt.mu.Unlock()
+	if rt.Deps.Jobs != nil {
+		rt.Deps.Jobs.Close()
+	}
+	if l != nil {
+		return l.Close()
+	}
+	return nil
 }
 
 // Build loads the profile (or an empty one, so tools report AUTH_REQUIRED
@@ -78,18 +142,49 @@ func Build(c Config) (*Runtime, error) {
 	if p.Host == "" {
 		p.Host = session.HostDefault
 	}
-	return ForProfile(p, store), nil
+	var opts []Option
+	if c.BrowserFallback {
+		opts = append(opts, WithBrowserFallback(c.ConfigDir))
+	}
+	return ForProfile(p, store, opts...), nil
 }
 
-// ForProfile wires a runtime around an in-memory profile.
-func ForProfile(p *session.Profile, store session.Store) *Runtime {
-	tr := rpc.New(rpc.Options{Profile: p, Store: store, MaxRetries: 2})
-	return &Runtime{
-		Deps:      mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: p.Name, Host: p.Host},
-		Transport: tr,
-		Profile:   p,
-		Store:     store,
+// Option customizes ForProfile.
+type Option func(*options)
+
+type options struct {
+	browserConfigDir string
+	browserFallback  bool
+	newBrowser       func(ctx context.Context) (transport.Transport, error) // tests
+}
+
+// WithBrowserFallback adds the lazy browser fallback; its profile dir is
+// <configDir>/browser/<profile>. No browser starts before the first call
+// that the fallback policy allows.
+func WithBrowserFallback(configDir string) Option {
+	return func(o *options) { o.browserConfigDir, o.browserFallback = configDir, true }
+}
+
+// ForProfile wires a runtime around an in-memory profile. Without options
+// the nlm client uses the bare rpc transport.
+func ForProfile(p *session.Profile, store session.Store, opts ...Option) *Runtime {
+	var o options
+	for _, f := range opts {
+		f(&o)
 	}
+	tr := rpc.New(rpc.Options{Profile: p, Store: store, MaxRetries: 2})
+	rt := &Runtime{Transport: tr, Active: tr, Profile: p, Store: store}
+	if o.browserFallback {
+		newBrowser := o.newBrowser
+		if newBrowser == nil {
+			rt.browserOpts = browser.FetchOptions(o.browserConfigDir, p.Name)
+			newBrowser = rt.newBrowser
+		}
+		rt.Router = transport.NewRouter(tr, newBrowser)
+		rt.Active = rt.Router
+	}
+	rt.Deps = mcpserver.Deps{NLM: nlm.New(rt.Active), Cache: cache.New(nil), Jobs: jobs.New(), Profile: p.Name, Host: p.Host}
+	return rt
 }
 
 func loadRPCOverrides(c Config) error {

@@ -1,0 +1,11 @@
+{
+ "rpc": "v9rmvd",
+ "synthetic": true,
+ "source": "synthetic from rpc-catalog consensus rows",
+ "request": [
+  "art-3"
+ ],
+ "response_body": ")]}'\n\n161\n[[\"wrb.fr\",\"v9rmvd\",\"[[null,null,null,null,null,null,null,null,null,[\\\"<html>quiz</html>\\\",null,null,[[\\\"n1\\\",\\\"root\\\"]]]]]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+ "captured": "2026-10-14",
+ "host": "notebook.google.com"
+}

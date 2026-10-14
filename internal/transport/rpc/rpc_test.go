@@ -225,3 +225,53 @@ func TestCtxCancel(t *testing.T) {
 		t.Fatalf("cancel took %v", d)
 	}
 }
+
+// TestSentFlag: Error.Sent is true only when the request reached the
+// server, and survives a later failed re-bootstrap.
+func TestSentFlag(t *testing.T) {
+	addCall := transport.Call{RPC: "sources.add", ID: "izAoDd", Params: []any{"x"}, SourcePath: "/"}
+	t.Run("HTTP 500 after the body was sent", func(t *testing.T) {
+		f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusInternalServerError) })
+		tr, _ := newTransport(t, f)
+		_, err := tr.Do(context.Background(), addCall)
+		var te *transport.Error
+		if !errors.As(err, &te) || te.Kind != transport.KindTransport || !te.Sent {
+			t.Fatalf("err = %#v, want TRANSPORT with Sent", err)
+		}
+	})
+	t.Run("bootstrap failure before sending", func(t *testing.T) {
+		f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) { io.WriteString(w, okBody) })
+		f.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadGateway) })
+		tr, _ := newTransport(t, f)
+		_, err := tr.Do(context.Background(), addCall)
+		var te *transport.Error
+		if !errors.As(err, &te) || te.Sent {
+			t.Fatalf("err = %#v, want Sent=false", err)
+		}
+		if f.posts.Load() != 0 {
+			t.Fatalf("posts = %d", f.posts.Load())
+		}
+	})
+	t.Run("sent drift then failed re-bootstrap stays Sent", func(t *testing.T) {
+		// okBody answers wXbhsf, so the izAoDd call decodes as drift.
+		f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) { io.WriteString(w, okBody) })
+		inner := f.srv.Config.Handler
+		var gets atomic.Int32
+		f.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" && gets.Add(1) > 1 {
+				w.WriteHeader(http.StatusBadGateway)
+				return
+			}
+			inner.ServeHTTP(w, r)
+		})
+		tr, _ := newTransport(t, f)
+		_, err := tr.Do(context.Background(), addCall)
+		var te *transport.Error
+		if !errors.As(err, &te) || !te.Sent {
+			t.Fatalf("err = %#v, want Sent=true (first attempt reached the server)", err)
+		}
+		if f.posts.Load() != 1 {
+			t.Fatalf("posts = %d, want 1", f.posts.Load())
+		}
+	})
+}

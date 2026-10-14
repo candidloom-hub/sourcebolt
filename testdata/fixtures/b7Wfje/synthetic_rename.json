@@ -1,0 +1,21 @@
+{
+ "rpc": "b7Wfje",
+ "synthetic": true,
+ "source": "synthetic: shaped from rpc-catalog consensus row, not live-verified",
+ "request": [
+  null,
+  [
+   "00000000-0000-4000-8000-0000000000aa"
+  ],
+  [
+   [
+    [
+     "title-2"
+    ]
+   ]
+  ]
+ ],
+ "response_body": ")]}'\n\n107\n[[\"wrb.fr\",\"b7Wfje\",\"[[[\\\"00000000-0000-4000-8000-0000000000aa\\\"],\\\"title-2\\\"]]\",null,null,null,\"generic\"]]\n",
+ "captured": "2026-10-14",
+ "host": "notebook.google.com"
+}

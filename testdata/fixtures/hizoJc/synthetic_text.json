@@ -1,0 +1,19 @@
+{
+ "rpc": "hizoJc",
+ "synthetic": true,
+ "source": "synthetic: shaped from rpc-catalog consensus row, not live-verified",
+ "request": [
+  [
+   "00000000-0000-4000-8000-0000000000aa"
+  ],
+  [
+   2
+  ],
+  [
+   2
+  ]
+ ],
+ "response_body": ")]}'\n\n223\n[[\"wrb.fr\",\"hizoJc\",\"[[[\\\"00000000-0000-4000-8000-0000000000aa\\\"],\\\"title-1\\\",[null,1]],null,null,[[[0,12,[[[0,12,[[\\\"text-1\\\"]]]]]],[13,25,[[[13,25,[[\\\"text-2\\\"]]]]]]]],[null,\\\"<p>text-1</p>\\\"]]\",null,null,null,\"generic\"]]\n",
+ "captured": "2026-10-14",
+ "host": "notebook.google.com"
+}

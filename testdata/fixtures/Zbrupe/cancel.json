@@ -1,0 +1,13 @@
+{
+  "rpc": "Zbrupe",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md Zbrupe (catalog consensus, not live-verified)",
+  "request": [
+    null,
+    null,
+    "task-1"
+  ],
+  "response_body": ")]}'\n\n61\n[[\"wrb.fr\",\"Zbrupe\",\"[]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}

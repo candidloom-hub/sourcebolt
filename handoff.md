@@ -4,11 +4,13 @@
 Build one Go NotebookLM MCP server that unites all upstream features, beats them on speed, and gets released. See CLAUDE.md and docs/mission-prompt.md.
 
 ## Current state
-- P1 core on branch feat/p1-core, pushed, CI green, NOT merged to main. Whole-branch Opus review done; all Important findings fixed with RED→GREEN tests.
-- Live capture done 2026-10-13 (21 sanitized fixtures); notebook payloads pinned to live shapes (HDR options block).
-- P1 Task 13 remaining: live smoke test. Cookie export from the owner lacked SID/HSID/APISID → signed-out page. Owner approved building `sourcebolt login --browser` (P4 Tasks 2+4) to read cookies directly from a dedicated browser profile.
-- In flight (3 parallel agents in git worktrees): login --browser (Opus), chat stream decoder (P2 T6 wire part), safety + jobs (P2 T1, T8). Merge each worktree branch into feat/p1-core after review.
-- Security follow-up for owner: first cookie file values passed through the chat transcript; owner should sign out other Google sessions after the new login works.
+- P1 merged to main via PR #1 (11ddd1f). Live smoke passes (login --attach; 9 notebooks; RTT p50 848 ms).
+- Branch feat/p2-tools (pushed, NOT merged): 26 MCP tools live; read tools verified live against the owner account (notebook_open, source_list, note_list, label_list, studio_list, chat_history, share_status, account_settings).
+- Merged on feat/p2-tools: chat Ask (streamed), research, notes, notebook delete, studio list/get, source read/update, router + in-page browser fetch wired into app (--no-browser-fallback / NOTEBOOKLM_BROWSER_FALLBACK=0), progress notifications, jobs.
+- In flight: notebook_create/update, chat_ask_many, auth tools (agent).
+- Blocked on next live capture: studio generate + media positions, deletes of sources/artifacts/chat/notes, source guide/refresh, Drive add, followups, label create/autolabel, GetOrCreateAccount, SetLanguage slot, research status values.
+- Known follow-ups: network errors (connection refused) are fallback-eligible and may launch a headless browser needlessly; ResponseHeaderTimeout 30 s vs stream first-chunk 5 min; deferred minors in ledger.
+- Security: owner to sign out other Google sessions (first cookie file passed through transcript) and delete notebook.google.com_cookies.txt.
 
 ## Files touched
 CLAUDE.md, .mcp.json, .gitignore, .gitattributes, handoff.md, docs/mission-prompt.md, research/*
@@ -20,6 +22,6 @@ See git log.
 Nothing blocking. Seeds authorityandbrand/notebooklm and idankatz64-commits/notebooklm-mcp-cli are 0-ahead forks (skipped as Tier B).
 
 ## Next steps
-1. Merge agent branches; run go test ./...; push; CI.
-2. Owner runs `sourcebolt login --browser` and signs in; then `go test -tags live ./internal/nlm -run TestLiveListNotebooks -v` → closes P1 Task 13.
-3. Finish P1 (finishing-a-development-branch: PR feat/p1-core → main), then P2 remaining tasks, P3, P4 rest, P5.
+1. Merge notebook_create agent; live chat_ask test on a fresh test notebook (create via notebook_create, ask, then owner deletes).
+2. Live capture session #2 (login --attach + in-page hook) for the blocked list above.
+3. PR feat/p2-tools → main; then P4 Task 5 (DOM fallback), P5 docs + release candidate (owner gate).

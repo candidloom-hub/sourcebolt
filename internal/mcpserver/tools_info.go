@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 
+	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -12,13 +13,14 @@ type ServerInfoIn struct {
 }
 
 type ServerInfoOut struct {
-	Name          string   `json:"name"`
-	Version       string   `json:"version"`
-	Profile       string   `json:"profile"`
-	Host          string   `json:"host"`
-	ToolProfile   string   `json:"tool_profile"`
-	Tools         []string `json:"tools"`
-	LastTransport string   `json:"last_transport,omitempty"`
+	Name          string     `json:"name"`
+	Version       string     `json:"version"`
+	Profile       string     `json:"profile"`
+	Host          string     `json:"host"`
+	ToolProfile   string     `json:"tool_profile"`
+	Tools         []string   `json:"tools"`
+	LastTransport string     `json:"last_transport,omitempty"`
+	Usage         *nlm.Quota `json:"usage,omitempty"`
 }
 
 func (s *server) registerInfo(m *mcp.Server) {
@@ -28,9 +30,17 @@ func (s *server) registerInfo(m *mcp.Server) {
 		Annotations: readOnly("Server info"),
 	}, func(ctx context.Context, in ServerInfoIn) (ServerInfoOut, error) {
 		last, _ := s.lastTransport.Load().(string)
-		return ServerInfoOut{
+		out := ServerInfoOut{
 			Name: version.Name, Version: version.Version, Profile: s.Profile, Host: string(s.Host),
 			ToolProfile: s.toolProfile, Tools: s.tools, LastTransport: last,
-		}, nil
+		}
+		if in.IncludeUsage {
+			q, err := s.NLM.Quota(ctx)
+			if err != nil {
+				return ServerInfoOut{}, err
+			}
+			out.Usage = &q
+		}
+		return out, nil
 	})
 }

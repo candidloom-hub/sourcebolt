@@ -19,6 +19,7 @@ import (
 func runCLI(t *testing.T, stdin string, args ...string) (int, string, string) {
 	t.Helper()
 	t.Setenv("NOTEBOOKLM_CONFIG_DIR", t.TempDir())
+	t.Setenv("NOTEBOOKLM_BROWSER_FALLBACK", "0") // tests must never launch a real browser
 	var out, errb bytes.Buffer
 	code := run(context.Background(), args, strings.NewReader(stdin), &out, &errb)
 	return code, out.String(), errb.String()
