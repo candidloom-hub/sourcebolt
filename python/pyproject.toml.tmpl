@@ -1,0 +1,24 @@
+# Template. scripts/build-wheels.py substitutes @VERSION@ and builds one wheel per platform
+# (py3-none-<platform tag>) containing the Go binary and the wrapper in src/sourcebolt.
+# It is the single source of wheel metadata; there is no sdist.
+[project]
+name = "sourcebolt"
+version = "@VERSION@"
+description = "Fast MCP server for Google NotebookLM (native binary wrapper)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+keywords = ["mcp", "notebooklm", "model-context-protocol"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Go",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/candidloom-hub/sourcebolt"
+Repository = "https://github.com/candidloom-hub/sourcebolt"
+
+[project.scripts]
+sourcebolt = "sourcebolt._launcher:main"
