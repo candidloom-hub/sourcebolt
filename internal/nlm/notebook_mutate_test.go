@@ -103,9 +103,14 @@ func TestRemoveFromRecent(t *testing.T) {
 
 func TestRemoveFromRecentInternalIsSuccess(t *testing.T) {
 	ft := newFake()
-	ft.errs["fejl7e"] = &transport.Error{Kind: transport.KindInternal, RPC: "notebooks.unrecent"}
+	ft.errs["fejl7e"] = &transport.Error{Kind: transport.KindInternal, RPC: "notebooks.unrecent", GRPCCode: 13}
 	if err := New(ft).RemoveFromRecent(context.Background(), mutNB); err != nil {
 		t.Fatal(err)
+	}
+	// An HTTP 4xx also maps to KindInternal but carries no gRPC code 13.
+	ft.errs["fejl7e"] = &transport.Error{Kind: transport.KindInternal, RPC: "notebooks.unrecent", Message: "HTTP 400"}
+	if err := New(ft).RemoveFromRecent(context.Background(), mutNB); err == nil {
+		t.Fatal("internal error without gRPC code 13 must surface")
 	}
 	ft.errs["fejl7e"] = &transport.Error{Kind: transport.KindAuth, RPC: "notebooks.unrecent"}
 	if err := New(ft).RemoveFromRecent(context.Background(), mutNB); err == nil {

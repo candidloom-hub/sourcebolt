@@ -61,6 +61,48 @@ func TestShareUpdateRequiresConfirm(t *testing.T) {
 	}
 }
 
+func TestShareUpdateNamesNotebook(t *testing.T) {
+	st := newStub()
+	st.payloads["QDyure"] = `[]`
+	cs := connect(t, st, "default")
+	for _, confirm := range []bool{false, true} {
+		var out ShareUpdateOut
+		res := call(t, cs, "share_update", map[string]any{"notebook": "shared research", "public": true, "confirm": confirm})
+		if err := json.Unmarshal([]byte(text(res)), &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.NotebookID != idC || out.NotebookTitle != "Shared research" {
+			t.Fatalf("confirm=%v: out = %s", confirm, text(res))
+		}
+	}
+}
+
+func TestShareUpdateRejectsFuzzyTitle(t *testing.T) {
+	st := newStub()
+	st.payloads["QDyure"] = `[]`
+	cs := connect(t, st, "default")
+	for _, args := range []map[string]any{
+		{"notebook": "research", "public": true, "confirm": true},
+		{"notebook": "research", "public": false},
+		{"notebook": "Q3", "users": []map[string]any{{"email": "b@x.com", "role": "remove"}}, "confirm": true},
+	} {
+		if e := envelope(t, call(t, cs, "share_update", args)); e.Code != "NOT_FOUND" || len(e.Suggestions) == 0 {
+			t.Fatalf("%v: envelope = %+v", args, e)
+		}
+	}
+	if n := st.count("QDyure"); n != 0 {
+		t.Fatalf("fuzzy match made %d share calls", n)
+	}
+	call(t, cs, "notebook_list", nil)
+	before := st.count("wXbhsf")
+	if res := call(t, cs, "share_update", map[string]any{"notebook": "shared research", "public": false}); res.IsError {
+		t.Fatalf("exact title: %s", text(res))
+	}
+	if st.count("wXbhsf") != before+1 {
+		t.Fatal("share_update must refresh the notebook list before resolving")
+	}
+}
+
 func TestShareUpdateNarrowingNeedsNoConfirm(t *testing.T) {
 	st := newStub()
 	st.payloads["QDyure"] = `[]`

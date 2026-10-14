@@ -30,6 +30,8 @@ type ShareUpdateIn struct {
 
 type ShareUpdateOut struct {
 	Status          string   `json:"status"` // preview | applied
+	NotebookID      string   `json:"notebook_id"`
+	NotebookTitle   string   `json:"notebook_title,omitempty"`
 	RequiresConfirm bool     `json:"requires_confirm,omitempty"`
 	Changes         []string `json:"changes"`
 	Guidance        string   `json:"guidance,omitempty"`
@@ -88,12 +90,13 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 		}
 		needConfirm = true
 	}
-	nb, err := s.resolveNotebook(ctx, in.Notebook)
+	it, err := s.resolveNotebookStrict(ctx, in.Notebook)
 	if err != nil {
 		return ShareUpdateOut{}, err
 	}
+	nb := it.ID
 	if needConfirm && !in.Confirm {
-		return ShareUpdateOut{Status: "preview", RequiresConfirm: true, Changes: changes,
+		return ShareUpdateOut{Status: "preview", NotebookID: nb, NotebookTitle: it.Title, RequiresConfirm: true, Changes: changes,
 			Guidance: "Nothing was changed. Repeat the call with confirm:true to apply."}, nil
 	}
 	u := nlm.ShareUpdate{Public: in.Public, Notify: in.Notify, Message: in.Message}
@@ -104,5 +107,5 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 		return ShareUpdateOut{}, err
 	}
 	s.invalidateNotebook(nb)
-	return ShareUpdateOut{Status: "applied", Changes: changes}, nil
+	return ShareUpdateOut{Status: "applied", NotebookID: nb, NotebookTitle: it.Title, Changes: changes}, nil
 }
