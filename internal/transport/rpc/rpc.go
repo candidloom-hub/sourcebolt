@@ -30,6 +30,7 @@ const (
 	backoffBase        = time.Second
 	backoffCap         = 30 * time.Second
 	defaultCallTimeout = 45 * time.Second
+	defaultHeaderWait  = 30 * time.Second
 
 	defaultStreamFirstChunk = 5 * time.Minute
 	defaultStreamIdle       = 5 * time.Minute
@@ -47,6 +48,11 @@ type Options struct {
 	Sleep       func(ctx context.Context, d time.Duration) error
 	CallTimeout time.Duration   // per-attempt deadline (default 45 s)
 	OnSaveError func(err error) // profile save failures (default: stderr)
+
+	// HeaderTimeout bounds the wait for response headers on a unary call
+	// (default 30 s). It is per request, not on the shared client, so the
+	// chat stream is bounded by StreamFirstChunk alone.
+	HeaderTimeout time.Duration
 
 	// Chat stream limits (Stream). Defaults: first chunk 5 min, idle 5 min
 	// between chunks, 15 min total, 1 MiB answer text.
@@ -82,6 +88,9 @@ func New(o Options) *Transport {
 	}
 	if o.CallTimeout <= 0 {
 		o.CallTimeout = defaultCallTimeout
+	}
+	if o.HeaderTimeout <= 0 {
+		o.HeaderTimeout = defaultHeaderWait
 	}
 	if o.StreamFirstChunk <= 0 {
 		o.StreamFirstChunk = defaultStreamFirstChunk
@@ -185,8 +194,11 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 	if err != nil {
 		return nil, t.fail(c, transport.KindInternal, false, err)
 	}
-	actx, cancel := context.WithTimeout(ctx, t.o.CallTimeout)
+	tctx, cancel := context.WithTimeout(ctx, t.o.CallTimeout)
 	defer cancel()
+	actx, cancelHdr := context.WithCancelCause(tctx)
+	defer cancelHdr(nil)
+	hdr := time.AfterFunc(t.o.HeaderTimeout, func() { cancelHdr(errHeaderTimeout) })
 	host := t.host()
 	req, err := http.NewRequestWithContext(actx, http.MethodPost, host.Origin()+batchPath+"?"+t.query(c, tok).Encode(), strings.NewReader(body))
 	if err != nil {
@@ -211,6 +223,7 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 		}
 	}()
 	resp, err := t.o.HTTP.Do(req)
+	hdr.Stop()
 	if resp != nil {
 		wrote.Store(true)
 	}

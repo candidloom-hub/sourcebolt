@@ -26,6 +26,8 @@ var (
 	errFirstChunk = errors.New("no first chunk before the deadline")
 	errIdle       = errors.New("stream idle between chunks too long")
 	errTotal      = errors.New("stream exceeded its total time limit")
+	// errHeaderTimeout cuts a unary call whose response headers are late.
+	errHeaderTimeout = errors.New("no response headers before the deadline")
 )
 
 var streamCall = transport.Call{RPC: "chat.ask", ID: "GenerateFreeFormStreamed"}
