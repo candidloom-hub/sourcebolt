@@ -70,6 +70,14 @@ type Error struct {
 	RetryAfter time.Duration
 	Transport  string
 	Cause      error
+
+	// Sent reports that the failure happened after the request body was
+	// written (or a response arrived), so the server may have applied the
+	// call. Default false: the request never left. Ruling (P4 Task 1): the
+	// Router never falls back for a non-idempotent call whose primary error
+	// has Sent set, because replaying it on another transport could apply a
+	// mutation twice (duplicate source, duplicate notebook).
+	Sent bool
 }
 
 func (e *Error) Error() string {
