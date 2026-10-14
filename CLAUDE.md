@@ -14,8 +14,8 @@ The work has three phases:
 
 ## Current state (2026-10-14)
 
-- GitHub remote: candidloom-hub/sourcebolt, still private. Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
-- `main` has P1 core (PR #1) and P2 tools (PR #8). Branch `feat/release` (P5 docs, registry metadata) is pushed, not merged. No tag yet, nothing published.
+- GitHub remote: candidloom-hub/sourcebolt, still private. Fresh repo created 2026-10-14 from history rewritten with git filter-repo (local path removed); the old repo is the private `candidloom-hub/sourcebolt-archive` (old PRs #1-#9, local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
+- `main` has P1 core and P2 tools. Branch `feat/release` (P5 docs, registry metadata) is pushed, not merged; PR candidloom-hub/sourcebolt#1. No tag yet, nothing published.
 - Release gate approved by the owner 2026-10-14: make repo public, merge feat/release, tag v0.1.0, publish. npm needs the owner's `NPM_TOKEN` secret; PyPI needs a trusted publisher set up by the owner.
 - Live capture #2 in progress; see `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 

@@ -7,8 +7,9 @@ Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache
 
 # Current state
 - Branches:
-  - **main** has P1 (PR #1) and P2 tools (PR #8).
-  - **feat/release** is pushed and NOT merged. Head is f9aca16: P5 docs, gendocs, registry metadata (`server.json`, npm `mcpName`, OCI label, README `mcp-name` comment).
+  - Repo is a fresh candidloom-hub/sourcebolt (private), built from history rewritten with git filter-repo to remove the owner's local path. Old repo: private candidloom-hub/sourcebolt-archive (old PRs #1-#9; local remote `archive`). All SHAs changed.
+  - **main** has P1 and P2 tools.
+  - **feat/release** is pushed and NOT merged; PR candidloom-hub/sourcebolt#1. P5 docs, gendocs, registry metadata (`server.json`, npm `mcpName`, OCI label, README `mcp-name` comment).
   - Tests, `goreleaser check` and the npm tests are green.
 - Nothing is released. No tag exists. The repo is still private.
 - Live verified:
@@ -21,8 +22,8 @@ Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache
   - `window.__sbhar` holds a skeletonized HAR (123K).
   - The clipboard export timed out because the tab was not focused.
   - We are waiting for the owner to front the tab, do the deletes, rename and chat-history delete, then say "done".
-- Dependabot PR #6: rebase requested.
-- Stale doc: CLAUDE.md "Current state" still says "P1 in progress on feat/p1-core" and "Repo private". Update it at the next session start.
+- Secret scan done: gitleaks v8.28.0 over all rewritten history, no leaks; custom grep for owner email, name, cookie values and capture ids, none.
+- Dependabot setup-go 7 PR lived in the old repo; Dependabot reopens it in the new repo on its own.
 
 # Files touched
 - `cmd/sourcebolt/{main,serve,call,login,status}.go`: CLI (serve/call/login/logout/status/doctor); help documents NOTEBOOKLM_BROWSER_FALLBACK=0.
@@ -77,12 +78,11 @@ Do NOT retry these.
    - Pin the shapes: R7cb6c configs, deletes, tr032e, hizoJc, CYK0Xb chat-save, cYAfTb, mixed izAoDd, EylDcb cost table.
    - Ask the owner to delete the capture notebook.
 3. **Release** (approved):
-   - Run a secret scan of the full history (gitleaks / GitHub secret scanning).
-   - Make the repo public, then merge feat/release → main via PR.
+   - Make the repo public, then merge feat/release → main via PR candidloom-hub/sourcebolt#1 once CI is green.
    - Tag v0.1.0. That produces a draft GH release and GHCR images.
    - npm needs the owner's `NPM_TOKEN` repo secret. PyPI needs the owner to configure a trusted publisher. Both are owner-held, so they cannot be automated.
    - Owner enables private vulnerability reporting.
-4. Rebase or merge Dependabot PR #6.
+4. Handle the Dependabot setup-go 7 PR when it reappears in the new repo.
 5. Engineering backlog:
    - P4 Task 5 DOM fallback.
    - B3 refresh path (3.3 ms on CI vs the 2 ms target).
