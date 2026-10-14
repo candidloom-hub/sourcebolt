@@ -3,10 +3,12 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/jobs"
@@ -14,6 +16,8 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/rpcids"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
+	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/candidloom-hub/sourcebolt/internal/transport/browser"
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
 )
 
@@ -23,6 +27,17 @@ type Config struct {
 	Profile   string       // NOTEBOOKLM_PROFILE, default "default"
 	Host      session.Host // NOTEBOOKLM_HOST overrides the profile's host
 	RPCIDs    string       // NOTEBOOKLM_RPC_IDS, default <config>/rpc-ids.json if present
+	// BrowserFallback enables the lazy headless-browser fallback transport.
+	// Default true; NOTEBOOKLM_BROWSER_FALLBACK=0 (or false/off/no) disables.
+	BrowserFallback bool
+}
+
+func browserFallbackFromEnv() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("NOTEBOOKLM_BROWSER_FALLBACK"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
 }
 
 // ConfigFromEnv reads the NOTEBOOKLM_* variables.
@@ -32,6 +47,8 @@ func ConfigFromEnv() (Config, error) {
 		Profile:   os.Getenv("NOTEBOOKLM_PROFILE"),
 		Host:      session.Host(os.Getenv("NOTEBOOKLM_HOST")),
 		RPCIDs:    os.Getenv("NOTEBOOKLM_RPC_IDS"),
+
+		BrowserFallback: browserFallbackFromEnv(),
 	}
 	if c.ConfigDir == "" {
 		base, err := os.UserConfigDir()
@@ -54,7 +71,9 @@ func (c Config) Store() session.Store {
 // Runtime is a fully wired server for one profile.
 type Runtime struct {
 	Deps      mcpserver.Deps
-	Transport *rpc.Transport
+	Transport *rpc.Transport      // the rpc transport (Warm, doctor)
+	Active    transport.Transport // what the nlm client calls: Router, or Transport when fallback is off
+	Router    *transport.Router   // nil when the browser fallback is disabled
 	Profile   *session.Profile
 	Store     session.Store
 }
@@ -79,18 +98,52 @@ func Build(c Config) (*Runtime, error) {
 	if p.Host == "" {
 		p.Host = session.HostDefault
 	}
-	return ForProfile(p, store), nil
+	var opts []Option
+	if c.BrowserFallback {
+		opts = append(opts, WithBrowserFallback(c.ConfigDir))
+	}
+	return ForProfile(p, store, opts...), nil
 }
 
-// ForProfile wires a runtime around an in-memory profile.
-func ForProfile(p *session.Profile, store session.Store) *Runtime {
-	tr := rpc.New(rpc.Options{Profile: p, Store: store, MaxRetries: 2})
-	return &Runtime{
-		Deps:      mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Jobs: jobs.New(), Profile: p.Name, Host: p.Host},
-		Transport: tr,
-		Profile:   p,
-		Store:     store,
+// Option customizes ForProfile.
+type Option func(*options)
+
+type options struct {
+	browserConfigDir string
+	browserFallback  bool
+	newBrowser       func(ctx context.Context) (transport.Transport, error) // tests
+}
+
+// WithBrowserFallback adds the lazy browser fallback; its profile dir is
+// <configDir>/browser/<profile>. No browser starts before the first call
+// that the fallback policy allows.
+func WithBrowserFallback(configDir string) Option {
+	return func(o *options) { o.browserConfigDir, o.browserFallback = configDir, true }
+}
+
+// ForProfile wires a runtime around an in-memory profile. Without options
+// the nlm client uses the bare rpc transport.
+func ForProfile(p *session.Profile, store session.Store, opts ...Option) *Runtime {
+	var o options
+	for _, f := range opts {
+		f(&o)
 	}
+	tr := rpc.New(rpc.Options{Profile: p, Store: store, MaxRetries: 2})
+	rt := &Runtime{Transport: tr, Active: tr, Profile: p, Store: store}
+	if o.browserFallback {
+		newBrowser := o.newBrowser
+		if newBrowser == nil {
+			bo := browser.FetchOptions(o.browserConfigDir, p.Name)
+			host := p.Host
+			newBrowser = func(context.Context) (transport.Transport, error) {
+				return browser.NewTransport(browser.NewLauncher(bo).Get, host), nil
+			}
+		}
+		rt.Router = transport.NewRouter(tr, newBrowser)
+		rt.Active = rt.Router
+	}
+	rt.Deps = mcpserver.Deps{NLM: nlm.New(rt.Active), Cache: cache.New(nil), Jobs: jobs.New(), Profile: p.Name, Host: p.Host}
+	return rt
 }
 
 func loadRPCOverrides(c Config) error {

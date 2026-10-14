@@ -8,7 +8,41 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
+
+type streamTransport struct{ fakeTransport }
+
+func (s *streamTransport) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+	onSnap(wire.Snapshot{Text: "partial"})
+	return wire.Snapshot{Text: "final " + nb}, nil
+}
+
+func TestRouterStreamPassesThroughToPrimaryWithoutFallback(t *testing.T) {
+	p := &streamTransport{fakeTransport{name: "rpc"}}
+	r := NewRouter(p, func(context.Context) (Transport, error) {
+		t.Fatal("fallback constructed for a stream")
+		return nil, nil
+	})
+	var seen []string
+	snap, err := r.Stream(t.Context(), "nb1", nil, func(s wire.Snapshot) { seen = append(seen, s.Text) })
+	if err != nil || snap.Text != "final nb1" || len(seen) != 1 || seen[0] != "partial" {
+		t.Fatalf("snap = %+v, seen = %v, err = %v", snap, seen, err)
+	}
+	if r.Name() != "rpc" {
+		t.Errorf("Name = %q", r.Name())
+	}
+}
+
+func TestRouterStreamUnsupportedWhenPrimaryCannotStream(t *testing.T) {
+	r := NewRouter(&fakeTransport{name: "rpc"}, nil)
+	_, err := r.Stream(t.Context(), "nb", nil, func(wire.Snapshot) {})
+	var te *Error
+	if !errors.As(err, &te) || te.Kind != KindUnsupported {
+		t.Fatalf("err = %v", err)
+	}
+}
 
 type fakeTransport struct {
 	name  string
@@ -84,7 +118,7 @@ func TestRouterPrimarySuccess(t *testing.T) {
 	if err != nil || res.Transport != "rpc" || r.Last() != "rpc" {
 		t.Fatalf("res = %+v, Last = %q, err = %v", res, r.Last(), err)
 	}
-	if r.Name() != "router" {
+	if r.Name() != "rpc" {
 		t.Errorf("Name = %q", r.Name())
 	}
 }
