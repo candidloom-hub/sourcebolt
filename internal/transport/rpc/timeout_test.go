@@ -86,3 +86,26 @@ func TestRefusedDialIsRecognised(t *testing.T) {
 		t.Fatalf("err = %v, ConnRefused = %v", err, transport.ConnRefused(err))
 	}
 }
+
+// Once the question reached Google it may be answered and billed, so every
+// stream error after the body was written must say Sent.
+func TestStreamErrorsAfterSendAreSent(t *testing.T) {
+	f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	tr, _ := newTransport(t, f)
+	tr.o.StreamFirstChunk = 60 * time.Millisecond
+	_, err := tr.Stream(context.Background(), "nb1", streamParams, nil)
+	if te := streamErr(t, err); !te.Sent {
+		t.Fatalf("first-chunk timeout after send: Sent = false (%v)", err)
+	}
+
+	f2 := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {})
+	tr2, _ := newTransport(t, f2)
+	f2.srv.Close()
+	_, err = tr2.Stream(context.Background(), "nb1", streamParams, nil)
+	if te := streamErr(t, err); te.Sent {
+		t.Fatalf("refused before send: Sent = true (%v)", err)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
@@ -41,7 +42,7 @@ var streamCall = transport.Call{RPC: "chat.ask", ID: "GenerateFreeFormStreamed"}
 // been answered (and billed) server side. Auth failures drop the cached
 // tokens so the next call re-bootstraps. Limits (Options): first chunk,
 // idle gap between chunks, total duration, answer text size.
-func (t *Transport) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+func (t *Transport) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (_ wire.Snapshot, err error) {
 	c := streamCall
 	c.SourcePath = notebookSourcePath(nb)
 	if err := t.o.Limiter.Wait(ctx); err != nil {
@@ -84,7 +85,26 @@ func (t *Transport) Stream(ctx context.Context, nb string, params any, onSnap fu
 		return wire.Snapshot{}, t.fail(c, transport.KindInternal, false, err)
 	}
 	t.setHeaders(req, host)
+	// Sent: once the body is written the question may be answered and
+	// billed, so every later error says so (see once in rpc.go).
+	var wrote atomic.Bool
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+		WroteRequest: func(i httptrace.WroteRequestInfo) {
+			if i.Err == nil {
+				wrote.Store(true)
+			}
+		},
+	}))
+	defer func() {
+		var te *transport.Error
+		if wrote.Load() && errors.As(err, &te) {
+			te.Sent = true
+		}
+	}()
 	resp, err := t.o.HTTP.Do(req)
+	if resp != nil {
+		wrote.Store(true)
+	}
 	if err != nil {
 		return wire.Snapshot{}, t.streamFail(ctx, sctx, c, err)
 	}
