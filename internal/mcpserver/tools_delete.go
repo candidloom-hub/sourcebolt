@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
-	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -52,19 +51,17 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	if len(in.IDs) == 0 {
 		return DeleteOut{}, badInput("ids is empty")
 	}
-	var items []resolve.Item
-	var titles []DeleteItem
-	all, err := s.notebooks(ctx, false)
+	// Resolve against a fresh list with strict rules (no title substrings):
+	// a stale or loose match must never pick the notebook that gets deleted.
+	items, err := s.notebookItems(ctx, true)
 	if err != nil {
 		return DeleteOut{}, err
 	}
-	for _, n := range all {
-		items = append(items, resolve.Item{ID: n.ID, Title: n.Title})
-	}
+	var titles []DeleteItem
 	ids := make([]string, 0, len(in.IDs))
 	seen := map[string]bool{}
 	for _, ref := range in.IDs {
-		it, err := resolve.Resolve(ref, items)
+		it, err := resolveStrict(ref, items)
 		if err != nil {
 			return DeleteOut{}, err
 		}

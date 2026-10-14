@@ -203,10 +203,12 @@ func (s *server) notebookUpdate(ctx context.Context, in NotebookUpdateIn) (Noteb
 	if in.Title != "" && strings.TrimSpace(in.Title) == "" {
 		return NotebookUpdateOut{}, badInput("title must not be blank")
 	}
-	nb, err := s.resolveNotebook(ctx, in.Notebook)
+	// A mutation: strict match against a fresh list, no title substrings.
+	it, err := s.resolveNotebookStrict(ctx, in.Notebook)
 	if err != nil {
 		return NotebookUpdateOut{}, err
 	}
+	nb := it.ID
 	out := NotebookUpdateOut{NotebookID: nb, Notes: notes}
 	if in.Title != "" {
 		err := s.NLM.RenameNotebook(ctx, nb, in.Title)

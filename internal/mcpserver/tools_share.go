@@ -88,10 +88,11 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 		}
 		needConfirm = true
 	}
-	nb, err := s.resolveNotebook(ctx, in.Notebook)
+	it, err := s.resolveNotebookStrict(ctx, in.Notebook)
 	if err != nil {
 		return ShareUpdateOut{}, err
 	}
+	nb := it.ID
 	if needConfirm && !in.Confirm {
 		return ShareUpdateOut{Status: "preview", RequiresConfirm: true, Changes: changes,
 			Guidance: "Nothing was changed. Repeat the call with confirm:true to apply."}, nil

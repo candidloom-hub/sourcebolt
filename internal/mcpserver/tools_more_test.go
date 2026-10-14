@@ -158,8 +158,25 @@ func TestNotebookUpdateInvalidatesList(t *testing.T) {
 	call(t, cs, "notebook_list", map[string]any{})
 	call(t, cs, "notebook_update", map[string]any{"notebook": idA, "title": "Q3 plan"})
 	call(t, cs, "notebook_list", map[string]any{})
-	if st.count("wXbhsf") != 2 {
+	// list, update's fresh resolve list, then list again after invalidation.
+	if st.count("wXbhsf") != 3 {
 		t.Fatalf("list calls = %d, cache not invalidated", st.count("wXbhsf"))
+	}
+}
+
+func TestNotebookUpdateRejectsFuzzyTitle(t *testing.T) {
+	st := moreStub()
+	cs := connect(t, st, "default")
+	for _, args := range []map[string]any{
+		{"notebook": "research", "remove_from_recent": true},
+		{"notebook": "research", "title": "New"},
+	} {
+		if e := envelope(t, call(t, cs, "notebook_update", args)); e.Code != "NOT_FOUND" || len(e.Suggestions) == 0 {
+			t.Fatalf("%v: envelope = %+v", args, e)
+		}
+	}
+	if st.count("fejl7e") != 0 || st.count("s0tc2d") != 0 {
+		t.Fatal("fuzzy match reached a mutation")
 	}
 }
 

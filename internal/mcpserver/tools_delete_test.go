@@ -3,14 +3,85 @@ package mcpserver
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func TestDeleteRejectsFuzzyTitle(t *testing.T) {
+	st := newStub()
+	st.payloads["WWINqb"] = `[]`
+	cs := connect(t, st, "default")
+	// "research" is a unique substring of "Shared research": fine for reads,
+	// never for a delete. "Q3" is a substring of two titles.
+	for ref, want := range map[string]string{"research": "Shared research (" + idC + ")", "Q3": "Q3 plan (" + idA + ")"} {
+		for _, confirm := range []bool{false, true} {
+			e := envelope(t, call(t, cs, "delete", map[string]any{"kind": "notebook", "ids": []string{ref}, "confirm": confirm}))
+			if e.Code != "NOT_FOUND" || !slices.Contains(e.Suggestions, want) {
+				t.Fatalf("%q confirm=%v: envelope = %+v", ref, confirm, e)
+			}
+		}
+	}
+	if st.count("WWINqb") != 0 {
+		t.Fatal("a fuzzy match reached the delete RPC")
+	}
+	// Exact id and exact title (any case) still resolve.
+	for _, ref := range []string{idC, "SHARED RESEARCH"} {
+		var out DeleteOut
+		res := call(t, cs, "delete", map[string]any{"kind": "notebook", "ids": []string{ref}})
+		if err := json.Unmarshal([]byte(text(res)), &out); err != nil || len(out.Items) != 1 || out.Items[0].ID != idC {
+			t.Fatalf("%q: %s", ref, text(res))
+		}
+	}
+}
+
+func TestResolveStrict(t *testing.T) {
+	items := []resolve.Item{
+		{ID: "7f00aa11-0000-4000-8000-000000000001", Title: "Q3 plan"},
+		{ID: "0b1c2d3e-0000-4000-8000-000000000002", Title: "Q3 planning notes"},
+		{ID: "0b1c2d3e-0000-4000-8000-000000000003", Title: "dup"},
+		{ID: "0b1c2d3e-0000-4000-8000-000000000004", Title: "DUP"},
+	}
+	for ref, want := range map[string]string{
+		items[1].ID: items[1].ID, // exact id
+		"7f00aa":    items[0].ID, // unique id prefix
+		"q3 PLAN":   items[0].ID, // exact title, any case
+	} {
+		if it, err := resolveStrict(ref, items); err != nil || it.ID != want {
+			t.Errorf("%q: got %+v, %v", ref, it, err)
+		}
+	}
+	var nf *resolve.ErrNotFound
+	if _, err := resolveStrict("planning", items); !errors.As(err, &nf) || len(nf.Suggestions) != 1 || nf.Suggestions[0].ID != items[1].ID {
+		t.Errorf("substring must be NOT_FOUND with a suggestion: %v", err)
+	}
+	if _, err := resolveStrict("7f00a", items); !errors.As(err, &nf) {
+		t.Errorf("short prefix: %v", err)
+	}
+	var amb *resolve.ErrAmbiguous
+	for _, ref := range []string{"dup", "0b1c2d"} {
+		if _, err := resolveStrict(ref, items); !errors.As(err, &amb) {
+			t.Errorf("%q: want ambiguous, got %v", ref, err)
+		}
+	}
+}
+
+func TestDeleteRefreshesNotebookList(t *testing.T) {
+	st := newStub()
+	cs := connect(t, st, "default")
+	call(t, cs, "notebook_list", nil)
+	call(t, cs, "delete", map[string]any{"kind": "notebook", "ids": []string{idC}})
+	if n := st.count("wXbhsf"); n != 2 {
+		t.Fatalf("list calls = %d, want 2 (delete must not resolve against the cache)", n)
+	}
+}
 
 // failDelete fails WWINqb calls for chosen notebook ids and passes the rest
 // to the stub.
@@ -105,8 +176,9 @@ func TestDeleteConfirmInvalidatesCache(t *testing.T) {
 		t.Fatalf("res = %s, calls %d", text(res), st.count("WWINqb"))
 	}
 	call(t, cs, "notebook_list", nil)
-	if n := st.count("wXbhsf"); n != 2 {
-		t.Fatalf("list calls = %d, want 2 (cache invalidated)", n)
+	// list, delete's fresh resolve list, then list again after invalidation.
+	if n := st.count("wXbhsf"); n != 3 {
+		t.Fatalf("list calls = %d, want 3 (cache invalidated)", n)
 	}
 }
 
