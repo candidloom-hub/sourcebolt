@@ -68,8 +68,8 @@ func register[In, Out any](s *server, m *mcp.Server, group string, t *mcp.Tool, 
 		return
 	}
 	s.tools = append(s.tools, t.Name)
-	mcp.AddTool(m, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		out, err := h(ctx, in)
+	mcp.AddTool(m, t, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+		out, err := h(withRequest(ctx, req), in)
 		if err != nil {
 			var zero Out
 			return nil, zero, toEnvelope(err)
