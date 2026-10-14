@@ -90,9 +90,20 @@ type diskProfile struct {
 
 func (s *fileStore) path(name, ext string) string { return filepath.Join(s.dir, name+ext) }
 
+// pathName is the rule every store operation enforces: the name is one
+// path element. Load and Delete use only this, so profiles saved before
+// validName got stricter can still be read and removed.
+func pathName(name string) error {
+	if name == "" || strings.ContainsAny(name, `/\:*?"<>|`) || strings.HasPrefix(name, ".") ||
+		strings.ContainsFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		return fmt.Errorf("session: invalid profile name %q", name)
+	}
+	return nil
+}
+
 // validName rejects profile names that are unsafe as file names on any
 // OS: path and wildcard characters, control characters, a leading dot or
-// space, a trailing dot or space (Windows strips them), and Windows device
+// space, a trailing dot or space (Windows path APIs strip them), and Windows device
 // names (CON, NUL, COM1 ...), which stay reserved with an extension.
 func validName(name string) error {
 	bad := name == "" || strings.ContainsAny(name, `/\:*?"<>|`) ||
@@ -126,7 +137,7 @@ func reservedDevice(name string) bool {
 }
 
 func (s *fileStore) Load(name string) (*Profile, error) {
-	if err := validName(name); err != nil {
+	if err := pathName(name); err != nil {
 		return nil, err
 	}
 	blob, err := os.ReadFile(s.path(name, profileExt))
@@ -148,8 +159,23 @@ func (s *fileStore) Load(name string) (*Profile, error) {
 	return &Profile{Name: name, Host: dp.Host, Jar: j, Rev: dp.Rev, Updated: dp.Updated, KeyInFile: inFile}, nil
 }
 
+// Save refuses a new profile whose name fails validName. A profile already
+// on disk under a name the older, looser rule allowed (e.g. "work ") is
+// still updated, so cookie rotation keeps working for it.
 func (s *fileStore) Save(p *Profile) error {
 	if err := validName(p.Name); err != nil {
+		if pathName(p.Name) != nil {
+			return err
+		}
+		if _, serr := os.Stat(s.path(p.Name, profileExt)); serr != nil {
+			return err
+		}
+	}
+	return s.save(p)
+}
+
+func (s *fileStore) save(p *Profile) error {
+	if err := pathName(p.Name); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
@@ -194,7 +220,7 @@ func (s *fileStore) Save(p *Profile) error {
 }
 
 func (s *fileStore) Delete(name string) error {
-	if err := validName(name); err != nil {
+	if err := pathName(name); err != nil {
 		return err
 	}
 	_ = s.kr.Delete(keyringService, name)
