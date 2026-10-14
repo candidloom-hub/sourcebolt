@@ -22,3 +22,15 @@ bin/
 *.test
 *.out
 coverage.*
+.superpowers/
+
+# Browser captures (contain session cookies)
+*.har
+
+# Agent worktrees
+.claude/worktrees/
+
+# Packaging
+!npm/launcher/bin/
+__pycache__/
+*.pyc

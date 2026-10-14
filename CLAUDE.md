@@ -15,7 +15,21 @@ The work has three phases:
 ## Current state (2026-10-14)
 
 - Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/sourcebolt.
-- Go 1.27 installed. No Go module yet. Add build, lint and test commands here once `go.mod` exists; do not guess them.
+- Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27). P1 in progress on branch `feat/p1-core`; ledger in `.superpowers/sdd/2026-10-14-p1-core/progress.md` (git-ignored).
+
+## Commands
+
+```bash
+go test ./... -race                          # all tests
+go test ./internal/wire -run TestDecode -v   # one package / one test
+go vet ./...
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/sourcebolt.exe ./cmd/sourcebolt
+go test -short ./...                         # skips the binary-building CLI test
+```
+
+`-race` needs cgo; this Windows machine has no C compiler, so race runs only in CI.
+
+CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` for streamable HTTP), `call <tool> '<json>'` (any MCP tool in-process), `login --browser [--browser-path exe] [--timeout 300s]` (visible window on dedicated profile `<config>/browser/<profile>`; human signs in), `login --attach <cdp-url>`, `login --import <file|->`, `logout`, `status`, `doctor`. Env: `NOTEBOOKLM_PROFILE`, `NOTEBOOKLM_HOST`, `NOTEBOOKLM_CONFIG_DIR`, `NOTEBOOKLM_RPC_IDS`, `SOURCEBOLT_BROWSER`. Browser tests: `go test -tags browser ./internal/transport/browser -v` (needs Brave/Chrome/Edge). Tests set `NOTEBOOKLM_CONFIG_DIR` to a temp dir so they never touch real profiles.
 - Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
 - Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. Approved 2026-10-14.
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.

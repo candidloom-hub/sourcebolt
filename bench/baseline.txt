@@ -1,0 +1,42 @@
+goos: windows
+goarch: amd64
+pkg: github.com/candidloom-hub/sourcebolt/internal/mcpserver
+cpu: 12th Gen Intel(R) Core(TM) i7-12650H
+BenchmarkToolCallNotebookList/refresh-16         	     100	  10404637 ns/op	   9699100 p50-ns	  19418800 p95-ns	 3346086 B/op	   45930 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  10534770 ns/op	   9325500 p50-ns	  17933200 p95-ns	 3345520 B/op	   45930 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  12370161 ns/op	  11936400 p50-ns	  16556400 p95-ns	 3356488 B/op	   45933 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  10995406 ns/op	  11007200 p50-ns	  18105600 p95-ns	 3356150 B/op	   45932 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     168	   7059939 ns/op	   6738900 p50-ns	  12356800 p95-ns	 3353275 B/op	   45931 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     170	   8048548 ns/op	   7503100 p50-ns	  13841700 p95-ns	 3359120 B/op	   45933 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     152	   8847790 ns/op	   7709500 p50-ns	  15334500 p95-ns	 3360177 B/op	   45934 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  10142134 ns/op	   9408000 p50-ns	  19547400 p95-ns	 3369463 B/op	   45936 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  11558550 ns/op	  10410100 p50-ns	  21215500 p95-ns	 3364649 B/op	   45935 allocs/op
+BenchmarkToolCallNotebookList/refresh-16         	     100	  11862909 ns/op	   9820500 p50-ns	  24183800 p95-ns	 3359821 B/op	   45934 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     339	   4033839 ns/op	   3061500 p50-ns	  11156500 p95-ns	  931137 B/op	    5818 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     384	   2809215 ns/op	   2237400 p50-ns	   6679200 p95-ns	  933085 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     781	   1421250 ns/op	   1064600 p50-ns	   4735900 p95-ns	  932575 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     937	   1491784 ns/op	   1046600 p50-ns	   5282400 p95-ns	  929986 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     962	   1475507 ns/op	   1078800 p50-ns	   5034800 p95-ns	  932929 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     825	   2381371 ns/op	   1800200 p50-ns	   7574000 p95-ns	  931699 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     558	   2089766 ns/op	   1567300 p50-ns	   5477600 p95-ns	  932594 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     927	   1836036 ns/op	   1555600 p50-ns	   5107200 p95-ns	  930646 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     699	   1961257 ns/op	   1565700 p50-ns	   6231500 p95-ns	  931635 B/op	    5819 allocs/op
+BenchmarkToolCallNotebookList/cached-16          	     855	   1328068 ns/op	   1040600 p50-ns	   5147900 p95-ns	  931536 B/op	    5819 allocs/op
+PASS
+ok  	github.com/candidloom-hub/sourcebolt/internal/mcpserver	27.364s
+goos: windows
+goarch: amd64
+pkg: github.com/candidloom-hub/sourcebolt/internal/wire
+cpu: 12th Gen Intel(R) Core(TM) i7-12650H
+BenchmarkDecode40KB-16    	    2571	    453552 ns/op	  372084 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    3195	    450575 ns/op	  372086 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2400	    602054 ns/op	  372133 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2456	    449293 ns/op	  372110 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2497	    579722 ns/op	  372101 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    3171	    495871 ns/op	  372086 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2646	    444175 ns/op	  372046 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2640	    516139 ns/op	  372057 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2025	    503030 ns/op	  372088 B/op	      93 allocs/op
+BenchmarkDecode40KB-16    	    2718	    432821 ns/op	  372073 B/op	      93 allocs/op
+PASS
+ok  	github.com/candidloom-hub/sourcebolt/internal/wire	14.497s

@@ -1,0 +1,72 @@
+name: bench
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BENCH_PKGS: ./internal/mcpserver ./internal/wire
+  BENCH_RE: ToolCallNotebookList|Decode40KB
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # B7 binary size (fails at 20 MB), B6 connection reuse (test assertion
+      # > 95%), B2 idle RSS (fails at 25 MB), B1 cold start (informational:
+      # shared runners are too noisy for a hard 30 ms gate).
+      - name: B7 binary size
+        run: bash bench/binsize.sh bin/sourcebolt
+      - name: B6 connection reuse
+        run: go test ./internal/transport/rpc -run TestConnectionReuse -v -count=1
+      - name: B2 idle RSS
+        run: go run ./bench/rss -bin bin/sourcebolt -check
+      - name: B1 cold start
+        run: go run ./bench/coldstart -bin bin/sourcebolt
+
+      - name: B3 and B4 benchmarks (head, count=10)
+        run: |
+          go test $BENCH_PKGS -run '^$' -bench "$BENCH_RE" -count=10 | tee raw.txt
+          grep -v -e '^---' -e 'bench_test.go' raw.txt > new.txt
+
+      # The committed bench/baseline.txt is a local (Windows) reference and
+      # is only used here when it was recorded on Linux. Otherwise the base
+      # branch is benchmarked on this same runner, which is the comparison
+      # that is actually fair. Either way new.txt is uploaded: commit it as
+      # bench/baseline.txt to start gating against a stored Linux baseline.
+      - name: Pick the baseline
+        id: base
+        run: |
+          if grep -q '^goos: linux' bench/baseline.txt 2>/dev/null; then
+            cp bench/baseline.txt old.txt
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = pull_request ] && git cat-file -e "origin/${{ github.base_ref }}:internal/wire/bench_test.go" 2>/dev/null; then
+            git worktree add "$RUNNER_TEMP/base" "origin/${{ github.base_ref }}"
+            (cd "$RUNNER_TEMP/base" && go test $BENCH_PKGS -run '^$' -bench "$BENCH_RE" -count=10 | grep -v -e '^---' -e 'bench_test.go') > old.txt
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Linux baseline and the base branch has no benchmarks yet; skipping the comparison."
+            echo "have=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: benchstat (fail on significant regression > 10%)
+        if: steps.base.outputs.have == 'true'
+        run: bash bench/compare.sh old.txt new.txt 10
+
+      - uses: actions/upload-artifact@v5.0.0
+        if: always()
+        with:
+          name: bench-linux
+          path: |
+            new.txt
+            old.txt

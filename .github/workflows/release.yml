@@ -1,0 +1,177 @@
+name: release
+
+# Triggers:
+#  - push of a v* tag: GoReleaser builds, signs and publishes the GitHub release (created as a
+#    DRAFT) and the ghcr.io images. npm and PyPI are NEVER published by a tag push.
+#  - workflow_dispatch: builds a snapshot (nothing published) and dry-runs the npm/PyPI
+#    packaging. npm/PyPI publish only when the matching input is true AND the workflow is run
+#    from a v* tag ("Use workflow from" = the tag).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: "Publish npm packages (requires running from a v* tag)"
+        type: boolean
+        default: false
+      publish_pypi:
+        description: "Publish PyPI wheels (requires running from a v* tag)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  packaging-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: node --test "npm/launcher/test/*.test.js" "scripts/*.test.mjs"
+      - run: python -I -m unittest discover -s python/tests -t python/tests
+
+  build:
+    needs: packaging-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # GitHub release (tag pushes only)
+      packages: write # ghcr.io (tag pushes only)
+      id-token: write # cosign keyless
+    outputs:
+      is_tag: ${{ steps.mode.outputs.is_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - id: mode
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then echo "is_tag=true" >> "$GITHUB_OUTPUT"; else echo "is_tag=false" >> "$GITHUB_OUTPUT"; fi
+      - run: go test ./... -short -race
+
+      # Tag push: full release.
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: sigstore/cosign-installer@v3
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: anchore/sbom-action/download-syft@v0
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: docker/setup-qemu-action@v3
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # workflow_dispatch from a tag: real version in the binaries, but nothing is published
+      # or signed here (npm/PyPI jobs below publish only if their input is true).
+      - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --skip=publish,sign,docker,sbom
+      # workflow_dispatch from a branch: snapshot build, nothing published or signed.
+      - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag != 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish,sign,docker,sbom
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/sourcebolt_*/
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          if-no-files-found: error
+
+  npm:
+    # Dry-run pack always (on dispatch); publish only on explicit opt-in from a tag.
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ (inputs.publish_npm && startsWith(github.ref, 'refs/tags/v')) && 'npm' || '' }}
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Build npm packages (dry-run pack)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VERSION="0.0.0"; fi
+          node scripts/npm-pack.mjs --version "$VERSION" --dist dist --out dist/npm
+      - name: Publish to npm
+        if: inputs.publish_npm && startsWith(github.ref, 'refs/tags/v')
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -e
+          for d in dist/npm/sourcebolt-*; do (cd "$d" && npm publish --access public --provenance); done
+          (cd dist/npm/sourcebolt && npm publish --access public --provenance)
+
+  pypi:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ (inputs.publish_pypi && startsWith(github.ref, 'refs/tags/v')) && 'pypi' || '' }}
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Build wheels and check them
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VERSION="0.0.0"; fi
+          python scripts/build-wheels.py --version "$VERSION" --dist dist --out dist/wheels
+          python -m pip install twine
+          python -m twine check dist/wheels/*.whl
+      - name: Publish to PyPI (trusted publishing)
+        if: inputs.publish_pypi && startsWith(github.ref, 'refs/tags/v')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/wheels
