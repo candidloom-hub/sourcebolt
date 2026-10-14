@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -93,7 +94,7 @@ func serveHTTP(ctx context.Context, srv *mcp.Server, addr, tokenFile string, std
 	}
 	h := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if o := r.Header.Get("Origin"); o != "" && !strings.HasPrefix(o, "http://127.0.0.1") && !strings.HasPrefix(o, "http://localhost") {
+		if o := r.Header.Get("Origin"); o != "" && !loopbackOrigin(o) {
 			http.Error(w, "forbidden origin", http.StatusForbidden)
 			return
 		}
@@ -116,4 +117,20 @@ func serveHTTP(ctx context.Context, srv *mcp.Server, addr, tokenFile string, std
 		return fail(stderr, err)
 	}
 	return 0
+}
+
+// loopbackOrigin reports whether a browser Origin header names this
+// machine: http or https with host localhost or a loopback IP. It parses
+// the URL, so localhost.evil.com and localhost@evil.com do not pass.
+func loopbackOrigin(o string) bool {
+	u, err := url.Parse(o)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return false
+	}
+	h := u.Hostname()
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
