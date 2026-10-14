@@ -154,3 +154,17 @@ func TestSourceToolAnnotations(t *testing.T) {
 		t.Errorf("title = %q", got["source_add"].Title)
 	}
 }
+
+// Adding a source changes the notebook's source count, so the cached
+// notebook list must be refreshed on the next read.
+func TestSourceAddInvalidatesNotebookCache(t *testing.T) {
+	st := newStub()
+	st.payloads["izAoDd"] = `[[` + srcRow + `]]`
+	cs := connect(t, st, "default")
+	call(t, cs, "notebook_list", nil)
+	call(t, cs, "source_add", map[string]any{"notebook": idA, "items": []any{map[string]any{"url": "https://93.184.216.34/page"}}})
+	call(t, cs, "notebook_list", nil)
+	if n := st.count("wXbhsf"); n != 2 {
+		t.Fatalf("notebook list fetched %d times, want 2 (cache invalidated by source_add)", n)
+	}
+}
