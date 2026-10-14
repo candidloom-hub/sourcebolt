@@ -53,6 +53,10 @@ func toEnvelope(err error) error {
 	case errors.As(err, &te):
 		env.Code, env.Retriable, env.Transport = te.Kind.Code(), te.Retriable, te.Transport
 		env.Guidance = guidance[te.Kind]
+		if te.Kind == transport.KindRateLimited && te.Transport == "" {
+			// No transport answered: the limit is ours (detached-job cap), not Google's.
+			env.Guidance = "Too many detached jobs are running. Check chat_status, cancel with job_cancel, or ask with wait=true."
+		}
 	case errors.As(err, &amb):
 		env.Code = "AMBIGUOUS"
 		env.Guidance = "Several items match. Pass an id or the exact title."
