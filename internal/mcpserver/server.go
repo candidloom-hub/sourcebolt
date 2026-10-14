@@ -57,6 +57,7 @@ func New(d Deps, toolProfile string) *mcp.Server {
 	s.registerStudio(m)   // tools_studio.go
 	s.registerDelete(m)   // tools_delete.go
 	s.registerJobs(m)     // tools_jobs.go
+	s.registerMore(m)     // tools_more.go
 	return m
 }
 
