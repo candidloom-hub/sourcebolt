@@ -1,5 +1,7 @@
 # sourcebolt
 
+<!-- mcp-name: io.github.candidloom-hub/sourcebolt -->
+
 A fast MCP server for Google NotebookLM, written in Go. One static binary, no runtime, starts in about 10 ms.
 
 > **Independent project.** sourcebolt is not affiliated with, endorsed by or sponsored by Google. "NotebookLM" is a trademark of Google LLC. NotebookLM has no public consumer API; sourcebolt uses the same internal web calls the NotebookLM site makes. See [Limits and risk](#limits-and-risk) before you rely on it.

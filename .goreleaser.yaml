@@ -89,6 +89,7 @@ dockers_v2:
       org.opencontainers.image.source: https://github.com/candidloom-hub/sourcebolt
       org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.licenses: Apache-2.0
+      io.modelcontextprotocol.server.name: io.github.candidloom-hub/sourcebolt
   - id: browser
     ids: [sourcebolt-browser]
     dockerfile: Dockerfile.browser
@@ -101,6 +102,7 @@ dockers_v2:
       org.opencontainers.image.source: https://github.com/candidloom-hub/sourcebolt
       org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.licenses: Apache-2.0
+      io.modelcontextprotocol.server.name: io.github.candidloom-hub/sourcebolt
 
 docker_signs:
   - cmd: cosign
