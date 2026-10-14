@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
@@ -28,6 +29,11 @@ const (
 	backoffBase        = time.Second
 	backoffCap         = 30 * time.Second
 	defaultCallTimeout = 45 * time.Second
+
+	defaultStreamFirstChunk = 5 * time.Minute
+	defaultStreamIdle       = 5 * time.Minute
+	defaultStreamTotal      = 15 * time.Minute
+	defaultStreamMaxAnswer  = 1 << 20
 )
 
 // Options configures a Transport. Zero values get defaults.
@@ -40,6 +46,13 @@ type Options struct {
 	Sleep       func(ctx context.Context, d time.Duration) error
 	CallTimeout time.Duration   // per-attempt deadline (default 45 s)
 	OnSaveError func(err error) // profile save failures (default: stderr)
+
+	// Chat stream limits (Stream). Defaults: first chunk 5 min, idle 5 min
+	// between chunks, 15 min total, 1 MiB answer text.
+	StreamFirstChunk time.Duration
+	StreamIdle       time.Duration
+	StreamTotal      time.Duration
+	StreamMaxAnswer  int
 }
 
 // Transport is the web RPC transport for one profile.
@@ -52,6 +65,7 @@ type Transport struct {
 	mu     sync.Mutex
 	tokens *session.Tokens
 	boot   singleflight.Group
+	reqid  atomic.Int64 // _reqid counter for the chat stream
 }
 
 // New builds a Transport. Callers share one HTTP client across profiles.
@@ -68,12 +82,28 @@ func New(o Options) *Transport {
 	if o.CallTimeout <= 0 {
 		o.CallTimeout = defaultCallTimeout
 	}
+	if o.StreamFirstChunk <= 0 {
+		o.StreamFirstChunk = defaultStreamFirstChunk
+	}
+	if o.StreamIdle <= 0 {
+		o.StreamIdle = defaultStreamIdle
+	}
+	if o.StreamTotal <= 0 {
+		o.StreamTotal = defaultStreamTotal
+	}
+	if o.StreamMaxAnswer <= 0 {
+		o.StreamMaxAnswer = defaultStreamMaxAnswer
+	}
 	if o.OnSaveError == nil {
 		o.OnSaveError = func(err error) {
 			fmt.Fprintln(os.Stderr, "sourcebolt: saving profile failed:", safety.Redact(err.Error()))
 		}
 	}
-	return &Transport{o: o}
+	t := &Transport{o: o}
+	// The web app starts _reqid at a random four-digit number and adds
+	// 100000 per request.
+	t.reqid.Store(int64(1000 + rand.IntN(9000)))
+	return t
 }
 
 func (t *Transport) Name() string         { return "rpc" }
@@ -149,17 +179,8 @@ func (t *Transport) once(ctx context.Context, c transport.Call) ([]byte, error) 
 	}
 	defer resp.Body.Close()
 	t.mergeCookies(resp)
-	switch {
-	case resp.StatusCode == http.StatusTooManyRequests:
-		e := t.fail(c, transport.KindRateLimited, true, fmt.Errorf("HTTP %s", resp.Status))
-		e.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
+	if e := t.statusErr(c, resp); e != nil {
 		return nil, e
-	case resp.StatusCode == http.StatusUnauthorized:
-		return nil, t.fail(c, transport.KindAuth, false, fmt.Errorf("HTTP %s", resp.Status))
-	case resp.StatusCode >= 500:
-		return nil, t.fail(c, transport.KindTransport, true, fmt.Errorf("HTTP %s", resp.Status))
-	case resp.StatusCode != http.StatusOK:
-		return nil, t.fail(c, transport.KindInternal, false, fmt.Errorf("HTTP %s", resp.Status))
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
@@ -177,6 +198,23 @@ func (t *Transport) once(ctx context.Context, c transport.Call) ([]byte, error) 
 		return nil, t.wireErr(err, c)
 	}
 	return payload, nil
+}
+
+// statusErr classifies a non-200 HTTP status; nil means 200 OK.
+func (t *Transport) statusErr(c transport.Call, resp *http.Response) *transport.Error {
+	switch {
+	case resp.StatusCode == http.StatusTooManyRequests:
+		e := t.fail(c, transport.KindRateLimited, true, fmt.Errorf("HTTP %s", resp.Status))
+		e.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
+		return e
+	case resp.StatusCode == http.StatusUnauthorized:
+		return t.fail(c, transport.KindAuth, false, fmt.Errorf("HTTP %s", resp.Status))
+	case resp.StatusCode >= 500:
+		return t.fail(c, transport.KindTransport, true, fmt.Errorf("HTTP %s", resp.Status))
+	case resp.StatusCode != http.StatusOK:
+		return t.fail(c, transport.KindInternal, false, fmt.Errorf("HTTP %s", resp.Status))
+	}
+	return nil
 }
 
 func (t *Transport) query(c transport.Call, tok session.Tokens) url.Values {
