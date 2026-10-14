@@ -78,6 +78,12 @@ type Error struct {
 	// has Sent set, because replaying it on another transport could apply a
 	// mutation twice (duplicate source, duplicate notebook).
 	Sent bool
+
+	// Unreachable reports that this machine could not reach the host at
+	// all: a direct (not proxied) connection the host refused. The Router
+	// does not fall back then, since the browser would fail the same way.
+	// A refused proxy is not Unreachable: the browser may use another route.
+	Unreachable bool
 }
 
 func (e *Error) Error() string {

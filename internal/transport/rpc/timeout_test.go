@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -83,8 +84,24 @@ func TestRefusedDialIsRecognised(t *testing.T) {
 	f.srv.Close()
 	_, err := tr.Do(context.Background(), listCall)
 	te := streamErr(t, err)
-	if te.Kind != transport.KindTransport || !transport.ConnRefused(err) {
-		t.Fatalf("err = %v, ConnRefused = %v", err, transport.ConnRefused(err))
+	if te.Kind != transport.KindTransport || !transport.ConnRefused(err) || !te.Unreachable {
+		t.Fatalf("err = %v, ConnRefused = %v, Unreachable = %v", err, transport.ConnRefused(err), te.Unreachable)
+	}
+}
+
+func TestRefusedProxyIsNotUnreachable(t *testing.T) {
+	f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {})
+	tr, _ := newTransport(t, f)
+	tr.o.MaxRetries = 0
+	dead, _ := url.Parse(f.srv.URL) // closed below: the "proxy" refuses
+	client := f.srv.Client()
+	client.Transport.(*http.Transport).Proxy = func(*http.Request) (*url.URL, error) { return dead, nil }
+	tr.o.HTTP = client
+	f.srv.Close()
+	_, err := tr.Do(context.Background(), listCall)
+	te := streamErr(t, err)
+	if !transport.ConnRefused(err) || te.Unreachable {
+		t.Fatalf("err = %v, Unreachable = %v", err, te.Unreachable)
 	}
 }
 

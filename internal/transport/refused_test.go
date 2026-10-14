@@ -35,7 +35,7 @@ func TestRouterNoFallbackOnConnectionRefused(t *testing.T) {
 		t.Fatalf("ConnRefused(%v) = false", dial)
 	}
 	cause := &url.Error{Op: "Post", URL: "https://notebooklm.google.com/x", Err: dial}
-	pe := &Error{Kind: KindTransport, RPC: "notebooks.list", Transport: "rpc", Cause: cause}
+	pe := &Error{Kind: KindTransport, RPC: "notebooks.list", Transport: "rpc", Cause: cause, Unreachable: true}
 	built := 0
 	r := NewRouter(&fakeTransport{name: "rpc", err: pe}, func(context.Context) (Transport, error) {
 		built++
@@ -57,5 +57,18 @@ func TestConnRefusedOnlyMatchesRefusal(t *testing.T) {
 		if ConnRefused(err) {
 			t.Errorf("ConnRefused(%v) = true", err)
 		}
+	}
+}
+
+// A refusal behind a proxy is not Unreachable: the browser may route
+// differently, so the fallback still runs.
+func TestRouterFallsBackOnRefusedProxy(t *testing.T) {
+	pe := &Error{Kind: KindTransport, RPC: "notebooks.list", Transport: "rpc", Cause: refusedDial(t)}
+	r := NewRouter(&fakeTransport{name: "rpc", err: pe}, func(context.Context) (Transport, error) {
+		return &fakeTransport{name: "browser"}, nil
+	})
+	res, err := r.Do(t.Context(), Call{RPC: "notebooks.list", Idempotent: true})
+	if err != nil || res.Transport != "browser" {
+		t.Fatalf("res = %+v, err = %v", res, err)
 	}
 }

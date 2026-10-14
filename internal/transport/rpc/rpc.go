@@ -447,7 +447,32 @@ func (t *Transport) save(apply func(*session.Jar)) {
 }
 
 func (t *Transport) fail(c transport.Call, k transport.Kind, retriable bool, err error) *transport.Error {
-	return &transport.Error{Kind: k, RPC: c.RPC, Retriable: retriable, Transport: t.Name(), Cause: stripURL(err)}
+	e := &transport.Error{Kind: k, RPC: c.RPC, Retriable: retriable, Transport: t.Name(), Cause: stripURL(err)}
+	e.Unreachable = k == transport.KindTransport && transport.ConnRefused(err) && !t.proxied()
+	return e
+}
+
+// proxied reports whether requests to the profile's host go through a
+// proxy. A refused proxy says nothing about the host, and the browser may
+// use another route, so such a refusal is not Unreachable.
+func (t *Transport) proxied() bool {
+	rt := t.o.HTTP.Transport
+	if rt == nil {
+		rt = http.DefaultTransport
+	}
+	ht, ok := rt.(*http.Transport)
+	if !ok {
+		return true // unknown RoundTripper: assume a route the browser may not share
+	}
+	if ht.Proxy == nil {
+		return false
+	}
+	u, err := url.Parse(t.host().Origin() + "/")
+	if err != nil {
+		return true
+	}
+	p, err := ht.Proxy(&http.Request{URL: u})
+	return err != nil || p != nil
 }
 
 // stripURL removes the query (f.sid, bl, rpcids) from *url.Error so request
