@@ -54,3 +54,9 @@ Size reductions before export: `wXbhsf` kept 3 notebook rows; the chat stream's 
 | stream frames | `wrb.fr` rows with a **null** rpc id; answer row `[text, null, [conv_id, response_id, n], null, rich_text...]`. |
 | hPTbtc | rows `[conv_id, created, updated]`. |
 | new ids | `vB2zic` `["notebooks/<id>", 7]`, `sODAg` `[]` (artifact quota), `ozz5Z` with `[[[null,"1",627],...]]` fires on load (not add-URL). |
+
+### Live smoke test
+
+| Date | Login method | Result | List notebooks RTT (10 calls) |
+|---|---|---|---|
+| 2026-10-14 | `login --attach` (owner signed in to a plain Brave on a dedicated profile; `login --browser` was blocked by Google's "browser may not be secure" check because chromedp-launched browsers expose `navigator.webdriver`) | PASS, 9 notebooks | p50 848 ms, p95 1.04 s (Google round trip; our decode is ~0.5 ms) |
