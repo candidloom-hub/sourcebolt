@@ -114,17 +114,13 @@ func TestDeleteBlockedAndBadInput(t *testing.T) {
 	st := newStub()
 	st.payloads["cFji9"] = notesPayload
 	cs := connect(t, st, "default")
-	// A note preview works; the confirmed call surfaces UNSUPPORTED.
-	var out DeleteOut
-	res := call(t, cs, "delete", map[string]any{"kind": "note", "notebook": idA, "ids": []string{"first"}})
-	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || out.Status != "preview" || out.Items[0].ID != "n1" {
-		t.Fatalf("preview = %s (%v)", text(res), err)
-	}
-	e := envelope(t, call(t, cs, "delete", map[string]any{"kind": "note", "notebook": idA, "ids": []string{"n1"}, "confirm": true}))
-	if e.Code != "UNSUPPORTED_BY_TRANSPORT" {
-		t.Fatalf("envelope = %+v", e)
-	}
+	// Kinds that cannot be deleted yet fail before any preview or lookup.
 	for _, args := range []map[string]any{
+		{"kind": "note", "notebook": idA, "ids": []string{"first"}},
+		{"kind": "note", "notebook": idA, "ids": []string{"n1"}, "confirm": true},
+		{"kind": "source", "notebook": idA, "ids": []string{"s1"}},
+		{"kind": "source", "ids": []string{"x"}},
+		{"kind": "artifact", "notebook": idA, "ids": []string{"a1"}},
 		{"kind": "label", "notebook": idA, "ids": []string{"L1"}},
 		{"kind": "collection", "ids": []string{"x"}},
 		{"kind": "chat_history", "notebook": idA, "ids": []string{"x"}},
@@ -133,10 +129,12 @@ func TestDeleteBlockedAndBadInput(t *testing.T) {
 			t.Fatalf("%v: envelope = %+v", args, e)
 		}
 	}
+	if n := len(st.calls); n != 0 {
+		t.Fatalf("blocked kinds made %d calls", n)
+	}
 	for _, args := range []map[string]any{
 		{"kind": "bogus", "ids": []string{"x"}},
 		{"kind": "notebook", "ids": []string{}},
-		{"kind": "source", "ids": []string{"x"}},
 	} {
 		if e := envelope(t, call(t, cs, "delete", args)); e.Code != "INVALID_ARGUMENT" {
 			t.Fatalf("%v: envelope = %+v", args, e)

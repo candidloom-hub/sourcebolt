@@ -41,37 +41,25 @@ func (s *server) registerDelete(m *mcp.Server) {
 
 func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	switch in.Kind {
-	case "notebook", "source", "note", "artifact":
-	case "chat_history", "label", "collection":
-		return DeleteOut{}, unsupported("delete."+in.Kind, "deleting %s is not supported yet", in.Kind)
+	case "notebook":
+	case "source", "note", "artifact", "chat_history", "label", "collection":
+		// Checked before any lookup so no fake preview is shown for a kind
+		// that cannot be deleted.
+		return DeleteOut{}, unsupported("delete."+in.Kind, "deleting %s is not supported yet (payload not pinned by a live capture)", in.Kind)
 	default:
 		return DeleteOut{}, badInput("kind must be notebook, source, note, artifact, chat_history, label or collection, got %q", in.Kind)
 	}
 	if len(in.IDs) == 0 {
 		return DeleteOut{}, badInput("ids is empty")
 	}
-	var nb string
 	var items []resolve.Item
 	var titles []DeleteItem
-	if in.Kind == "notebook" {
-		all, err := s.notebooks(ctx, false)
-		if err != nil {
-			return DeleteOut{}, err
-		}
-		for _, n := range all {
-			items = append(items, resolve.Item{ID: n.ID, Title: n.Title})
-		}
-	} else {
-		if in.Notebook == "" {
-			return DeleteOut{}, badInput("notebook is required to delete a %s", in.Kind)
-		}
-		var err error
-		if nb, err = s.resolveNotebook(ctx, in.Notebook); err != nil {
-			return DeleteOut{}, err
-		}
-		if items, err = s.deletable(ctx, in.Kind, nb); err != nil {
-			return DeleteOut{}, err
-		}
+	all, err := s.notebooks(ctx, false)
+	if err != nil {
+		return DeleteOut{}, err
+	}
+	for _, n := range all {
+		items = append(items, resolve.Item{ID: n.ID, Title: n.Title})
 	}
 	ids := make([]string, 0, len(in.IDs))
 	seen := map[string]bool{}
@@ -91,12 +79,9 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 		return DeleteOut{Status: "preview", Kind: in.Kind, Items: titles,
 			Guidance: "Nothing was deleted. Repeat the call with confirm:true to delete these items."}, nil
 	}
-	results, err := s.NLM.Delete(ctx, in.Kind, nb, ids)
-	s.invalidateNotebook(nb)
+	results, err := s.NLM.Delete(ctx, in.Kind, "", ids)
 	for _, id := range ids {
-		if in.Kind == "notebook" {
-			s.invalidateNotebook(id)
-		}
+		s.invalidateNotebook(id)
 	}
 	if err != nil {
 		return DeleteOut{}, err
@@ -141,36 +126,4 @@ func deleteOutcome(kind string, titles []DeleteItem, results []nlm.DeleteResult)
 		out.Guidance = "Some items were not deleted; see each item's status and error."
 	}
 	return out, nil
-}
-
-// deletable lists the items of one notebook-scoped kind for id and title resolution.
-func (s *server) deletable(ctx context.Context, kind, nb string) ([]resolve.Item, error) {
-	var items []resolve.Item
-	switch kind {
-	case "source":
-		srcs, err := s.NLM.ListSources(ctx, nb)
-		if err != nil {
-			return nil, err
-		}
-		for _, x := range srcs {
-			items = append(items, resolve.Item{ID: x.ID, Title: x.Title})
-		}
-	case "note":
-		notes, err := s.NLM.ListNotes(ctx, nb)
-		if err != nil {
-			return nil, err
-		}
-		for _, n := range notes {
-			items = append(items, resolve.Item{ID: n.ID, Title: n.Title})
-		}
-	case "artifact":
-		arts, err := s.NLM.ListArtifacts(ctx, nb)
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range arts {
-			items = append(items, resolve.Item{ID: a.ID, Title: a.Title})
-		}
-	}
-	return items, nil
 }
