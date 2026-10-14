@@ -1,0 +1,11 @@
+# Browser-fallback image: sourcebolt built with -tags browser on top of headless Chrome.
+# Pin HEADLESS_SHELL_VERSION (ideally by digest) before a real release.
+ARG HEADLESS_SHELL_VERSION=latest
+FROM chromedp/headless-shell:${HEADLESS_SHELL_VERSION}
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/sourcebolt /usr/local/bin/sourcebolt
+ENV NOTEBOOKLM_CONFIG_DIR=/config
+VOLUME ["/config"]
+# The base image's entrypoint launches headless-shell; replace it.
+ENTRYPOINT ["/usr/local/bin/sourcebolt"]
+CMD ["serve"]

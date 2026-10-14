@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# GoReleaser OSS only. npm publishing (Pro-only) is handled by scripts/npm-pack.mjs,
+# PyPI wheels by scripts/build-wheels.py. Nothing here publishes unless run by
+# .github/workflows/release.yml on a v* tag.
+version: 2
+project_name: sourcebolt
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: sourcebolt
+    main: ./cmd/sourcebolt
+    binary: sourcebolt
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/candidloom-hub/sourcebolt/internal/version.Version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # Linux-only build with the browser fallback compiled in, for the :<ver>-browser image.
+  - id: sourcebolt-browser
+    main: ./cmd/sourcebolt
+    binary: sourcebolt
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -tags=browser
+    ldflags:
+      - -s -w -X github.com/candidloom-hub/sourcebolt/internal/version.Version={{.Version}}
+    goos: [linux]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [sourcebolt]
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# One SBOM per archive; needs `syft` on PATH (installed in the release workflow).
+sboms:
+  - id: archive-sbom
+    artifacts: archive
+    documents:
+      - "${artifact}.cdx.json"
+    cmd: syft
+    args: ["$artifact", "--output", "cyclonedx-json=$document"]
+
+# Keyless cosign signature over the checksum file (OIDC identity of the workflow).
+signs:
+  - id: cosign-checksums
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --yes
+      - --bundle=${signature}
+      - ${artifact}
+    artifacts: checksum
+    output: true
+
+dockers_v2:
+  - id: rpc
+    ids: [sourcebolt]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/candidloom-hub/sourcebolt
+    tags:
+      - "{{ .Version }}"
+    platforms: [linux/amd64, linux/arm64]
+    labels:
+      org.opencontainers.image.source: https://github.com/candidloom-hub/sourcebolt
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.licenses: Apache-2.0
+  - id: browser
+    ids: [sourcebolt-browser]
+    dockerfile: Dockerfile.browser
+    images:
+      - ghcr.io/candidloom-hub/sourcebolt
+    tags:
+      - "{{ .Version }}-browser"
+    platforms: [linux/amd64, linux/arm64]
+    labels:
+      org.opencontainers.image.source: https://github.com/candidloom-hub/sourcebolt
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.licenses: Apache-2.0
+
+docker_signs:
+  - cmd: cosign
+    artifacts: images
+    args:
+      - sign
+      - --yes
+      - ${artifact}@${digest}
+    output: true
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\(.+\))?:'
+      - '^test(\(.+\))?:'
+      - '^chore(\(.+\))?:'
+
+# Created as a draft so a human reviews it before it becomes visible.
+release:
+  github:
+    owner: candidloom-hub
+    name: sourcebolt
+  draft: true
+  prerelease: auto

@@ -29,3 +29,8 @@ coverage.*
 
 # Agent worktrees
 .claude/worktrees/
+
+# Packaging
+!npm/launcher/bin/
+__pycache__/
+*.pyc
