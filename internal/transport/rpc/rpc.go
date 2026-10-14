@@ -140,6 +140,10 @@ func (t *Transport) Do(ctx context.Context, c transport.Call) (transport.Result,
 		}
 		sent = sent || te.Sent
 		switch {
+		case te.Kind == transport.KindDrift && te.Sent && !c.Idempotent:
+			// The first attempt reached the server and may have been
+			// applied; resending a write could duplicate it.
+			return transport.Result{}, te
 		case (te.Kind == transport.KindAuth || te.Kind == transport.KindDrift) && !refetched:
 			refetched = true
 			t.reloadIfNewer()
