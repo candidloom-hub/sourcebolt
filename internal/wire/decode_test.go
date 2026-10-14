@@ -209,3 +209,26 @@ func TestSegments(t *testing.T) {
 		t.Fatal("html must error")
 	}
 }
+
+func TestNodeMatchesAccessors(t *testing.T) {
+	v := []byte(`[["title",3,"id-1",null,[1.5,"x",[7,8]]],[null,[5,"y"]]]`)
+	n, err := Parse(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.At(0, 0).Str() != Str(v, 0, 0) || n.At(1, 1, 1).Str() != "y" {
+		t.Fatal("Str mismatch")
+	}
+	if i, ok := n.At(0, 4, 2, 1).Int(); !ok || i != 8 {
+		t.Fatalf("Int = %d %v", i, ok)
+	}
+	if !n.At(0, 3).IsNull() || !n.At(9).IsNull() || !n.At(0, 0, 1).IsNull() {
+		t.Fatal("missing, null and non-array steps must be null")
+	}
+	if n.At(0).Len() != 5 || len(n.At(0, 4).Elems()) != 3 || n.At(0, 0).Len() != 0 {
+		t.Fatal("Len/Elems mismatch")
+	}
+	if _, err := Parse([]byte(`[1,`)); err == nil {
+		t.Fatal("invalid JSON must error")
+	}
+}

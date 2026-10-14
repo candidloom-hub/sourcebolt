@@ -3,6 +3,7 @@ package nlm
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,7 +61,14 @@ func (c *Client) ListNotebooks(ctx context.Context) ([]Notebook, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows := wire.Elems(p, 0)
+	if p == nil {
+		return []Notebook{}, nil
+	}
+	root, err := wire.Parse(p)
+	if err != nil {
+		return nil, fmt.Errorf("nlm: decode notebook list: %w", err)
+	}
+	rows := root.At(0).Elems()
 	out := make([]Notebook, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, parseNotebookRow(r))
@@ -70,19 +78,29 @@ func (c *Client) ListNotebooks(ctx context.Context) ([]Notebook, error) {
 
 // row: [title, sources, id, emoji, null, meta]; meta[0] 1 mine / 2 shared,
 // meta[5] modified [s, ns], meta[8] created [s, ns].
-func parseNotebookRow(r jsontext.Value) Notebook {
+func parseNotebookRow(r wire.Node) Notebook {
 	n := Notebook{
-		Title:       wire.Str(r, 0),
-		SourceCount: len(wire.Elems(r, 1)),
-		ID:          wire.Str(r, 2),
-		Emoji:       wire.Str(r, 3),
+		Title:       r.At(0).Str(),
+		SourceCount: r.At(1).Len(),
+		ID:          r.At(2).Str(),
+		Emoji:       r.At(3).Str(),
 	}
-	if own, ok := wire.Int(r, 5, 0); ok {
+	if own, ok := r.At(5, 0).Int(); ok {
 		n.Owned = own == 1
 	}
-	n.Modified = stamp(r, 5, 5)
-	n.Created = stamp(r, 5, 8)
+	n.Modified = stampNode(r.At(5, 5))
+	n.Created = stampNode(r.At(5, 8))
 	return n
+}
+
+// stampNode reads a [seconds, nanos] pair.
+func stampNode(n wire.Node) time.Time {
+	sec, ok := n.At(0).Int()
+	if !ok {
+		return time.Time{}
+	}
+	ns, _ := n.At(1).Int()
+	return time.Unix(sec, ns)
 }
 
 func stamp(v jsontext.Value, path ...int) time.Time {
@@ -114,9 +132,13 @@ func (c *Client) GetNotebook(ctx context.Context, id string) (NotebookDetail, er
 		return NotebookDetail{}, err
 	}
 	d := NotebookDetail{Notebook: Notebook{ID: id}, Sources: []Source{}}
-	if row, ok := wire.At(p, 0); ok {
+	root, perr := wire.Parse(p)
+	if p != nil && perr != nil {
+		return NotebookDetail{}, fmt.Errorf("nlm: decode notebook: %w", perr)
+	}
+	if row := root.At(0); !row.IsNull() {
 		d.Notebook = parseNotebookRow(row)
-		for _, s := range wire.Elems(row, 1) {
+		for _, s := range row.At(1).Elems() {
 			d.Sources = append(d.Sources, parseSource(s))
 		}
 		d.SourceCount = len(d.Sources)
@@ -138,7 +160,7 @@ func (c *Client) GetNotebook(ctx context.Context, id string) (NotebookDetail, er
 }
 
 // source: [[sid], title, meta, [null, status]]
-func parseSource(s jsontext.Value) Source {
-	st, _ := wire.Int(s, 3, 1)
-	return Source{ID: wire.Str(s, 0, 0), Title: wire.Str(s, 1), Status: SourceStatus(st)}
+func parseSource(s wire.Node) Source {
+	st, _ := s.At(3, 1).Int()
+	return Source{ID: s.At(0, 0).Str(), Title: s.At(1).Str(), Status: SourceStatus(st)}
 }
