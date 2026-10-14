@@ -1,0 +1,17 @@
+{
+  "rpc": "Ljjv0c",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md Ljjv0c (catalog consensus, not live-verified)",
+  "request": [
+    [
+      "quarterly plan",
+      2
+    ],
+    null,
+    1,
+    "0b1c2d3e-0000-4000-8000-000000000001"
+  ],
+  "response_body": ")]}'\n\n76\n[[\"wrb.fr\",\"Ljjv0c\",\"[\\\"task-fast-2\\\"]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}

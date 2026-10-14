@@ -1,0 +1,68 @@
+{
+  "rpc": "LBwxtb",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md LBwxtb (catalog consensus, not live-verified)",
+  "request": [
+    null,
+    [
+      1
+    ],
+    "task-1",
+    "0b1c2d3e-0000-4000-8000-000000000001",
+    [
+      [
+        null,
+        null,
+        [
+          "https://example.com/a",
+          "Example A"
+        ],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        2
+      ],
+      [
+        [
+          "drive-doc-1",
+          "application/vnd.google-apps.document",
+          1,
+          "Plan doc"
+        ],
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        2
+      ],
+      [
+        null,
+        [
+          "Deep report",
+          "# Findings\ntext-1"
+        ],
+        null,
+        3,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        3
+      ]
+    ]
+  ],
+  "response_body": ")]}'\n\n147\n[[\"wrb.fr\",\"LBwxtb\",\"[[[[\\\"src-a\\\"],\\\"Example A\\\"],[[\\\"src-b\\\"],\\\"Plan doc\\\"],[[\\\"src-c\\\"],\\\"Deep report\\\"]]]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}
