@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -58,7 +57,7 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		return fail(stderr, err)
 	}
 	if !jar.Valid() {
-		return fail(stderr, errors.New("missing required cookies: need SID, __Secure-1PSIDTS and OSID (or APISID + SAPISID); export all google.com cookies"))
+		return fail(stderr, fmt.Errorf("missing required cookies: %s. Export every google.com cookie, including the plain SID, HSID and APISID ones, not only the __Secure- ones", strings.Join(jar.Missing(), ", ")))
 	}
 
 	// Validate with a real call before saving, so a bad export never

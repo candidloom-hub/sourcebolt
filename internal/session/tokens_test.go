@@ -102,3 +102,13 @@ func TestIsNotebookHost(t *testing.T) {
 		}
 	}
 }
+
+// Live behavior 2026-10-14: with incomplete cookies Google answers 200 with
+// the signed-out app shell (WIZ_global_data present, no SNlM0e, no email).
+func TestBootstrapSignedOutShell(t *testing.T) {
+	page := fixture(t, "signed_out_shell.html")
+	srv, h := pageServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write(page) })
+	if _, err := Bootstrap(context.Background(), srv.Client(), h); !errors.Is(err, ErrSignedOut) {
+		t.Fatalf("got %v, want ErrSignedOut", err)
+	}
+}

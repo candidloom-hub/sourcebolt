@@ -136,3 +136,23 @@ func TestJarReplace(t *testing.T) {
 		t.Fatalf("header = %q", h)
 	}
 }
+
+// Live check 2026-10-14: an export with __Secure-1PSID but without SID,
+// HSID and APISID got the signed-out page. SID stays required, and the
+// error must say exactly what is missing.
+func TestMissingNamesRequiredCookies(t *testing.T) {
+	j := jarOf(ck("__Secure-1PSID", "p", ".google.com"), ck("__Secure-1PSIDTS", "t", ".google.com"), ck("OSID", "o", "notebook.google.com"))
+	if j.Valid() {
+		t.Fatal("a jar without SID must be invalid")
+	}
+	if got := strings.Join(j.Missing(), ","); got != "SID" {
+		t.Fatalf("Missing() = %q, want SID", got)
+	}
+	none := jarOf(ck("NID", "n", ".google.com"))
+	if got := strings.Join(none.Missing(), ","); got != "SID,__Secure-1PSIDTS,OSID or APISID+SAPISID" {
+		t.Fatalf("Missing() = %q", got)
+	}
+	if full := testProfile().Jar; len(full.Missing()) != 0 || !full.Valid() {
+		t.Fatalf("complete jar: Missing() = %v", full.Missing())
+	}
+}

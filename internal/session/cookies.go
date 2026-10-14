@@ -126,8 +126,20 @@ func (j *Jar) Has(names ...string) bool {
 
 // Valid applies the minimum cookie set NotebookLM accepts:
 // SID + __Secure-1PSIDTS, plus OSID or APISID+SAPISID.
-func (j *Jar) Valid() bool {
-	return j.Has("SID", "__Secure-1PSIDTS") && (j.Has("OSID") || j.Has("APISID", "SAPISID"))
+func (j *Jar) Valid() bool { return len(j.Missing()) == 0 }
+
+// Missing lists the required cookies the jar lacks, for error messages.
+func (j *Jar) Missing() []string {
+	var miss []string
+	for _, n := range []string{"SID", "__Secure-1PSIDTS"} {
+		if !j.Has(n) {
+			miss = append(miss, n)
+		}
+	}
+	if !j.Has("OSID") && !j.Has("APISID", "SAPISID") {
+		miss = append(miss, "OSID or APISID+SAPISID")
+	}
+	return miss
 }
 
 // Cookies implements http.CookieJar.

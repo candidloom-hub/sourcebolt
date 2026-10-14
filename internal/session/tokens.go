@@ -85,6 +85,11 @@ func Bootstrap(ctx context.Context, c *http.Client, h Host) (Tokens, error) {
 		Fetched: time.Now(),
 	}
 	if tok.AT == "" {
+		if tok.Email == "" {
+			// No CSRF token and no account: Google served the signed-out
+			// app shell with 200 instead of redirecting to sign-in.
+			return tok, fmt.Errorf("%w (signed-out page)", ErrSignedOut)
+		}
 		return tok, ErrPageDrift
 	}
 	return tok, nil
