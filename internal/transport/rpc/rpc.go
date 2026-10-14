@@ -7,11 +7,13 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
@@ -97,6 +99,7 @@ func (t *Transport) host() session.Host {
 // limits are returned, never retried here.
 func (t *Transport) Do(ctx context.Context, c transport.Call) (transport.Result, error) {
 	refetched := false
+	sent := false // some attempt reached the server: the call may be applied
 	for attempt := 0; ; attempt++ {
 		payload, err := t.once(ctx, c)
 		if err == nil {
@@ -104,14 +107,15 @@ func (t *Transport) Do(ctx context.Context, c transport.Call) (transport.Result,
 		}
 		var te *transport.Error
 		if !errors.As(err, &te) || ctx.Err() != nil {
-			return transport.Result{}, err
+			return transport.Result{}, markSent(err, sent)
 		}
+		sent = sent || te.Sent
 		switch {
 		case (te.Kind == transport.KindAuth || te.Kind == transport.KindDrift) && !refetched:
 			refetched = true
 			t.reloadIfNewer()
 			if _, berr := t.ensureTokens(ctx, true); berr != nil {
-				return transport.Result{}, berr
+				return transport.Result{}, markSent(berr, sent)
 			}
 		case te.Kind == transport.KindTransport && te.Retriable && c.Idempotent && attempt < t.o.MaxRetries:
 			if serr := t.o.Sleep(ctx, backoff(attempt)); serr != nil {
@@ -123,7 +127,20 @@ func (t *Transport) Do(ctx context.Context, c transport.Call) (transport.Result,
 	}
 }
 
-func (t *Transport) once(ctx context.Context, c transport.Call) ([]byte, error) {
+// markSent returns err with Sent set when an earlier attempt reached the
+// server. It copies the *transport.Error, which may be shared (bootstrap
+// errors are shared by every caller waiting on the same singleflight).
+func markSent(err error, sent bool) error {
+	var te *transport.Error
+	if !sent || !errors.As(err, &te) || te.Sent {
+		return err
+	}
+	cp := *te
+	cp.Sent = true
+	return &cp
+}
+
+func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err error) {
 	if err := t.o.Limiter.Wait(ctx); err != nil {
 		return nil, t.fail(c, transport.KindTransport, false, err)
 	}
@@ -143,7 +160,27 @@ func (t *Transport) once(ctx context.Context, c transport.Call) ([]byte, error) 
 		return nil, t.fail(c, transport.KindInternal, false, err)
 	}
 	t.setHeaders(req, host)
+	// Sent: the body was fully written or a response arrived. Every error
+	// after this point is fresh (fail/wireErr allocate), so setting the
+	// flag on it is safe.
+	var wrote atomic.Bool
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+		WroteRequest: func(i httptrace.WroteRequestInfo) {
+			if i.Err == nil {
+				wrote.Store(true)
+			}
+		},
+	}))
+	defer func() {
+		var te *transport.Error
+		if wrote.Load() && errors.As(err, &te) {
+			te.Sent = true
+		}
+	}()
 	resp, err := t.o.HTTP.Do(req)
+	if resp != nil {
+		wrote.Store(true)
+	}
 	if err != nil {
 		return nil, t.fail(c, transport.KindTransport, ctx.Err() == nil, err)
 	}
