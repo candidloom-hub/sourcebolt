@@ -61,6 +61,22 @@ func TestShareUpdateRequiresConfirm(t *testing.T) {
 	}
 }
 
+func TestShareUpdateNamesNotebook(t *testing.T) {
+	st := newStub()
+	st.payloads["QDyure"] = `[]`
+	cs := connect(t, st, "default")
+	for _, confirm := range []bool{false, true} {
+		var out ShareUpdateOut
+		res := call(t, cs, "share_update", map[string]any{"notebook": "shared research", "public": true, "confirm": confirm})
+		if err := json.Unmarshal([]byte(text(res)), &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.NotebookID != idC || out.NotebookTitle != "Shared research" {
+			t.Fatalf("confirm=%v: out = %s", confirm, text(res))
+		}
+	}
+}
+
 func TestShareUpdateRejectsFuzzyTitle(t *testing.T) {
 	st := newStub()
 	st.payloads["QDyure"] = `[]`
