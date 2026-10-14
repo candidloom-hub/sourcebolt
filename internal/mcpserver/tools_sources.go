@@ -134,12 +134,12 @@ func (s *server) registerSources(m *mcp.Server) {
 
 func boolPtr(b bool) *bool { return &b }
 
-func (s *server) sourceAdd(ctx context.Context, in SourceAddIn) (SourceAddOut, error) {
-	if len(in.Items) == 0 {
-		return SourceAddOut{}, badInput("items must not be empty")
-	}
-	specs := make([]nlm.SourceSpec, len(in.Items))
-	for i, it := range in.Items {
+// validateSourceItems runs the argument checks shared by source_add and
+// notebook_create before anything is created, and returns the specs built from
+// the validated URLs: what safety.CheckPublicURL checked is exactly what is sent.
+func validateSourceItems(ctx context.Context, items []SourceItem) ([]nlm.SourceSpec, error) {
+	specs := make([]nlm.SourceSpec, len(items))
+	for i, it := range items {
 		n := 0
 		for _, set := range []bool{it.URL != "", it.Text != nil, it.Drive != nil, it.File != nil} {
 			if set {
@@ -147,24 +147,35 @@ func (s *server) sourceAdd(ctx context.Context, in SourceAddIn) (SourceAddOut, e
 			}
 		}
 		if n != 1 {
-			return SourceAddOut{}, badInput("items[%d]: set exactly one of url, text, drive, file", i)
+			return nil, badInput("items[%d]: set exactly one of url, text, drive, file", i)
 		}
 		switch {
 		case it.Drive != nil:
-			return SourceAddOut{}, unsupported("sources.add", "Drive sources are not supported yet")
+			return nil, unsupported("sources.add", "Drive sources are not supported yet")
 		case it.File != nil:
-			return SourceAddOut{}, unsupported("sources.add", "file upload is not supported yet")
+			return nil, unsupported("sources.add", "file upload is not supported yet")
 		case it.Text != nil:
 			if strings.TrimSpace(it.Text.Content) == "" {
-				return SourceAddOut{}, badInput("items[%d]: text.content must not be empty", i)
+				return nil, badInput("items[%d]: text.content must not be empty", i)
 			}
 			specs[i] = nlm.SourceSpec{Text: &nlm.TextSpec{Title: it.Text.Title, Content: it.Text.Content}}
 		default:
-			if _, err := safety.CheckPublicURL(ctx, it.URL, urlResolver); err != nil {
-				return SourceAddOut{}, badInput("items[%d]: %v", i, err)
+			validated, err := safety.CheckPublicURL(ctx, it.URL, urlResolver)
+			if err != nil {
+				return nil, badInput("items[%d]: %v", i, err)
 			}
-			specs[i] = nlm.SourceSpec{URL: strings.TrimSpace(it.URL)}
+			specs[i] = nlm.SourceSpec{URL: validated.String()}
 		}
+	}
+	return specs, nil
+}
+func (s *server) sourceAdd(ctx context.Context, in SourceAddIn) (SourceAddOut, error) {
+	if len(in.Items) == 0 {
+		return SourceAddOut{}, badInput("items must not be empty")
+	}
+	specs, err := validateSourceItems(ctx, in.Items)
+	if err != nil {
+		return SourceAddOut{}, err
 	}
 	nb, err := s.resolveNotebook(ctx, in.Notebook)
 	if err != nil {
