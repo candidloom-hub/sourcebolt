@@ -85,6 +85,9 @@ func TestStreamLiveFixtureStructure(t *testing.T) {
 		t.Fatalf("last citations = %+v", last.Citations)
 	}
 	c := last.Citations[1]
+	if c.SourceID != "00000000-0000-4000-8000-000000000010" {
+		t.Errorf("live citation source id = %q (passage[1][5][0][0][0])", c.SourceID)
+	}
 	if c.N != 2 || c.Start != 184 || c.End != 184 {
 		t.Errorf("citation 2 = %+v", c)
 	}
