@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
+	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
 	"github.com/candidloom-hub/sourcebolt/internal/version"
@@ -14,6 +15,7 @@ import (
 
 // Deps are the server's collaborators.
 type Deps struct {
+	Jobs    *jobs.Table // detached work (chat_ask wait=false); nil = jobs disabled
 	NLM     *nlm.Client
 	Cache   *cache.Cache
 	Profile string // account profile name
@@ -44,6 +46,17 @@ func New(d Deps, toolProfile string) *mcp.Server {
 	m := mcp.NewServer(&mcp.Implementation{Name: version.Name, Version: version.Version}, nil)
 	s.registerInfo(m)
 	s.registerNotebooks(m)
+	// One file per tool group, so groups can be built in parallel.
+	s.registerSources(m)  // tools_sources.go
+	s.registerResearch(m) // tools_research.go
+	s.registerChat(m)     // tools_chat.go
+	s.registerNotes(m)    // tools_notes.go
+	s.registerSharing(m)  // tools_share.go
+	s.registerLabels(m)   // tools_labels.go
+	s.registerAccount(m)  // tools_account.go
+	s.registerStudio(m)   // tools_studio.go
+	s.registerDelete(m)   // tools_delete.go
+	s.registerJobs(m)     // tools_jobs.go
 	return m
 }
 

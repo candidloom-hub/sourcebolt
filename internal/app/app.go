@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
+	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/mcpserver"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/rpcids"
@@ -85,7 +86,7 @@ func Build(c Config) (*Runtime, error) {
 func ForProfile(p *session.Profile, store session.Store) *Runtime {
 	tr := rpc.New(rpc.Options{Profile: p, Store: store, MaxRetries: 2})
 	return &Runtime{
-		Deps:      mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: p.Name, Host: p.Host},
+		Deps:      mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Jobs: jobs.New(), Profile: p.Name, Host: p.Host},
 		Transport: tr,
 		Profile:   p,
 		Store:     store,
