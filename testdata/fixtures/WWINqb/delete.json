@@ -1,0 +1,16 @@
+{
+  "rpc": "WWINqb",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md WWINqb (catalog consensus, not live-verified)",
+  "request": [
+    [
+      "0b1c2d3e-0000-4000-8000-000000000001"
+    ],
+    [
+      2
+    ]
+  ],
+  "response_body": ")]}'\n\n61\n[[\"wrb.fr\",\"WWINqb\",null,null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}
