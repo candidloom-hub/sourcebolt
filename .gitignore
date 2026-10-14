@@ -26,3 +26,6 @@ coverage.*
 
 # Browser captures (contain session cookies)
 *.har
+
+# Agent worktrees
+.claude/worktrees/
