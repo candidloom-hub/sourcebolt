@@ -30,6 +30,8 @@ jobs:
       - name: test
         if: runner.os == 'Windows'
         run: go test ./...
+      - name: tool docs up to date
+        run: go test ./tools/gendocs -run TestToolsDocFresh -count=1
       - name: fuzz smoke
         if: runner.os == 'Linux'
         run: go test ./internal/wire -run '^$' -fuzz FuzzDecode -fuzztime 20s
