@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
 
 // Router sends every call to the primary transport and switches to the
@@ -40,7 +42,38 @@ func NewRouter(primary Transport, fallback func(ctx context.Context) (Transport,
 	return &Router{primary: primary, newFallback: fallback}
 }
 
-func (r *Router) Name() string { return "router" }
+// Name is the name of the transport that answered the most recent call, or
+// the primary's before any success, so callers that record Name() after a
+// call (the chat stream path in nlm) report "rpc" or "browser", never the
+// router itself. Per-call truth is Result.Transport.
+func (r *Router) Name() string {
+	if l := r.Last(); l != "" {
+		return l
+	}
+	return r.primary.Name()
+}
+
+// streamer is the stream method set of nlm.Streamer, repeated here because
+// nlm imports transport.
+type streamer interface {
+	Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error)
+}
+
+// Stream streams a chat answer on the primary transport. There is no
+// fallback: the browser transport has no stream path yet, and a stream that
+// failed part-way must not be replayed. It makes Router satisfy
+// nlm.Streamer. If the primary cannot stream the result is KindUnsupported.
+func (r *Router) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+	st, ok := r.primary.(streamer)
+	if !ok {
+		return wire.Snapshot{}, &Error{Kind: KindUnsupported, RPC: "chat.ask", Transport: r.primary.Name(), Message: "transport cannot stream chat answers"}
+	}
+	snap, err := st.Stream(ctx, nb, params, onSnap)
+	if err == nil {
+		r.setLast(r.primary.Name())
+	}
+	return snap, err
+}
 
 // Supports reports whether the primary, or an already built fallback,
 // handles rpc. It never constructs the fallback.
