@@ -15,6 +15,9 @@ import (
 //   - the primary error is a *Error whose Kind.AllowsFallback() (Transport,
 //     Drift, CookieBinding); never RateLimited, Quota, Auth, Permission,
 //     NotFound, InvalidArgument, Pending, Unsupported or Internal;
+//   - the primary did not get a refused connection (ConnRefused): the
+//     host is unreachable from here and the browser would fail the same
+//     way after paying its launch cost;
 //   - the caller's context is still live;
 //   - the call is idempotent, or the primary failed before the request body
 //     was sent (Error.Sent false). A non-idempotent call that may already
@@ -128,7 +131,7 @@ func (r *Router) mayFallBack(ctx context.Context, c Call, pe *Error) bool {
 	switch {
 	case r.newFallback == nil, ctx.Err() != nil, !pe.Kind.AllowsFallback():
 		return false
-	case pe.Sent && !c.Idempotent:
+	case pe.Sent && !c.Idempotent, ConnRefused(pe):
 		return false
 	}
 	return true

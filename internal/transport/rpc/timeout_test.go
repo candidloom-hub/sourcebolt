@@ -72,3 +72,17 @@ func TestStreamIgnoresHeaderTimeout(t *testing.T) {
 		t.Fatalf("final = %+v", final)
 	}
 }
+
+// The router skips the browser fallback on a refused connection; that only
+// works if the rpc error keeps the errno through fail and stripURL.
+func TestRefusedDialIsRecognised(t *testing.T) {
+	f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {})
+	tr, _ := newTransport(t, f)
+	tr.o.MaxRetries = 0
+	f.srv.Close()
+	_, err := tr.Do(context.Background(), listCall)
+	te := streamErr(t, err)
+	if te.Kind != transport.KindTransport || !transport.ConnRefused(err) {
+		t.Fatalf("err = %v, ConnRefused = %v", err, transport.ConnRefused(err))
+	}
+}
