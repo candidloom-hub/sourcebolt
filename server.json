@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.candidloom-hub/sourcebolt",
+  "title": "sourcebolt",
+  "description": "Fast MCP server for Google NotebookLM: notebooks, sources, cited chat, research. Unofficial.",
+  "repository": {
+    "url": "https://github.com/candidloom-hub/sourcebolt",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "sourcebolt",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "packageArguments": [{ "type": "positional", "value": "serve" }],
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "sourcebolt",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "packageArguments": [{ "type": "positional", "value": "serve" }],
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/candidloom-hub/sourcebolt:0.1.0",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}
