@@ -14,8 +14,10 @@ The work has three phases:
 
 ## Current state (2026-10-14)
 
-- Git repo on `main`. Phase 0 (scaffold) done. GitHub remote: private repo candidloom-hub/sourcebolt.
-- Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27). P1 in progress on branch `feat/p1-core`; ledger in `.superpowers/sdd/2026-10-14-p1-core/progress.md` (git-ignored).
+- GitHub remote: candidloom-hub/sourcebolt, still private. Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
+- `main` has P1 core (PR #1) and P2 tools (PR #8). Branch `feat/release` (P5 docs, registry metadata) is pushed, not merged. No tag yet, nothing published.
+- Release gate approved by the owner 2026-10-14: make repo public, merge feat/release, tag v0.1.0, publish. npm needs the owner's `NPM_TOKEN` secret; PyPI needs a trusted publisher set up by the owner.
+- Live capture #2 in progress; see `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands
 
@@ -29,7 +31,7 @@ go test -short ./...                         # skips the binary-building CLI tes
 
 `-race` needs cgo; this Windows machine has no C compiler, so race runs only in CI.
 
-CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` for streamable HTTP), `call <tool> '<json>'` (any MCP tool in-process), `login --browser [--browser-path exe] [--timeout 300s]` (visible window on dedicated profile `<config>/browser/<profile>`; human signs in), `login --attach <cdp-url>`, `login --import <file|->`, `logout`, `status`, `doctor`. Env: `NOTEBOOKLM_PROFILE`, `NOTEBOOKLM_HOST`, `NOTEBOOKLM_CONFIG_DIR`, `NOTEBOOKLM_RPC_IDS`, `SOURCEBOLT_BROWSER`. Browser tests: `go test -tags browser ./internal/transport/browser -v` (needs Brave/Chrome/Edge). Tests set `NOTEBOOKLM_CONFIG_DIR` to a temp dir so they never touch real profiles.
+CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` for streamable HTTP), `call <tool> '<json>'` (any MCP tool in-process), `login --attach http://127.0.0.1:9222` (preferred: plain Brave started with `--remote-debugging-port=9222 --user-data-dir=%APPDATA%\sourcebolt\browser\default`, human signs in), `login --browser` (Google blocks it: "browser may not be secure"), `login --import <file|->`, `logout`, `status`, `doctor`. Env: `NOTEBOOKLM_PROFILE`, `NOTEBOOKLM_HOST`, `NOTEBOOKLM_CONFIG_DIR`, `NOTEBOOKLM_RPC_IDS`, `SOURCEBOLT_BROWSER`. Browser tests: `go test -tags browser ./internal/transport/browser -v` (needs Brave/Chrome/Edge). Tests set `NOTEBOOKLM_CONFIG_DIR` to a temp dir so they never touch real profiles.
 - Research (Phases 1–3) done: `research/upstreams.md`, `research/notes/`, `research/feature-matrix.md`, `research/rpc-catalog.md`, `research/best-practices.md`, `research/performance.md`, `research/decisions-needed.md`.
 - Plans (Phase 4) written in `docs/plans/`: architecture spec + P1–P5. Approved 2026-10-14.
 - Work follows the phases in `docs/mission-prompt.md`. Progress lives in `handoff.md`.
@@ -48,6 +50,17 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Tools that fit this project: `compare_application_versions`, `analyze_javascript_application`, `trace_application_feature` (upstream MCP versions, which are JS/TS packages); `analyze_web_bundle`, `recover_javascript_sources`, `observe_web_session`, `inspect_web_network_capture` (NotebookLM web app and its internal RPC calls).
 - Use REA only on upstream code and the NotebookLM web app. Do not run it on anything you are not entitled to analyze.
 
+## Lessons (do not repeat)
+
+- Agent worktrees start from `main`: tell every agent to `git reset --hard <base>` first.
+- Mutation-check agent tests (agents skipped the red step). Diff after each mutation; a sed that matches nothing is a false survivor.
+- Tests set `NOTEBOOKLM_BROWSER_FALLBACK=0` and `NOTEBOOKLM_CONFIG_DIR` to a temp dir; no test may launch a browser.
+- Benchmarks: run base and head interleaved (`bench/interleave.sh`); sequential runs drift.
+- Cookie import needs SID/HSID/APISID; without them NotebookLM returns the signed-out shell (200, no SNlM0e). Do not relax this.
+- Live capture: in-page XHR hook via Claude in Chrome. Export via clipboard only from the focused tab; check the file starts with `{"log"`; skeletonize payloads over ~1 MB first. Page CSP blocks localhost and downloads are blocked.
+- Payloads with `)]}'` or apostrophes: write files with the Write tool, not heredocs or `node -e`.
+- Commands for the owner use `.\bin\sourcebolt.exe`, never bare `sourcebolt`.
+
 ## Architecture
 
 `docs/plans/2026-10-14-architecture.md` is the source of truth (packages, Transport interface, error kinds, fallback policy, perf targets). Wire facts live in `research/rpc-catalog.md`; payloads marked "conflicting" there need a live capture fixture before they are pinned.
@@ -62,11 +75,11 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Transport: both. Internal RPC first, browser automation as fallback.
 - Language: Go, with the official MCP SDK `github.com/modelcontextprotocol/go-sdk`.
 - License: Apache-2.0, free, no paid tier. GPL/AGPL upstream code must not be ported.
-- Name: **sourcebolt** (module `github.com/candidloom-hub/sourcebolt`, binary `sourcebolt`). Repo private.
+- Name: **sourcebolt** (module `github.com/candidloom-hub/sourcebolt`, binary `sourcebolt`). Repo private until the release gate (approved 2026-10-14).
 - Research defaults D1–D15 in `research/decisions-needed.md` accepted as recommended.
 - Plans in `docs/plans/` approved; executing with superpowers:executing-plans.
 - Distribution: all channels (npm, PyPI, Docker, plus GitHub release binaries). npm and PyPI packages wrap the prebuilt native binary per platform.
 
 ## Decisions pending (owner: user)
 
-- None open. Next owner gates: live-capture login, repo public, publishing.
+- None open. Gates approved; remaining owner-only steps: `NPM_TOKEN` secret, PyPI trusted publisher, private vulnerability reporting.
