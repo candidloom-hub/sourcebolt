@@ -59,7 +59,7 @@ jobs:
           TIME_EXCLUDE: "^ToolCallNotebookList"
         run: bash bench/compare.sh old.txt new.txt 10 25
 
-      - uses: actions/upload-artifact@v5.0.0
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bench-linux
