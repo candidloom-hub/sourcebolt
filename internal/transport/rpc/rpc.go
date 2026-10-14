@@ -198,7 +198,15 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 	defer cancel()
 	actx, cancelHdr := context.WithCancelCause(tctx)
 	defer cancelHdr(nil)
-	hdr := time.AfterFunc(t.o.HeaderTimeout, func() { cancelHdr(errHeaderTimeout) })
+	// settled is claimed once: by the timer, or by the first response byte
+	// (inside Do), so a timer firing after the response began cannot cut
+	// the body read.
+	var settled atomic.Bool
+	hdr := time.AfterFunc(t.o.HeaderTimeout, func() {
+		if settled.CompareAndSwap(false, true) {
+			cancelHdr(errHeaderTimeout)
+		}
+	})
 	host := t.host()
 	req, err := http.NewRequestWithContext(actx, http.MethodPost, host.Origin()+batchPath+"?"+t.query(c, tok).Encode(), strings.NewReader(body))
 	if err != nil {
@@ -215,6 +223,7 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 				wrote.Store(true)
 			}
 		},
+		GotFirstResponseByte: func() { settled.Store(true) },
 	}))
 	defer func() {
 		var te *transport.Error

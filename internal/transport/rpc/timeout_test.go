@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -107,5 +108,29 @@ func TestStreamErrorsAfterSendAreSent(t *testing.T) {
 	_, err = tr2.Stream(context.Background(), "nb1", streamParams, nil)
 	if te := streamErr(t, err); te.Sent {
 		t.Fatalf("refused before send: Sent = true (%v)", err)
+	}
+}
+
+// The header deadline is time to first byte: once the response has begun,
+// a slow rest-of-headers must not trip it.
+func TestHeaderTimeoutIsTimeToFirstByte(t *testing.T) {
+	f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {
+		conn, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		buf.WriteString("HTTP/1.1 200 OK\r\n")
+		buf.Flush()
+		time.Sleep(200 * time.Millisecond)
+		fmt.Fprintf(buf, "Content-Length: %d\r\nConnection: close\r\n\r\n%s", len(okBody), okBody)
+		buf.Flush()
+	})
+	tr, _ := newTransport(t, f)
+	tr.o.HeaderTimeout = 50 * time.Millisecond
+	tr.o.MaxRetries = 0
+	if _, err := tr.Do(context.Background(), listCall); err != nil {
+		t.Fatalf("response that began before the deadline was cut: %v", err)
 	}
 }
