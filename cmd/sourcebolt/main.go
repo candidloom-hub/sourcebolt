@@ -16,13 +16,16 @@ const usage = `sourcebolt - fast MCP server for Google NotebookLM
 Usage:
   sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f]
   sourcebolt call   <tool> '<json args>'
+  sourcebolt login  --browser [--browser-path exe] [--timeout 300s] [--profile p] [--host h]
+  sourcebolt login  --attach <cdp ws:// or http:// url> [--profile p] [--host h]
   sourcebolt login  --import <file|-> [--format netscape|json|header] [--profile p] [--host h]
   sourcebolt logout [--profile p]
   sourcebolt status
   sourcebolt doctor
   sourcebolt --version
 
-Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS
+Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
+             SOURCEBOLT_BROWSER (browser executable for login --browser)
 `
 
 func main() {
