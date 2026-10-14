@@ -1,0 +1,14 @@
+{
+  "name": "@candidloom-hub/sourcebolt-{{os}}-{{cpu}}",
+  "version": "{{version}}",
+  "description": "sourcebolt native binary for {{os}}-{{cpu}}",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/candidloom-hub/sourcebolt.git"
+  },
+  "os": ["{{os}}"],
+  "cpu": ["{{cpu}}"],
+  "files": ["bin", "LICENSE", "NOTICE"],
+  "publishConfig": { "access": "public" }
+}
