@@ -1,0 +1,19 @@
+{
+  "rpc": "ciyUvf",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md#studio ciyUvf (synthetic: catalog consensus)",
+  "request": [
+    [
+      2
+    ],
+    "00000000-0000-4000-8000-000000000001",
+    [
+      [
+        "src-0001"
+      ]
+    ]
+  ],
+  "response_body": ")]}'\n\n218\n[[\"wrb.fr\",\"ciyUvf\",\"[[[\\\"text-title-1\\\",\\\"text-desc-1\\\",null,null,\\\"text-prompt-1\\\",1],[\\\"text-title-2\\\",\\\"text-desc-2\\\",null,null,\\\"text-prompt-2\\\",2]]]\",null,null,null,\"generic\"],[\"di\",100],[\"af.httprm\",100,\"1\",1]]\n23\n[[\"e\",4,null,null,10]]\n",
+  "captured": "",
+  "host": ""
+}
