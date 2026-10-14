@@ -14,7 +14,7 @@ import (
 const usage = `sourcebolt - fast MCP server for Google NotebookLM
 
 Usage:
-  sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f]
+  sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f] [--no-browser-fallback]
   sourcebolt call   <tool> '<json args>'
   sourcebolt login  --browser [--browser-path exe] [--timeout 300s] [--profile p] [--host h]
   sourcebolt login  --attach <cdp ws:// or http:// url> [--profile p] [--host h]
@@ -25,7 +25,8 @@ Usage:
   sourcebolt --version
 
 Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
-             SOURCEBOLT_BROWSER (browser executable for login --browser)
+             SOURCEBOLT_BROWSER (browser executable for login --browser),
+             NOTEBOOKLM_BROWSER_FALLBACK=0 (disable the headless browser fallback)
 `
 
 func main() {

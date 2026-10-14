@@ -1,4 +1,3 @@
-sourcebolt
 Copyright 2026 The sourcebolt authors
 
 This product is licensed under the Apache License, Version 2.0.
@@ -6,10 +5,17 @@ This product is licensed under the Apache License, Version 2.0.
 It is an independent project. It is not affiliated with, endorsed by or
 sponsored by Google. "NotebookLM" is a trademark of Google LLC.
 
-Designs and wire-format knowledge were adapted, with thanks, from these
-MIT- or Apache-2.0-licensed projects (credits are kept current as code is
-adapted; see research/notes/ for details):
+sourcebolt is written from scratch in Go. As of this version no source code
+from the projects below has been copied into this repository. Designs, tool
+surfaces and wire-format knowledge (RPC ids and payload layouts, later pinned
+by our own live captures) were learned, with thanks, from these MIT- or
+Apache-2.0-licensed projects (details in research/notes/). If code is ever
+copied from one of them, its copyright notice and license text must be added
+here before the change is merged:
 - teng-lin/notebooklm-py (MIT)
 - tmc/nlm (MIT)
 - jacob-bd/gemini-notebook-mcp-cli (MIT)
 - LocalKinAI/notebooklm-go (Apache-2.0)
+
+Projects with no license or a copyleft license were read for behavior only
+and nothing from them was used.

@@ -29,5 +29,6 @@
     "@candidloom-hub/sourcebolt-darwin-arm64": "0.0.0",
     "@candidloom-hub/sourcebolt-win32-x64": "0.0.0",
     "@candidloom-hub/sourcebolt-win32-arm64": "0.0.0"
-  }
+  },
+  "mcpName": "io.github.candidloom-hub/sourcebolt"
 }
