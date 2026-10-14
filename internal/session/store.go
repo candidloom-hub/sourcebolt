@@ -90,11 +90,39 @@ type diskProfile struct {
 
 func (s *fileStore) path(name, ext string) string { return filepath.Join(s.dir, name+ext) }
 
+// validName rejects profile names that are unsafe as file names on any
+// OS: path and wildcard characters, control characters, a leading dot or
+// space, a trailing dot or space (Windows strips them), and Windows device
+// names (CON, NUL, COM1 ...), which stay reserved with an extension.
 func validName(name string) error {
-	if name == "" || strings.ContainsAny(name, `/\:*?"<>|`) || strings.HasPrefix(name, ".") {
+	bad := name == "" || strings.ContainsAny(name, `/\:*?"<>|`) ||
+		strings.HasPrefix(name, ".") || strings.HasPrefix(name, " ") ||
+		strings.HasSuffix(name, ".") || strings.HasSuffix(name, " ") ||
+		strings.ContainsFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) ||
+		reservedDevice(name)
+	if bad {
 		return fmt.Errorf("session: invalid profile name %q", name)
 	}
 	return nil
+}
+
+func reservedDevice(name string) bool {
+	base, _, _ := strings.Cut(name, ".")
+	switch strings.ToUpper(base) {
+	case "CON", "PRN", "AUX", "NUL":
+		return true
+	}
+	if len(base) < 4 {
+		return false
+	}
+	switch strings.ToUpper(base[:3]) {
+	case "COM", "LPT":
+		switch base[3:] {
+		case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "¹", "²", "³":
+			return true
+		}
+	}
+	return false
 }
 
 func (s *fileStore) Load(name string) (*Profile, error) {
