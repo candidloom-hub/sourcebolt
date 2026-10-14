@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
@@ -182,12 +183,38 @@ func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) 
 		return ChatAskOut{JobID: id, Status: "running"}, nil
 	}
 
-	prog := progressFrom(ctx)
-	n := 0
-	return s.runAsk(ctx, nb, in.Question, opts, func(text string) {
-		n++
-		prog(text, float64(n), 0)
-	})
+	return s.runAsk(ctx, nb, in.Question, opts, askProgress(progressFrom(ctx)))
+}
+
+// progressTail is how many trailing characters of the partial answer a
+// progress notification carries.
+const progressTail = 200
+
+// askProgress turns streamed answer snapshots into progress notifications.
+// The message is the answer's last progressTail characters ("…" marks a
+// cut), not the whole answer, so a long answer is not resent every second.
+// progress is the answer length in characters, bumped when needed so it
+// increases strictly (MCP spec); total stays unknown.
+func askProgress(prog Progress) func(string) {
+	last := 0.0
+	return func(text string) {
+		n := utf8.RuneCountInString(text)
+		msg := text
+		if n > progressTail {
+			cut := len(text)
+			for range progressTail {
+				_, size := utf8.DecodeLastRuneInString(text[:cut])
+				cut -= size
+			}
+			msg = "…" + text[cut:]
+		}
+		v := float64(n)
+		if v <= last {
+			v = last + 1
+		}
+		last = v
+		prog(msg, v, 0)
+	}
 }
 
 func (s *server) runAsk(ctx context.Context, nb, q string, o nlm.AskOptions, progress func(string)) (ChatAskOut, error) {
