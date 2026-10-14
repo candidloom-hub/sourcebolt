@@ -1,0 +1,20 @@
+{
+  "rpc": "QA9ei",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md QA9ei (response meaning conflicting) (catalog consensus, not live-verified)",
+  "request": [
+    null,
+    [
+      1
+    ],
+    [
+      "history of the go module proxy",
+      1
+    ],
+    5,
+    "0b1c2d3e-0000-4000-8000-000000000001"
+  ],
+  "response_body": ")]}'\n\n77\n[[\"wrb.fr\",\"QA9ei\",\"[\\\"id-a\\\",\\\"id-b\\\"]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}
