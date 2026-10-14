@@ -9,7 +9,6 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
-	"github.com/candidloom-hub/sourcebolt/internal/transport"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -134,15 +133,6 @@ func (s *server) registerSources(m *mcp.Server) {
 }
 
 func boolPtr(b bool) *bool { return &b }
-
-func unsupported(rpc, msg string) error {
-	return &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: msg}
-}
-
-func (s *server) invalidateNotebook(nb string) {
-	s.Cache.Invalidate(s.Profile + "/notebooks")
-	s.Cache.Invalidate(s.Profile + "/notebook/" + nb)
-}
 
 func (s *server) sourceAdd(ctx context.Context, in SourceAddIn) (SourceAddOut, error) {
 	if len(in.Items) == 0 {
