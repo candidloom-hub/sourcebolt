@@ -3,9 +3,11 @@ package mcpserver
 import (
 	"context"
 	"encoding/json/v2"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/jobs"
@@ -79,6 +81,32 @@ func newChatStub() *streamStub {
 		{Text: "Partial"},
 		{Text: "Partial answer [1]", Citations: []wire.Citation{{N: 1, SourceID: "s1", Text: "passage", Start: 15, End: 18}}},
 	}}
+}
+
+func TestAskProgressSendsTailOnly(t *testing.T) {
+	var msgs []string
+	var vals []float64
+	p := askProgress(func(m string, v, _ float64) { msgs, vals = append(msgs, m), append(vals, v) })
+
+	long := strings.Repeat("é", 300) + strings.Repeat("x", 300) // 600 runes, multi-byte
+	p("short")
+	p(long)
+	p(long) // same text again: progress must still increase
+	if msgs[0] != "short" || vals[0] != 5 {
+		t.Fatalf("short: %q %v", msgs[0], vals[0])
+	}
+	if n := utf8.RuneCountInString(msgs[1]); n > progressTail+1 || !utf8.ValidString(msgs[1]) {
+		t.Fatalf("message is %d runes (valid=%v), want at most ~%d", n, utf8.ValidString(msgs[1]), progressTail)
+	}
+	if !strings.HasSuffix(long, strings.TrimPrefix(msgs[1], "…")) {
+		t.Fatalf("message is not the answer's tail: %q", msgs[1])
+	}
+	if vals[1] != 600 {
+		t.Fatalf("progress = %v, want the answer length 600", vals[1])
+	}
+	if vals[2] <= vals[1] {
+		t.Fatalf("progress not increasing: %v", vals)
+	}
 }
 
 func TestChatAskProgressAndCitations(t *testing.T) {

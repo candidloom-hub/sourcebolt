@@ -1,12 +1,69 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/candidloom-hub/sourcebolt/internal/transport/browser"
 )
+
+func TestRuntimeCloseShutsDownBrowserLauncher(t *testing.T) {
+	rt := ForProfile(testProfile(), nil, WithBrowserFallback(t.TempDir()))
+	// Safe before anything launched.
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close before launch: %v", err)
+	}
+	rt = ForProfile(testProfile(), nil, WithBrowserFallback(t.TempDir()))
+	if _, err := rt.newBrowser(context.Background()); err != nil {
+		t.Fatalf("newBrowser: %v", err)
+	}
+	l := rt.launcher
+	if l == nil {
+		t.Fatal("runtime does not own the launcher")
+	}
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := rt.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if _, err := l.Get(context.Background()); !errors.Is(err, browser.ErrClosed) {
+		t.Fatalf("launcher after Close: err = %v, want ErrClosed", err)
+	}
+	if _, err := rt.newBrowser(context.Background()); err == nil {
+		t.Fatal("newBrowser after Close succeeded")
+	}
+}
+
+func TestRuntimeCloseCancelsDetachedJobs(t *testing.T) {
+	rt := ForProfile(testProfile(), nil)
+	stopped := make(chan struct{})
+	rt.Deps.Jobs.Start("chat_ask", func(ctx context.Context) (any, error) {
+		<-ctx.Done()
+		close(stopped)
+		return nil, ctx.Err()
+	})
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Runtime.Close left a detached job running")
+	}
+}
+
+func TestRuntimeCloseWithoutFallback(t *testing.T) {
+	rt := ForProfile(testProfile(), nil)
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
 
 // The router must keep chat streaming available to nlm.Client.
 var _ nlm.Streamer = (*transport.Router)(nil)

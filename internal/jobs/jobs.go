@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -22,12 +23,22 @@ const (
 // retention is how long a finished job stays readable.
 const retention = time.Hour
 
+// Errors returned by Submit.
+var (
+	ErrBusy   = errors.New("jobs: too many running jobs of this kind")
+	ErrClosed = errors.New("jobs: table closed")
+)
+
 // Job is a snapshot of one table entry.
 type Job struct {
 	ID, Kind, Status string
 	Result           any
 	Err              error
 	Started          time.Time
+	// Meta is caller data attached at Submit (for example a conversation
+	// id). It is dropped when the job finishes or is cancelled. Treat it
+	// as read-only.
+	Meta map[string]string
 }
 
 type entry struct {
@@ -38,9 +49,12 @@ type entry struct {
 
 // Table holds jobs. The zero value is not usable; call New.
 type Table struct {
-	mu   sync.Mutex
-	now  func() time.Time
-	jobs map[string]*entry
+	mu     sync.Mutex
+	now    func() time.Time
+	jobs   map[string]*entry
+	base   context.Context // parent of every job context; ended by Close
+	stop   context.CancelFunc
+	closed bool
 }
 
 // Option configures New.
@@ -49,9 +63,10 @@ type Option func(*Table)
 // WithClock replaces time.Now, for tests.
 func WithClock(now func() time.Time) Option { return func(t *Table) { t.now = now } }
 
-// New returns an empty table.
+// New returns an empty table. Call Close when the server stops.
 func New(opts ...Option) *Table {
-	t := &Table{now: time.Now, jobs: map[string]*entry{}}
+	base, stop := context.WithCancel(context.Background())
+	t := &Table{now: time.Now, jobs: map[string]*entry{}, base: base, stop: stop}
 	for _, o := range opts {
 		o(t)
 	}
@@ -76,18 +91,67 @@ func (t *Table) sweep() {
 	}
 }
 
-// Start runs f in a new goroutine and returns the job id. f's context is
-// cancelled by Cancel. A panic in f marks the job failed.
+// StartOption configures Submit.
+type StartOption func(*startConfig)
+
+type startConfig struct {
+	limit int
+	meta  map[string]string
+}
+
+// Limit refuses the job (ErrBusy) when n jobs of the same kind are
+// already running. n <= 0 means no limit.
+func Limit(n int) StartOption { return func(c *startConfig) { c.limit = n } }
+
+// Meta attaches a key/value to the job; see Job.Meta.
+func Meta(key, value string) StartOption {
+	return func(c *startConfig) {
+		if c.meta == nil {
+			c.meta = map[string]string{}
+		}
+		c.meta[key] = value
+	}
+}
+
+// Start runs f in a new goroutine and returns the job id ("" when the
+// table is closed). See Submit.
 func (t *Table) Start(kind string, f func(ctx context.Context) (any, error)) string {
-	ctx, cancel := context.WithCancel(context.Background())
-	id := newID()
+	id, _ := t.Submit(kind, f)
+	return id
+}
+
+// Submit runs f in a new goroutine and returns the job id. f's context is
+// cancelled by Cancel and by Close. A panic in f marks the job failed.
+func (t *Table) Submit(kind string, f func(ctx context.Context) (any, error), opts ...StartOption) (string, error) {
+	var cfg startConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
 
 	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return "", ErrClosed
+	}
 	t.sweep()
+	if cfg.limit > 0 {
+		running := 0
+		for _, e := range t.jobs {
+			if e.job.Kind == kind && e.job.Status == StatusRunning {
+				running++
+			}
+		}
+		if running >= cfg.limit {
+			t.mu.Unlock()
+			return "", fmt.Errorf("%w (%d %s jobs running)", ErrBusy, running, kind)
+		}
+	}
+	id := newID()
 	for t.jobs[id] != nil { // astronomically unlikely; keep ids unique anyway
 		id = newID()
 	}
-	e := &entry{cancel: cancel, job: Job{ID: id, Kind: kind, Status: StatusRunning, Started: t.now()}}
+	ctx, cancel := context.WithCancel(t.base)
+	e := &entry{cancel: cancel, job: Job{ID: id, Kind: kind, Status: StatusRunning, Started: t.now(), Meta: cfg.meta}}
 	t.jobs[id] = e
 	t.mu.Unlock()
 
@@ -112,13 +176,14 @@ func (t *Table) Start(kind string, f func(ctx context.Context) (any, error)) str
 			return
 		}
 		e.finished = t.now()
+		e.job.Meta = nil
 		if err != nil {
 			e.job.Status, e.job.Err = StatusFailed, err
 			return
 		}
 		e.job.Status, e.job.Result = StatusDone, res
 	}()
-	return id
+	return id, nil
 }
 
 // Get returns a snapshot of the job, or false if unknown or evicted.
@@ -143,8 +208,31 @@ func (t *Table) Cancel(id string) bool {
 	if !ok || e.job.Status != StatusRunning {
 		return false
 	}
+	t.cancelLocked(e)
+	return true
+}
+
+// cancelLocked marks e cancelled and ends its context. Caller holds t.mu.
+func (t *Table) cancelLocked(e *entry) {
 	e.job.Status = StatusCancelled
+	e.job.Meta = nil
 	e.finished = t.now()
 	e.cancel()
-	return true
+}
+
+// Close cancels every running job and refuses new ones. Finished jobs stay
+// readable. It is idempotent.
+func (t *Table) Close() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return
+	}
+	t.closed = true
+	for _, e := range t.jobs {
+		if e.job.Status == StatusRunning {
+			t.cancelLocked(e)
+		}
+	}
+	t.stop()
 }

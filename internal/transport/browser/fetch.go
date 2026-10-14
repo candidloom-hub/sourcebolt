@@ -429,60 +429,142 @@ func (p cdpPage) Navigate(ctx context.Context, u string) error {
 // Launcher starts the fallback browser on first use and again after it was
 // reaped or closed; concurrent callers share one browser.
 type Launcher struct {
-	o      Options
-	launch func(ctx context.Context, o Options) (*Browser, error)
+	o            Options
+	launch       func(ctx context.Context, o Options) (*Browser, error)
+	now          func() time.Time
+	startTimeout time.Duration
 
-	base   context.Context // browser lifetime; ended by Close
-	cancel context.CancelFunc
-	sem    chan struct{}
-	b      *Browser
-	closed bool
+	base    context.Context // ended by Close
+	cancel  context.CancelFunc
+	sem     chan struct{}
+	b       *Browser
+	bCancel context.CancelFunc // ends b's launch context
+	closed  bool
+	failAt  time.Time // last failed launch
+	failErr error
 }
+
+const (
+	// launchBackoff is how long a failed launch is remembered: calls in
+	// that window fail at once instead of starting a browser again.
+	launchBackoff = 60 * time.Second
+	// defaultStartTimeout bounds one browser start.
+	defaultStartTimeout = 30 * time.Second
+)
 
 // NewLauncher returns a Launcher for o (see FetchOptions).
 func NewLauncher(o Options) *Launcher {
 	base, cancel := context.WithCancel(context.Background())
-	return &Launcher{o: o, launch: Launch, base: base, cancel: cancel, sem: make(chan struct{}, 1)}
+	return &Launcher{o: o, launch: Launch, now: time.Now, startTimeout: defaultStartTimeout,
+		base: base, cancel: cancel, sem: make(chan struct{}, 1)}
 }
 
 // Get returns the running browser, launching it if needed. The browser's
 // lifetime is the Launcher's, not ctx's; ctx bounds only the wait for
-// another caller's launch.
+// another caller's launch. A launch is bounded by the start timeout; after
+// a failed launch, Get fails fast (KindTransport) for launchBackoff.
 func (l *Launcher) Get(ctx context.Context) (*Browser, error) {
 	select {
 	case l.sem <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-l.base.Done():
+		return nil, ErrClosed
 	}
 	defer func() { <-l.sem }()
-	if l.closed {
+	if l.closed || l.base.Err() != nil {
 		return nil, ErrClosed
 	}
 	if l.b != nil && !l.b.gone() {
 		return l.b, nil
 	}
-	if l.b != nil {
-		l.b.Close()
-		l.b = nil
+	l.dropBrowser()
+	if l.failErr != nil {
+		if ago := l.now().Sub(l.failAt); ago < launchBackoff {
+			return nil, &transport.Error{Kind: transport.KindTransport, Transport: "browser",
+				Cause: fmt.Errorf("browser: launch failed %s ago, not retrying for %s: %w",
+					ago.Round(time.Second), (launchBackoff - ago).Round(time.Second), l.failErr)}
+		}
 	}
-	b, err := l.launch(l.base, l.o)
+	b, cancel, err := l.start()
 	if err != nil {
+		if l.base.Err() != nil { // closed during the launch: not a launch failure
+			return nil, ErrClosed
+		}
+		l.failErr, l.failAt = err, l.now()
 		return nil, err
 	}
-	l.b = b
+	l.failErr = nil
+	l.b, l.bCancel = b, cancel
 	return b, nil
 }
 
-// Close stops the browser and refuses later launches.
-func (l *Launcher) Close() error {
-	l.sem <- struct{}{}
-	defer func() { <-l.sem }()
-	l.closed = true
+// start runs one launch under the start timeout. The launch context lives
+// on as the browser's lifetime; it is cancelled on failure, on timeout and
+// when Close aborts the launch. Caller holds l.sem.
+func (l *Launcher) start() (*Browser, context.CancelFunc, error) {
+	lctx, cancel := context.WithCancel(l.base)
+	type result struct {
+		b   *Browser
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		b, err := l.launch(lctx, l.o)
+		ch <- result{b, err}
+	}()
+	timer := time.NewTimer(l.startTimeout)
+	defer timer.Stop()
+	var err error
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			cancel()
+			return nil, nil, r.err
+		}
+		return r.b, cancel, nil
+	case <-timer.C:
+		err = fmt.Errorf("browser: start did not finish within %s", l.startTimeout)
+	case <-l.base.Done():
+		err = ErrClosed
+	}
+	cancel()
+	go func() { // a launch that still succeeds after cancellation is closed
+		if r := <-ch; r.b != nil {
+			r.b.Close()
+		}
+	}()
+	return nil, nil, err
+}
+
+// dropBrowser closes the current browser, if any. Caller holds l.sem.
+func (l *Launcher) dropBrowser() error {
 	var err error
 	if l.b != nil {
 		err = l.b.Close()
 		l.b = nil
 	}
+	if l.bCancel != nil {
+		l.bCancel()
+		l.bCancel = nil
+	}
+	return err
+}
+
+// Close stops the browser and refuses later launches. It does not wait
+// behind a launch in progress: that launch is aborted.
+func (l *Launcher) Close() error {
+	select {
+	case l.sem <- struct{}{}:
+	default:
+		// A Get holds the semaphore, possibly in a hung launch: end the
+		// launcher's context so it returns, then take the semaphore.
+		l.cancel()
+		l.sem <- struct{}{}
+	}
+	defer func() { <-l.sem }()
+	l.closed = true
+	err := l.dropBrowser()
 	l.cancel()
 	return err
 }

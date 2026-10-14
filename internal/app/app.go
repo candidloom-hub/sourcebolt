@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/jobs"
@@ -76,6 +77,49 @@ type Runtime struct {
 	Router    *transport.Router   // nil when the browser fallback is disabled
 	Profile   *session.Profile
 	Store     session.Store
+
+	// The fallback browser launcher is created on first use but owned
+	// here, so Close can stop a headless browser that would otherwise
+	// outlive the process and keep the profile dir locked.
+	mu          sync.Mutex
+	browserOpts browser.Options
+	launcher    *browser.Launcher
+	closed      bool
+}
+
+// newBrowser builds the fallback transport around the runtime's launcher.
+// The launcher starts no browser until the first call.
+func (rt *Runtime) newBrowser(context.Context) (transport.Transport, error) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.closed {
+		return nil, browser.ErrClosed
+	}
+	if rt.launcher == nil {
+		rt.launcher = browser.NewLauncher(rt.browserOpts)
+	}
+	return browser.NewTransport(rt.launcher.Get, rt.Profile.Host), nil
+}
+
+// Close cancels running detached jobs and stops the fallback browser (if
+// one was ever launched). It is idempotent and safe on a runtime that
+// never used the browser.
+func (rt *Runtime) Close() error {
+	rt.mu.Lock()
+	if rt.closed {
+		rt.mu.Unlock()
+		return nil
+	}
+	rt.closed = true
+	l := rt.launcher
+	rt.mu.Unlock()
+	if rt.Deps.Jobs != nil {
+		rt.Deps.Jobs.Close()
+	}
+	if l != nil {
+		return l.Close()
+	}
+	return nil
 }
 
 // Build loads the profile (or an empty one, so tools report AUTH_REQUIRED
@@ -133,11 +177,8 @@ func ForProfile(p *session.Profile, store session.Store, opts ...Option) *Runtim
 	if o.browserFallback {
 		newBrowser := o.newBrowser
 		if newBrowser == nil {
-			bo := browser.FetchOptions(o.browserConfigDir, p.Name)
-			host := p.Host
-			newBrowser = func(context.Context) (transport.Transport, error) {
-				return browser.NewTransport(browser.NewLauncher(bo).Get, host), nil
-			}
+			rt.browserOpts = browser.FetchOptions(o.browserConfigDir, p.Name)
+			newBrowser = rt.newBrowser
 		}
 		rt.Router = transport.NewRouter(tr, newBrowser)
 		rt.Active = rt.Router

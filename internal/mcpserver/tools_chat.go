@@ -2,10 +2,12 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"sync"
+	"unicode/utf8"
 
+	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -133,10 +135,12 @@ func (s *server) resolveSources(ctx context.Context, nb string, refs []string) (
 	return ids, nil
 }
 
-// jobConvs remembers the explicit conversation id of detached asks so
-// job_cancel can stop the generation. Job ids are random, so one map serves
-// every table.
-var jobConvs sync.Map // job id -> conversation id
+// maxDetachedAsks caps concurrently running chat_ask wait=false jobs.
+const maxDetachedAsks = 16
+
+// metaConversation is the job Meta key holding a detached ask's explicit
+// conversation id, so job_cancel can stop the server-side generation.
+const metaConversation = "conversation_id"
 
 func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) {
 	if strings.TrimSpace(in.Question) == "" {
@@ -160,21 +164,57 @@ func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) 
 	opts := nlm.AskOptions{SourceIDs: srcIDs, ConversationID: in.ConversationID, NewConversation: in.NewConversation}
 
 	if !wait {
-		id := s.Jobs.Start("chat_ask", func(jctx context.Context) (any, error) {
-			return s.runAsk(jctx, nb, in.Question, opts, nil)
-		})
+		jopts := []jobs.StartOption{jobs.Limit(maxDetachedAsks)}
 		if in.ConversationID != "" {
-			jobConvs.Store(id, in.ConversationID)
+			jopts = append(jopts, jobs.Meta(metaConversation, in.ConversationID))
+		}
+		// The job context derives from the table's lifetime, not from this
+		// request: it ends on job_cancel or when the server closes the table.
+		id, err := s.Jobs.Submit("chat_ask", func(jctx context.Context) (any, error) {
+			return s.runAsk(jctx, nb, in.Question, opts, nil)
+		}, jopts...)
+		switch {
+		case errors.Is(err, jobs.ErrBusy):
+			return ChatAskOut{}, &transport.Error{Kind: transport.KindRateLimited, RPC: "chat.ask", Message: fmt.Sprintf(
+				"%d detached chat_ask jobs are already running; wait for one to finish (chat_status), cancel one (job_cancel), or ask with wait=true", maxDetachedAsks)}
+		case err != nil:
+			return ChatAskOut{}, &transport.Error{Kind: transport.KindUnsupported, RPC: "chat.ask", Message: "the job table is closed: " + err.Error()}
 		}
 		return ChatAskOut{JobID: id, Status: "running"}, nil
 	}
 
-	prog := progressFrom(ctx)
-	n := 0
-	return s.runAsk(ctx, nb, in.Question, opts, func(text string) {
-		n++
-		prog(text, float64(n), 0)
-	})
+	return s.runAsk(ctx, nb, in.Question, opts, askProgress(progressFrom(ctx)))
+}
+
+// progressTail is how many trailing characters of the partial answer a
+// progress notification carries.
+const progressTail = 200
+
+// askProgress turns streamed answer snapshots into progress notifications.
+// The message is the answer's last progressTail characters ("…" marks a
+// cut), not the whole answer, so a long answer is not resent every second.
+// progress is the answer length in characters, bumped when needed so it
+// increases strictly (MCP spec); total stays unknown.
+func askProgress(prog Progress) func(string) {
+	last := 0.0
+	return func(text string) {
+		n := utf8.RuneCountInString(text)
+		msg := text
+		if n > progressTail {
+			cut := len(text)
+			for range progressTail {
+				_, size := utf8.DecodeLastRuneInString(text[:cut])
+				cut -= size
+			}
+			msg = "…" + text[cut:]
+		}
+		v := float64(n)
+		if v <= last {
+			v = last + 1
+		}
+		last = v
+		prog(msg, v, 0)
+	}
 }
 
 func (s *server) runAsk(ctx context.Context, nb, q string, o nlm.AskOptions, progress func(string)) (ChatAskOut, error) {

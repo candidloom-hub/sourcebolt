@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -280,5 +281,119 @@ func TestFetchOptions(t *testing.T) {
 	o := FetchOptions(filepath.Join("cfg"), "work")
 	if o.ProfileDir != filepath.Join("cfg", "browser", "work") || !o.Headless || o.Idle != DefaultIdle {
 		t.Fatalf("options = %+v", o)
+	}
+}
+
+type launchClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *launchClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *launchClock) advance(d time.Duration) {
+	c.mu.Lock()
+	c.t = c.t.Add(d)
+	c.mu.Unlock()
+}
+
+func TestLauncherCachesLaunchFailure(t *testing.T) {
+	boom := errors.New("no browser here")
+	var calls atomic.Int32
+	l := NewLauncher(Options{ProfileDir: t.TempDir()})
+	clk := &launchClock{t: time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)}
+	l.now = clk.now
+	l.launch = func(context.Context, Options) (*Browser, error) {
+		calls.Add(1)
+		return nil, boom
+	}
+	defer l.Close()
+
+	if _, err := l.Get(t.Context()); !errors.Is(err, boom) {
+		t.Fatalf("first Get: %v", err)
+	}
+	clk.advance(30 * time.Second)
+	_, err := l.Get(t.Context())
+	var te *transport.Error
+	if !errors.As(err, &te) || te.Kind != transport.KindTransport || !errors.Is(err, boom) {
+		t.Fatalf("cached Get: err = %v, want KindTransport wrapping the launch error", err)
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("launch calls within the back-off = %d, want 1", n)
+	}
+	clk.advance(31 * time.Second)
+	l.Get(t.Context())
+	if n := calls.Load(); n != 2 {
+		t.Fatalf("launch calls after the back-off = %d, want 2", n)
+	}
+}
+
+func TestLauncherStartupDeadline(t *testing.T) {
+	l := NewLauncher(Options{ProfileDir: t.TempDir()})
+	l.startTimeout = 50 * time.Millisecond
+	cancelled := make(chan struct{})
+	l.launch = func(ctx context.Context, _ Options) (*Browser, error) {
+		<-ctx.Done() // a hung browser start
+		close(cancelled)
+		return nil, ctx.Err()
+	}
+	defer l.Close()
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() {
+		_, err := l.Get(t.Context())
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Get succeeded on a hung launch")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Get still waiting after %v: no startup deadline", time.Since(start))
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the timed-out launch was not cancelled")
+	}
+}
+
+func TestLauncherCloseDoesNotWaitForHungLaunch(t *testing.T) {
+	l := NewLauncher(Options{ProfileDir: t.TempDir()})
+	l.startTimeout = time.Hour
+	started := make(chan struct{})
+	l.launch = func(ctx context.Context, _ Options) (*Browser, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	got := make(chan error, 1)
+	go func() {
+		_, err := l.Get(context.Background())
+		got <- err
+	}()
+	<-started
+	closed := make(chan struct{})
+	go func() { l.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close blocked behind a hung launch")
+	}
+	select {
+	case err := <-got:
+		if err == nil {
+			t.Fatal("Get succeeded after Close")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Get did not return after Close")
+	}
+	if _, err := l.Get(t.Context()); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Get after Close = %v, want ErrClosed", err)
 	}
 }

@@ -35,6 +35,7 @@ func cmdCall(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, err)
 	}
+	defer rt.Close() // stops a fallback browser the call may have started
 	srv := mcpserver.New(rt.Deps, "all")
 	ct, st := mcp.NewInMemoryTransports()
 	if _, err := srv.Connect(ctx, st, nil); err != nil {
