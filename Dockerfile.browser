@@ -1,7 +1,6 @@
 # Browser-fallback image: sourcebolt built with -tags browser on top of headless Chrome.
-# Pin HEADLESS_SHELL_VERSION (ideally by digest) before a real release.
-ARG HEADLESS_SHELL_VERSION=latest
-FROM chromedp/headless-shell:${HEADLESS_SHELL_VERSION}
+# Base pinned by tag and digest (stable channel); Dependabot (docker) bumps it.
+FROM chromedp/headless-shell:156.0.8078.12@sha256:f70908c8020555a3bf89a070140913b443a03ead28c1a66563c3912a3b32b08d
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/sourcebolt /usr/local/bin/sourcebolt
 ENV NOTEBOOKLM_CONFIG_DIR=/config
