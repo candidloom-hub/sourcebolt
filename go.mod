@@ -3,7 +3,7 @@ module github.com/candidloom-hub/sourcebolt
 go 1.27
 
 require (
-	github.com/chromedp/cdproto v0.157.8
+	github.com/chromedp/cdproto v0.157.9
 	github.com/chromedp/chromedp v0.21.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/zalando/go-keyring v0.2.8
