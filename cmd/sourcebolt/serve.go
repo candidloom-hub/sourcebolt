@@ -43,6 +43,9 @@ func cmdServe(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if err != nil {
 		return fail(stderr, err)
 	}
+	// Stops the fallback browser and detached jobs on every exit path
+	// (stdio and HTTP).
+	defer rt.Close()
 	srv := mcpserver.New(rt.Deps, *tools)
 
 	// Warm tokens and the TLS connection in the background so the first
