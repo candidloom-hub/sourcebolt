@@ -2,8 +2,11 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 
+	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
+	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -15,12 +18,14 @@ type DeleteIn struct {
 }
 
 type DeleteItem struct {
-	ID    string `json:"id"`
-	Title string `json:"title,omitempty"`
+	ID     string `json:"id"`
+	Title  string `json:"title,omitempty"`
+	Status string `json:"status,omitempty"` // deleted | failed | unsupported (empty in a preview)
+	Error  string `json:"error,omitempty"`
 }
 
 type DeleteOut struct {
-	Status   string       `json:"status"` // preview | deleted
+	Status   string       `json:"status"` // preview | deleted | partial
 	Kind     string       `json:"kind"`
 	Items    []DeleteItem `json:"items"`
 	Guidance string       `json:"guidance,omitempty"`
@@ -69,11 +74,16 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 		}
 	}
 	ids := make([]string, 0, len(in.IDs))
+	seen := map[string]bool{}
 	for _, ref := range in.IDs {
 		it, err := resolve.Resolve(ref, items)
 		if err != nil {
 			return DeleteOut{}, err
 		}
+		if seen[it.ID] { // two refs naming the same item
+			continue
+		}
+		seen[it.ID] = true
 		ids = append(ids, it.ID)
 		titles = append(titles, DeleteItem{ID: it.ID, Title: it.Title})
 	}
@@ -81,7 +91,7 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 		return DeleteOut{Status: "preview", Kind: in.Kind, Items: titles,
 			Guidance: "Nothing was deleted. Repeat the call with confirm:true to delete these items."}, nil
 	}
-	err := s.NLM.Delete(ctx, in.Kind, nb, ids)
+	results, err := s.NLM.Delete(ctx, in.Kind, nb, ids)
 	s.invalidateNotebook(nb)
 	for _, id := range ids {
 		if in.Kind == "notebook" {
@@ -91,7 +101,46 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	if err != nil {
 		return DeleteOut{}, err
 	}
-	return DeleteOut{Status: "deleted", Kind: in.Kind, Items: titles}, nil
+	return deleteOutcome(in.Kind, titles, results)
+}
+
+// deleteOutcome merges per-id results into the tool output. When every id
+// failed, the first error is returned so the call surfaces as an error
+// envelope; nothing was changed then.
+func deleteOutcome(kind string, titles []DeleteItem, results []nlm.DeleteResult) (DeleteOut, error) {
+	byID := make(map[string]nlm.DeleteResult, len(results))
+	for _, r := range results {
+		byID[r.ID] = r
+	}
+	out := DeleteOut{Kind: kind, Items: make([]DeleteItem, 0, len(titles))}
+	deleted := 0
+	var firstErr error
+	for _, it := range titles {
+		r, ok := byID[it.ID]
+		if !ok {
+			r = nlm.DeleteResult{ID: it.ID, Status: "failed", Err: errors.New("no result for this id")}
+		}
+		it.Status = r.Status
+		if r.Err != nil {
+			it.Error = safety.Redact(r.Err.Error())
+			if firstErr == nil {
+				firstErr = r.Err
+			}
+		} else {
+			deleted++
+		}
+		out.Items = append(out.Items, it)
+	}
+	switch {
+	case deleted == len(out.Items):
+		out.Status = "deleted"
+	case deleted == 0:
+		return DeleteOut{}, firstErr
+	default:
+		out.Status = "partial"
+		out.Guidance = "Some items were not deleted; see each item's status and error."
+	}
+	return out, nil
 }
 
 // deletable lists the items of one notebook-scoped kind for id and title resolution.
