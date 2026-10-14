@@ -1,0 +1,22 @@
+{
+  "rpc": "cYAfTb",
+  "synthetic": true,
+  "source": "research/rpc-catalog.md cYAfTb (catalog consensus, not live-verified)",
+  "request": [
+    "0b1c2d3e-0000-4000-8000-000000000001",
+    "note-0001",
+    [
+      [
+        [
+          "Body text",
+          "My title",
+          [],
+          0
+        ]
+      ]
+    ]
+  ],
+  "response_body": ")]}'\n\n117\n[[\"wrb.fr\",\"cYAfTb\",\"[[\\\"note-0001\\\", \\\"Body text\\\", null, null, \\\"My title\\\"]]\",null,null,null,\"generic\"],[\"di\",1]]\n",
+  "captured": "2026-10-14",
+  "host": "notebook.google.com"
+}
