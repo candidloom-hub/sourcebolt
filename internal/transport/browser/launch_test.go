@@ -2,8 +2,10 @@ package browser
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -42,6 +44,14 @@ func hasFlag(args []string, name string) bool {
 func TestAllocatorFlags(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "browser", "default")
 	fake := filepath.Join(t.TempDir(), "no-such-browser.exe")
+	if runtime.GOOS != "windows" {
+		// On Unix chromedp resolves the path before building the command, so
+		// a missing file fails too early. An empty executable passes lookup
+		// and then fails to start (exec format error) after the args exist.
+		if err := os.WriteFile(fake, nil, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, headless := range []bool{false, true} {
 		args := captureArgs(t, Options{ProfileDir: dir, ExecPath: fake, Headless: headless})
 		if hasFlag(args, "enable-automation") {

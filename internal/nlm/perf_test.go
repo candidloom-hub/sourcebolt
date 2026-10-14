@@ -18,6 +18,9 @@ func (p payloadTransport) Do(context.Context, transport.Call) (transport.Result,
 
 // B3 budget: decoding 100 notebooks must not re-parse each row per field.
 func TestListNotebooksAllocBudget(t *testing.T) {
+	if raceEnabled {
+		t.Skip("the race detector makes sync.Pool drop items, inflating allocation counts")
+	}
 	c := New(payloadTransport{benchdata.ListPayload(100)})
 	allocs := testing.AllocsPerRun(20, func() {
 		if nbs, err := c.ListNotebooks(context.Background()); err != nil || len(nbs) != 100 {
