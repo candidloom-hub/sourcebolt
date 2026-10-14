@@ -1,0 +1,33 @@
+{
+  "name": "sourcebolt",
+  "version": "0.0.0",
+  "description": "Fast MCP server for Google NotebookLM (native binary launcher)",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/candidloom-hub/sourcebolt.git"
+  },
+  "bin": {
+    "sourcebolt": "bin/sourcebolt.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@candidloom-hub/sourcebolt-linux-x64": "0.0.0",
+    "@candidloom-hub/sourcebolt-linux-arm64": "0.0.0",
+    "@candidloom-hub/sourcebolt-darwin-x64": "0.0.0",
+    "@candidloom-hub/sourcebolt-darwin-arm64": "0.0.0",
+    "@candidloom-hub/sourcebolt-win32-x64": "0.0.0",
+    "@candidloom-hub/sourcebolt-win32-arm64": "0.0.0"
+  }
+}
