@@ -61,7 +61,7 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	ids := make([]string, 0, len(in.IDs))
 	seen := map[string]bool{}
 	for _, ref := range in.IDs {
-		it, err := resolveStrict(ref, items)
+		it, err := resolveStrict(ref, items, true)
 		if err != nil {
 			return DeleteOut{}, err
 		}

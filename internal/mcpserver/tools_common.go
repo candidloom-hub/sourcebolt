@@ -50,11 +50,12 @@ func (s *server) lookupSourceIDs(ctx context.Context, nb string, refs []string) 
 const minIDPrefix = 6
 
 // resolveStrict picks one item for a mutation: exact id, unique id prefix
-// (6+ chars) or exact title (case-insensitive). Unlike resolve.Resolve it
-// never accepts a title substring. A ref that only matches loosely fails with
-// NOT_FOUND and lists the loose matches as suggestions; several strict
-// matches fail with AMBIGUOUS. Reads keep using resolve.Resolve.
-func resolveStrict(ref string, items []resolve.Item) (resolve.Item, error) {
+// (6+ chars, only when idPrefix is set) or exact title (case-insensitive).
+// Unlike resolve.Resolve it never accepts a title substring. A ref that only
+// matches loosely fails with NOT_FOUND and lists the loose matches as
+// suggestions; several strict matches fail with AMBIGUOUS. Reads keep using
+// resolve.Resolve.
+func resolveStrict(ref string, items []resolve.Item, idPrefix bool) (resolve.Item, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return resolve.Item{}, &resolve.ErrNotFound{Ref: ref}
@@ -67,7 +68,7 @@ func resolveStrict(ref string, items []resolve.Item) (resolve.Item, error) {
 	lower := strings.ToLower(ref)
 	for _, match := range []func(resolve.Item) bool{
 		func(it resolve.Item) bool {
-			return len(ref) >= minIDPrefix && strings.HasPrefix(strings.ToLower(it.ID), lower)
+			return idPrefix && len(ref) >= minIDPrefix && strings.HasPrefix(strings.ToLower(it.ID), lower)
 		},
 		func(it resolve.Item) bool { return strings.EqualFold(it.Title, ref) },
 	} {
@@ -120,7 +121,7 @@ func (s *server) resolveNotebookStrict(ctx context.Context, ref string) (resolve
 	if err != nil {
 		return resolve.Item{}, err
 	}
-	return resolveStrict(ref, items)
+	return resolveStrict(ref, items, true)
 }
 
 // invalidateNotebook drops the cached notebook list and one notebook's entries.

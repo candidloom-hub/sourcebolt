@@ -83,6 +83,32 @@ func TestNoteSaveCreateAndUpdate(t *testing.T) {
 	}
 }
 
+func TestNoteSaveUpdateIsStrict(t *testing.T) {
+	st := newStub()
+	st.payloads["cFji9"] = `[[["note-abcdef1",["note-abcdef1","body",null,null,"Alpha notes"]]]]`
+	st.payloads["cYAfTb"] = `[]`
+	cs := connect(t, st, "default")
+	// A title substring, an id prefix, or a loose notebook title must not
+	// pick the note (or notebook) that gets overwritten.
+	for _, args := range []map[string]any{
+		{"notebook": idA, "note": "alpha", "content": "x"},
+		{"notebook": idA, "note": "note-abc", "content": "x"},
+		{"notebook": "research", "note": "note-abcdef1", "content": "x"},
+	} {
+		if e := envelope(t, call(t, cs, "note_save", args)); e.Code != "NOT_FOUND" || len(e.Suggestions) == 0 {
+			t.Fatalf("%v: envelope = %+v", args, e)
+		}
+	}
+	if n := st.count("cYAfTb"); n != 0 {
+		t.Fatalf("loose match made %d note updates", n)
+	}
+	for _, ref := range []string{"note-abcdef1", "ALPHA NOTES"} {
+		if res := call(t, cs, "note_save", map[string]any{"notebook": "q3 plan", "note": ref, "content": "x"}); res.IsError {
+			t.Fatalf("%q: %s", ref, text(res))
+		}
+	}
+}
+
 func TestNoteSaveFromTurnUnsupported(t *testing.T) {
 	cs := connect(t, newStub(), "default")
 	e := envelope(t, call(t, cs, "note_save", map[string]any{"notebook": idA, "from_turn": "c1:2"}))

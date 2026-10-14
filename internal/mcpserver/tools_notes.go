@@ -62,7 +62,16 @@ func (s *server) noteSave(ctx context.Context, in NoteSaveIn) (nlm.Note, error) 
 	if in.Note == "" && strings.TrimSpace(in.Title) == "" && strings.TrimSpace(in.Content) == "" {
 		return nlm.Note{}, badInput("give a title or content to create a note")
 	}
-	nb, err := s.resolveNotebook(ctx, in.Notebook)
+	var nb string
+	var err error
+	if in.Note == "" {
+		nb, err = s.resolveNotebook(ctx, in.Notebook)
+	} else {
+		// Updating overwrites a note: strict notebook match on a fresh list.
+		var it resolve.Item
+		it, err = s.resolveNotebookStrict(ctx, in.Notebook)
+		nb = it.ID
+	}
 	if err != nil {
 		return nlm.Note{}, err
 	}
@@ -76,7 +85,7 @@ func (s *server) noteSave(ctx context.Context, in NoteSaveIn) (nlm.Note, error) 
 		for i, n := range notes {
 			items[i] = resolve.Item{ID: n.ID, Title: n.Title}
 		}
-		it, err := resolve.Resolve(in.Note, items)
+		it, err := resolveStrict(in.Note, items, false) // exact id or exact title only
 		if err != nil {
 			return nlm.Note{}, err
 		}

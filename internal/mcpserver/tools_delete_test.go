@@ -54,20 +54,23 @@ func TestResolveStrict(t *testing.T) {
 		"7f00aa":    items[0].ID, // unique id prefix
 		"q3 PLAN":   items[0].ID, // exact title, any case
 	} {
-		if it, err := resolveStrict(ref, items); err != nil || it.ID != want {
+		if it, err := resolveStrict(ref, items, true); err != nil || it.ID != want {
 			t.Errorf("%q: got %+v, %v", ref, it, err)
 		}
 	}
 	var nf *resolve.ErrNotFound
-	if _, err := resolveStrict("planning", items); !errors.As(err, &nf) || len(nf.Suggestions) != 1 || nf.Suggestions[0].ID != items[1].ID {
+	if _, err := resolveStrict("planning", items, true); !errors.As(err, &nf) || len(nf.Suggestions) != 1 || nf.Suggestions[0].ID != items[1].ID {
 		t.Errorf("substring must be NOT_FOUND with a suggestion: %v", err)
 	}
-	if _, err := resolveStrict("7f00a", items); !errors.As(err, &nf) {
+	if _, err := resolveStrict("7f00a", items, true); !errors.As(err, &nf) {
 		t.Errorf("short prefix: %v", err)
+	}
+	if _, err := resolveStrict("7f00aa", items, false); !errors.As(err, &nf) {
+		t.Errorf("prefix with idPrefix=false: %v", err)
 	}
 	var amb *resolve.ErrAmbiguous
 	for _, ref := range []string{"dup", "0b1c2d"} {
-		if _, err := resolveStrict(ref, items); !errors.As(err, &amb) {
+		if _, err := resolveStrict(ref, items, true); !errors.As(err, &amb) {
 			t.Errorf("%q: want ambiguous, got %v", ref, err)
 		}
 	}
