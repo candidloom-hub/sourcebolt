@@ -85,8 +85,10 @@ func (s *server) jobCancel(ctx context.Context, in JobCancelIn) (JobCancelOut, e
 		return JobCancelOut{JobID: in.JobID, Status: cur.Status, Note: "job was not running"}, nil
 	}
 	out := JobCancelOut{JobID: in.JobID, Cancelled: true, Status: jobs.StatusCancelled}
-	if v, ok := jobConvs.LoadAndDelete(in.JobID); ok && j.Kind == "chat_ask" {
-		if err := s.NLM.CancelChat(ctx, v.(string)); err != nil {
+	// j is the snapshot taken before Cancel, so it still carries the Meta
+	// that Cancel drops.
+	if conv := j.Meta[metaConversation]; conv != "" && j.Kind == "chat_ask" {
+		if err := s.NLM.CancelChat(ctx, conv); err != nil {
 			out.Note = "job cancelled locally; server-side stop failed: " + safety.Redact(err.Error())
 		}
 	}

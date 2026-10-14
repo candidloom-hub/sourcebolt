@@ -45,6 +45,42 @@ func TestChatAskDetachedAndStatus(t *testing.T) {
 	}
 }
 
+func TestChatAskDetachedCap(t *testing.T) {
+	tr := newChatStub()
+	tr.block = true
+	jt := jobs.New()
+	t.Cleanup(jt.Close)
+	cs := connectChat(t, tr, jt, nil)
+	ask := map[string]any{"notebook": idA, "question": "q", "wait": false}
+	for i := range maxDetachedAsks {
+		res := call(t, cs, "chat_ask", ask)
+		if res.IsError {
+			t.Fatalf("ask %d: %s", i, text(res))
+		}
+	}
+	e := envelope(t, call(t, cs, "chat_ask", ask))
+	if e.Code != "RATE_LIMITED" || e.Error == "" {
+		t.Fatalf("ask over the cap: %+v", e)
+	}
+}
+
+func TestJobTableCloseStopsDetachedAsks(t *testing.T) {
+	tr := newChatStub()
+	tr.block = true
+	jt := jobs.New()
+	cs := connectChat(t, tr, jt, nil)
+	res := call(t, cs, "chat_ask", map[string]any{"notebook": idA, "question": "q", "wait": false, "conversation_id": "conv-1"})
+	var start ChatAskOut
+	_ = json.Unmarshal([]byte(text(res)), &start)
+	if j, _ := jt.Get(start.JobID); j.Meta["conversation_id"] != "conv-1" {
+		t.Fatalf("job meta = %v", j.Meta)
+	}
+	jt.Close()
+	if st := waitJob(t, cs, start.JobID); st.Status != jobs.StatusCancelled {
+		t.Fatalf("status after Close = %+v", st)
+	}
+}
+
 func TestChatAskDetachedFailure(t *testing.T) {
 	tr := newChatStub()
 	tr.stub.payloads["rLM1Ne"] = `[["x",[],"` + idA + `"]]` // no sources: Ask rejects

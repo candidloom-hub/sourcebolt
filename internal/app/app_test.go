@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
@@ -36,6 +37,24 @@ func TestRuntimeCloseShutsDownBrowserLauncher(t *testing.T) {
 	}
 	if _, err := rt.newBrowser(context.Background()); err == nil {
 		t.Fatal("newBrowser after Close succeeded")
+	}
+}
+
+func TestRuntimeCloseCancelsDetachedJobs(t *testing.T) {
+	rt := ForProfile(testProfile(), nil)
+	stopped := make(chan struct{})
+	rt.Deps.Jobs.Start("chat_ask", func(ctx context.Context) (any, error) {
+		<-ctx.Done()
+		close(stopped)
+		return nil, ctx.Err()
+	})
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Runtime.Close left a detached job running")
 	}
 }
 

@@ -101,8 +101,9 @@ func (rt *Runtime) newBrowser(context.Context) (transport.Transport, error) {
 	return browser.NewTransport(rt.launcher.Get, rt.Profile.Host), nil
 }
 
-// Close stops the fallback browser (if one was ever launched). It is
-// idempotent and safe on a runtime that never used the browser.
+// Close cancels running detached jobs and stops the fallback browser (if
+// one was ever launched). It is idempotent and safe on a runtime that
+// never used the browser.
 func (rt *Runtime) Close() error {
 	rt.mu.Lock()
 	if rt.closed {
@@ -112,6 +113,9 @@ func (rt *Runtime) Close() error {
 	rt.closed = true
 	l := rt.launcher
 	rt.mu.Unlock()
+	if rt.Deps.Jobs != nil {
+		rt.Deps.Jobs.Close()
+	}
 	if l != nil {
 		return l.Close()
 	}

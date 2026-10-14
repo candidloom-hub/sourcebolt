@@ -2,10 +2,11 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
+	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -133,10 +134,12 @@ func (s *server) resolveSources(ctx context.Context, nb string, refs []string) (
 	return ids, nil
 }
 
-// jobConvs remembers the explicit conversation id of detached asks so
-// job_cancel can stop the generation. Job ids are random, so one map serves
-// every table.
-var jobConvs sync.Map // job id -> conversation id
+// maxDetachedAsks caps concurrently running chat_ask wait=false jobs.
+const maxDetachedAsks = 16
+
+// metaConversation is the job Meta key holding a detached ask's explicit
+// conversation id, so job_cancel can stop the server-side generation.
+const metaConversation = "conversation_id"
 
 func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) {
 	if strings.TrimSpace(in.Question) == "" {
@@ -160,11 +163,21 @@ func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) 
 	opts := nlm.AskOptions{SourceIDs: srcIDs, ConversationID: in.ConversationID, NewConversation: in.NewConversation}
 
 	if !wait {
-		id := s.Jobs.Start("chat_ask", func(jctx context.Context) (any, error) {
-			return s.runAsk(jctx, nb, in.Question, opts, nil)
-		})
+		jopts := []jobs.StartOption{jobs.Limit(maxDetachedAsks)}
 		if in.ConversationID != "" {
-			jobConvs.Store(id, in.ConversationID)
+			jopts = append(jopts, jobs.Meta(metaConversation, in.ConversationID))
+		}
+		// The job context derives from the table's lifetime, not from this
+		// request: it ends on job_cancel or when the server closes the table.
+		id, err := s.Jobs.Submit("chat_ask", func(jctx context.Context) (any, error) {
+			return s.runAsk(jctx, nb, in.Question, opts, nil)
+		}, jopts...)
+		switch {
+		case errors.Is(err, jobs.ErrBusy):
+			return ChatAskOut{}, &transport.Error{Kind: transport.KindRateLimited, RPC: "chat.ask", Message: fmt.Sprintf(
+				"%d detached chat_ask jobs are already running; wait for one to finish (chat_status), cancel one (job_cancel), or ask with wait=true", maxDetachedAsks)}
+		case err != nil:
+			return ChatAskOut{}, &transport.Error{Kind: transport.KindUnsupported, RPC: "chat.ask", Message: "the job table is closed: " + err.Error()}
 		}
 		return ChatAskOut{JobID: id, Status: "running"}, nil
 	}
