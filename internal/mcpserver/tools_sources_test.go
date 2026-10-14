@@ -168,3 +168,68 @@ func TestSourceAddInvalidatesNotebookCache(t *testing.T) {
 		t.Fatalf("notebook list fetched %d times, want 2 (cache invalidated by source_add)", n)
 	}
 }
+
+func paramsJSON(t *testing.T, st *stub, id string) string {
+	t.Helper()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, c := range st.calls {
+		if c.ID == id {
+			b, err := json.Marshal(c.Params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return string(b)
+		}
+	}
+	t.Fatalf("no call to %s", id)
+	return ""
+}
+
+func TestSourceAddSendsValidatedNormalizedURL(t *testing.T) {
+	st := newStub()
+	st.payloads["izAoDd"] = `[[` + srcRow + `]]`
+	cs := connect(t, st, "default")
+	res := call(t, cs, "source_add", map[string]any{"notebook": idA, "items": []any{map[string]any{"url": "  HTTPS://93.184.216.34/Page  "}}})
+	decode[SourceAddOut](t, res)
+	got := paramsJSON(t, st, "izAoDd")
+	if !strings.Contains(got, `"https://93.184.216.34/Page"`) || strings.Contains(got, "HTTPS") || strings.Contains(got, "  ") {
+		t.Fatalf("params = %s", got)
+	}
+}
+
+func TestNotebookCreateSendsValidatedNormalizedURL(t *testing.T) {
+	st := moreStub()
+	st.payloads["izAoDd"] = `[[` + srcRow + `]]`
+	cs := connect(t, st, "default")
+	decode[NotebookCreateOut](t, call(t, cs, "notebook_create", map[string]any{
+		"title": "T", "sources": []any{map[string]any{"url": "  HTTPS://93.184.216.34/Page  "}},
+	}))
+	got := paramsJSON(t, st, "izAoDd")
+	if !strings.Contains(got, `"https://93.184.216.34/Page"`) || strings.Contains(got, "HTTPS") || strings.Contains(got, "  ") {
+		t.Fatalf("params = %s", got)
+	}
+}
+
+func TestNotebookCreateAndSourceAddRejectSameInputs(t *testing.T) {
+	cases := map[string][]any{
+		"empty":     {map[string]any{}},
+		"two":       {map[string]any{"url": "https://93.184.216.34/x", "text": map[string]any{"title": "t", "content": "a"}}},
+		"private":   {map[string]any{"url": "http://127.0.0.1/x"}},
+		"scheme":    {map[string]any{"url": "ftp://93.184.216.34/x"}},
+		"blankText": {map[string]any{"text": map[string]any{"title": "t", "content": " "}}},
+		"drive":     {map[string]any{"drive": map[string]any{"document_id": "d"}}},
+		"file":      {map[string]any{"file": map[string]any{"path": "x.pdf"}}},
+		"second":    {map[string]any{"url": "https://93.184.216.34/ok"}, map[string]any{"url": "http://10.0.0.1/x"}},
+	}
+	for name, items := range cases {
+		t.Run(name, func(t *testing.T) {
+			cs := connect(t, moreStub(), "default")
+			a := envelope(t, call(t, cs, "source_add", map[string]any{"notebook": idA, "items": items}))
+			b := envelope(t, call(t, cs, "notebook_create", map[string]any{"title": "T", "sources": items}))
+			if a.Code != b.Code || a.Error != b.Error {
+				t.Fatalf("source_add = %q %q; notebook_create = %q %q", a.Code, a.Error, b.Code, b.Error)
+			}
+		})
+	}
+}

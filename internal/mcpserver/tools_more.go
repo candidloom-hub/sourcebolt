@@ -120,41 +120,11 @@ func (s *server) registerMore(m *mcp.Server) {
 	}, s.chatAskMany)
 }
 
-// checkSourceItems runs the argument checks of source_add before anything is created.
-func checkSourceItems(ctx context.Context, items []SourceItem) error {
-	for i, it := range items {
-		n := 0
-		for _, set := range []bool{it.URL != "", it.Text != nil, it.Drive != nil, it.File != nil} {
-			if set {
-				n++
-			}
-		}
-		if n != 1 {
-			return badInput("sources[%d]: set exactly one of url, text, drive, file", i)
-		}
-		switch {
-		case it.Drive != nil:
-			return unsupported("sources.add", "Drive sources are not supported yet")
-		case it.File != nil:
-			return unsupported("sources.add", "file upload is not supported yet")
-		case it.Text != nil:
-			if strings.TrimSpace(it.Text.Content) == "" {
-				return badInput("sources[%d]: text.content must not be empty", i)
-			}
-		default:
-			if _, err := safety.CheckPublicURL(ctx, it.URL, urlResolver); err != nil {
-				return badInput("sources[%d]: %v", i, err)
-			}
-		}
-	}
-	return nil
-}
-
 func (s *server) notebookCreate(ctx context.Context, in NotebookCreateIn) (NotebookCreateOut, error) {
 	if strings.TrimSpace(in.Title) == "" {
 		return NotebookCreateOut{}, badInput("title must not be empty")
 	}
-	if err := checkSourceItems(ctx, in.Sources); err != nil {
+	if _, err := validateSourceItems(ctx, in.Sources); err != nil {
 		return NotebookCreateOut{}, err
 	}
 	nb, err := s.NLM.CreateNotebook(ctx, in.Title, in.Emoji)
