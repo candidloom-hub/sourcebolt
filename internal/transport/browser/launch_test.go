@@ -44,10 +44,14 @@ func hasFlag(args []string, name string) bool {
 func TestAllocatorFlags(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "browser", "default")
 	fake := filepath.Join(t.TempDir(), "no-such-browser.exe")
+	if runtime.GOOS == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		// chromedp refuses a visible window on Linux without a display before
+		// it builds any arguments; CI runners are headless.
+		t.Setenv("DISPLAY", ":99")
+	}
 	if runtime.GOOS != "windows" {
-		// On Unix chromedp resolves the path before building the command, so
-		// a missing file fails too early. An empty executable passes lookup
-		// and then fails to start (exec format error) after the args exist.
+		// An empty executable passes path lookup and then fails to start
+		// (exec format error) after the command line exists.
 		if err := os.WriteFile(fake, nil, 0o755); err != nil {
 			t.Fatal(err)
 		}
