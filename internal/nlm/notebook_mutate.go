@@ -77,15 +77,16 @@ func (c *Client) RenameNotebook(ctx context.Context, id, title string) error {
 }
 
 // RemoveFromRecent drops a notebook from the recently viewed list (fejl7e).
-// The server may answer INTERNAL (code 13) even on success, so that kind is
-// treated as success (rpc-catalog, TL).
+// The server may answer gRPC INTERNAL (code 13) even on success, so only that
+// code is treated as success (rpc-catalog, TL). Other KindInternal errors,
+// such as HTTP 4xx answers, surface.
 func (c *Client) RemoveFromRecent(ctx context.Context, id string) error {
 	if id == "" {
 		return invalidArg("notebooks.unrecent", "no notebook id given")
 	}
 	_, err := c.do(ctx, "notebooks.unrecent", removeRecentParams(id), callOpts{null: wire.NullAllowed})
 	var te *transport.Error
-	if errors.As(err, &te) && te.Kind == transport.KindInternal {
+	if errors.As(err, &te) && te.Kind == transport.KindInternal && te.GRPCCode == 13 {
 		return nil
 	}
 	return err
