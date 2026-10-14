@@ -21,6 +21,8 @@ type Browser struct {
 	cancelTab   context.CancelFunc
 	cancelAlloc context.CancelFunc
 
+	lost <-chan struct{} // closed when the connection to the browser drops
+
 	lock chan struct{} // FIFO: blocked channel senders are served in order
 	idle time.Duration
 
@@ -51,12 +53,29 @@ func Launch(ctx context.Context, o Options) (*Browser, error) {
 		return nil, fmt.Errorf("browser: start %s: %w", exe, err)
 	}
 	b := &Browser{tab: tab, cancelTab: cancelTab, cancelAlloc: cancelAlloc, lock: make(chan struct{}, 1), idle: o.Idle}
+	if c := chromedp.FromContext(tab); c != nil && c.Browser != nil {
+		b.lost = c.Browser.LostConnection
+	}
 	b.armIdle()
 	return b, nil
 }
 
 // Done is closed when the browser is gone.
 func (b *Browser) Done() <-chan struct{} { return b.tab.Done() }
+
+// gone reports whether the browser closed or its connection dropped (the
+// user closed the last window).
+func (b *Browser) gone() bool {
+	if b.tab.Err() != nil {
+		return true
+	}
+	select {
+	case <-b.lost:
+		return true
+	default:
+		return false
+	}
+}
 
 // Tab locks the warm tab for one caller and returns a chromedp context for
 // it. The context also ends with ctx. Callers must call release.
@@ -68,7 +87,7 @@ func (b *Browser) Tab(ctx context.Context) (context.Context, func(), error) {
 	case <-b.Done():
 		return nil, nil, ErrClosed
 	}
-	if b.tab.Err() != nil {
+	if b.gone() {
 		<-b.lock
 		return nil, nil, ErrClosed
 	}

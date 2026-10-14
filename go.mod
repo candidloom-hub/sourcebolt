@@ -3,6 +3,7 @@ module github.com/candidloom-hub/sourcebolt
 go 1.27
 
 require (
+	github.com/chromedp/cdproto v0.157.8
 	github.com/chromedp/chromedp v0.21.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/zalando/go-keyring v0.2.8
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/chromedp/cdproto v0.157.8 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260213210345-44df1a37e875 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
