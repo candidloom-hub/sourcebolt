@@ -36,7 +36,7 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`share_update`](#share_update) | default, all | Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). |
 | [`source_add`](#source_add) | minimal, default, all | Add sources to a notebook: public URLs (YouTube auto-detected) and pasted text, in one call. |
 | [`source_list`](#source_list) | default, all | List a notebook's sources with type and processing status; optionally filter by status. |
-| [`source_read`](#source_read) | minimal, default, all | Read a source's full text or markdown, paged by character offset (max_chars default 20000; see truncated and next_offset). |
+| [`source_read`](#source_read) | minimal, default, all | Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset). |
 | [`source_update`](#source_update) | default, all | Rename a source (title) and/or check whether it is up to date (check_freshness). |
 | [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact. |
 | [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. |
@@ -448,7 +448,7 @@ Annotations: title: List sources, readOnly: true, idempotent: true, openWorld: f
 
 Profiles: minimal, default, all.
 
-Read a source's full text or markdown, paged by character offset (max_chars default 20000; see truncated and next_offset). Mode guide is not yet available.
+Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset).
 
 Annotations: title: Read source, readOnly: true, idempotent: true, openWorld: false.
 
@@ -457,7 +457,7 @@ Annotations: title: Read source, readOnly: true, idempotent: true, openWorld: fa
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `source` | string | yes | source id, id prefix or title |
 | `max_chars` | integer | no | max characters to return (default 20000, cap 200000) |
-| `mode` | string | no | fulltext (default) or markdown; guide is not yet available |
+| `mode` | string | no | fulltext (default), markdown, or guide (the source guide: summary as text plus keywords) |
 | `offset` | integer | no | character offset to start from |
 
 ### `source_update`

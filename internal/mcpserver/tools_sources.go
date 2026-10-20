@@ -80,7 +80,7 @@ type SourceListOut struct {
 type SourceReadIn struct {
 	Notebook string `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
 	Source   string `json:"source" jsonschema:"source id, id prefix or title"`
-	Mode     string `json:"mode,omitempty" jsonschema:"fulltext (default) or markdown; guide is not yet available"`
+	Mode     string `json:"mode,omitempty" jsonschema:"fulltext (default), markdown, or guide (the source guide: summary as text plus keywords)"`
 	Offset   int    `json:"offset,omitempty" jsonschema:"character offset to start from"`
 	MaxChars int    `json:"max_chars,omitempty" jsonschema:"max characters to return (default 20000, cap 200000)"`
 }
@@ -92,6 +92,8 @@ type SourceReadOut struct {
 	TotalChars int    `json:"total_chars"`
 	Truncated  bool   `json:"truncated"`
 	NextOffset int    `json:"next_offset,omitempty"`
+	// Keywords is set in mode guide only; Text is then the guide's summary.
+	Keywords []string `json:"keywords,omitempty"`
 }
 
 type SourceUpdateIn struct {
@@ -122,7 +124,7 @@ func (s *server) registerSources(m *mcp.Server) {
 	}, s.sourceList)
 	register(s, m, "sources", &mcp.Tool{
 		Name:        "source_read",
-		Description: "Read a source's full text or markdown, paged by character offset (max_chars default 20000; see truncated and next_offset). Mode guide is not yet available.",
+		Description: "Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset).",
 		Annotations: readOnly("Read source"),
 	}, s.sourceRead)
 	register(s, m, "sources", &mcp.Tool{
@@ -261,7 +263,6 @@ func (s *server) sourceRead(ctx context.Context, in SourceReadIn) (SourceReadOut
 	case "markdown":
 		markdown = true
 	case "guide":
-		return SourceReadOut{}, unsupported("sources.guide", "source guide is not yet available")
 	default:
 		return SourceReadOut{}, badInput("mode must be fulltext, markdown or guide, got %q", in.Mode)
 	}
@@ -281,12 +282,18 @@ func (s *server) sourceRead(ctx context.Context, in SourceReadIn) (SourceReadOut
 	if err != nil {
 		return SourceReadOut{}, err
 	}
-	txt, err := s.NLM.SourceText(ctx, nb, sid, markdown)
+	var txt string
+	var keywords []string
+	if in.Mode == "guide" {
+		txt, keywords, err = s.NLM.SourceGuide(ctx, nb, sid)
+	} else {
+		txt, err = s.NLM.SourceText(ctx, nb, sid, markdown)
+	}
 	if err != nil {
 		return SourceReadOut{}, err
 	}
 	r := []rune(txt)
-	out := SourceReadOut{SourceID: sid, Offset: in.Offset, TotalChars: len(r)}
+	out := SourceReadOut{SourceID: sid, Offset: in.Offset, TotalChars: len(r), Keywords: keywords}
 	start := min(in.Offset, len(r))
 	end := min(start+limit, len(r))
 	out.Text = string(r[start:end])

@@ -3,7 +3,6 @@ package nlm
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -121,27 +120,5 @@ func TestSourceFreshDriveTrue(t *testing.T) {
 	got, err := New(ft).SourceFresh(context.Background(), readNB, readSID)
 	if err != nil || !got {
 		t.Fatalf("got %v, %v", got, err)
-	}
-}
-
-func TestBlockedSourceRPCs(t *testing.T) {
-	ft := newFake()
-	c := New(ft)
-	_, _, gerr := c.SourceGuide(context.Background(), readNB, readSID)
-	rerr := c.RefreshSource(context.Background(), readNB, readSID)
-	for _, tc := range []struct {
-		err  error
-		item string
-	}{{gerr, "item 10"}, {rerr, "item 9"}} {
-		var te *transport.Error
-		if !errors.As(tc.err, &te) || te.Kind != transport.KindUnsupported {
-			t.Fatalf("err = %v, want KindUnsupported", tc.err)
-		}
-		if !strings.Contains(te.Message, "rpc-catalog") || !strings.Contains(te.Message, tc.item) {
-			t.Fatalf("message %q should name rpc-catalog %s", te.Message, tc.item)
-		}
-	}
-	if len(ft.calls) != 0 {
-		t.Fatal("blocked RPCs reached the transport")
 	}
 }

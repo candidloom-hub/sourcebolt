@@ -99,11 +99,16 @@ func TestSourceReadPaging(t *testing.T) {
 	}
 }
 
-func TestSourceReadGuideUnsupported(t *testing.T) {
-	cs := connect(t, newStub(), "default")
-	res := call(t, cs, "source_read", map[string]any{"notebook": idA, "source": "s1", "mode": "guide"})
-	if e := envelope(t, res); e.Code != "UNSUPPORTED_BY_TRANSPORT" {
-		t.Fatalf("envelope = %+v", e)
+func TestSourceReadGuide(t *testing.T) {
+	st := newStub()
+	st.payloads["tr032e"] = `[[[[["s1"]],["Summary text"],[["k1","k2"]],[]]]]`
+	cs := connect(t, st, "default")
+	out := decode[SourceReadOut](t, call(t, cs, "source_read", map[string]any{"notebook": idA, "source": "Doc", "mode": "guide"}))
+	if out.SourceID != "s1" || out.Text != "Summary text" || out.TotalChars != 12 || strings.Join(out.Keywords, ",") != "k1,k2" {
+		t.Fatalf("out = %+v", out)
+	}
+	if st.count("tr032e") != 1 || st.count("hizoJc") != 0 {
+		t.Fatalf("calls: guide %d, load %d", st.count("tr032e"), st.count("hizoJc"))
 	}
 }
 

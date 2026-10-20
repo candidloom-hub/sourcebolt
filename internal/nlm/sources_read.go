@@ -115,11 +115,42 @@ func freshFromPayload(p jsontext.Value) (bool, error) {
 	return string(b) == "true", nil
 }
 
-// SourceGuide is blocked: tr032e has conflicting request shapes and no live
-// capture (rpc-catalog §10 item 10).
+// sourceGuideParams is pinned by live capture #2 (2026-10-20, tr032e):
+// [[[[sid]]], HDR].
+func sourceGuideParams(sid string) []any {
+	return []any{[]any{[]any{[]any{sid}}}, requestOptions()}
+}
+
+// SourceGuide reads a source's guide (tr032e): a summary and its keywords.
+// Response (live #2): [[[[[sid]], [summary], [[keyword..]], []]]], so the
+// summary is at [0][0][1][0] and the keywords at [0][0][2][0]. A response
+// without a summary is KindDrift.
 func (c *Client) SourceGuide(ctx context.Context, nb, sid string) (summary string, keywords []string, err error) {
-	return "", nil, &transport.Error{Kind: transport.KindUnsupported, RPC: "sources.guide",
-		Message: "source guide is blocked on a live capture of tr032e (rpc-catalog §10 item 10)"}
+	if err := needSID(sid, "sources.guide"); err != nil {
+		return "", nil, err
+	}
+	p, err := c.do(ctx, "sources.guide", sourceGuideParams(sid), callOpts{
+		sourcePath: notebookPath(nb), idempotent: true,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	root, err := wire.Parse(p)
+	if err != nil {
+		return "", nil, &transport.Error{Kind: transport.KindDrift, RPC: "sources.guide", Message: "response is not valid JSON"}
+	}
+	g := root.At(0, 0)
+	summary = g.At(1, 0).Str()
+	if summary == "" {
+		return "", nil, &transport.Error{Kind: transport.KindDrift, RPC: "sources.guide", Message: "guide answered without a summary"}
+	}
+	keywords = []string{}
+	for _, k := range g.At(2, 0).Elems() {
+		if s := k.Str(); s != "" {
+			keywords = append(keywords, s)
+		}
+	}
+	return summary, keywords, nil
 }
 
 // RefreshSource is blocked: FLmJqe and dtT1F have conflicting request shapes
