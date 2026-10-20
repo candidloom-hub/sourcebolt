@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -81,15 +82,19 @@ func TestStreamLiveFixtureStructure(t *testing.T) {
 	if last.Text != "text-136" {
 		t.Errorf("last text = %q", last.Text)
 	}
-	if len(last.Citations) != 2 {
-		t.Fatalf("last citations = %+v", last.Citations)
+	// Markers [[null,73,73],[0,1]] and [[null,184,184],[1,2]] list passage
+	// indices: the type block's own citation list (row[4][0][1]) has
+	// passages 0 and 1 at 73 and passages 1 and 2 at 184.
+	type nAt struct{ n, at int }
+	var got []nAt
+	for _, c := range last.Citations {
+		got = append(got, nAt{c.N, c.Start})
+		if c.SourceID != "00000000-0000-4000-8000-000000000010" || c.End != c.Start {
+			t.Errorf("live citation = %+v (source at passage[1][5][0][0][0])", c)
+		}
 	}
-	c := last.Citations[1]
-	if c.SourceID != "00000000-0000-4000-8000-000000000010" {
-		t.Errorf("live citation source id = %q (passage[1][5][0][0][0])", c.SourceID)
-	}
-	if c.N != 2 || c.Start != 184 || c.End != 184 {
-		t.Errorf("citation 2 = %+v", c)
+	if want := []nAt{{1, 73}, {2, 73}, {2, 184}, {3, 184}}; !slices.Equal(got, want) {
+		t.Fatalf("last citations = %+v, want %v", last.Citations, want)
 	}
 	if got := d.Trailers().FSID; got != "-000000000000000021" {
 		t.Errorf("FSID = %q", got)

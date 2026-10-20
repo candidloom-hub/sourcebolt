@@ -39,7 +39,7 @@ type Citation struct {
 
 const (
 	maxSegment       = 64 << 20 // one snapshot is ~200 KB live; this is a hostile-input cap
-	maxCitationRange = 1024
+	maxCitationRange = 1024     // passage indices read per citation marker
 	readBlock        = 32 << 10
 )
 
@@ -321,8 +321,12 @@ func parseSnapshot(p []byte) (Snapshot, bool) {
 	return s, true
 }
 
-// citations expands markers `[[null, start, end], [from, to)]` into one
-// Citation per number from+1 .. to; citation N reads passage N-1.
+// citations expands markers `[[null, start, end], [idx...]]` into one
+// Citation per passage index; citation N reads passage N-1. The second
+// element lists passage indices (live captures: [0,1] and [1,2] at two
+// markers match the type block's own list of passages 0,1 and 1,2; a
+// single-passage marker is [0]); it is not a [from, to) range. At most
+// maxCitationRange indices are read per marker.
 func citations(markers, passages [][]byte) []Citation {
 	var out []Citation
 	for _, m := range markers {
@@ -331,22 +335,19 @@ func citations(markers, passages [][]byte) []Citation {
 			continue
 		}
 		pos, _ := splitElems(mc[0])
-		rng, ok := splitElems(mc[1])
-		if !ok || len(rng) < 2 {
+		idxs, ok := splitElems(mc[1])
+		if !ok {
 			continue
 		}
 		var start, end int
 		if len(pos) > 2 {
 			start, end = rawInt(pos[1]), rawInt(pos[2])
 		}
-		a, b := rawInt(rng[0]), rawInt(rng[1])
-		if a < 0 || b <= a {
-			continue
+		if len(idxs) > maxCitationRange {
+			idxs = idxs[:maxCitationRange]
 		}
-		if b-a > maxCitationRange {
-			b = a + maxCitationRange
-		}
-		for idx := a; idx < b; idx++ {
+		for _, raw := range idxs {
+			idx := rawInt(raw) // 0 for a non-number
 			c := Citation{N: idx + 1, Start: start, End: end}
 			if idx < len(passages) {
 				c.SourceID = Str(passages[idx], 1, 5, 0, 0, 0)

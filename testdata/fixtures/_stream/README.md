@@ -8,7 +8,7 @@ Shape of each stream frame: `["wrb.fr", null, "<inner JSON>"]` (rpc id is null).
 Inner payload: `[row, null, markers, followups, isFinal, null, tag]` where
 `row = [text, null, [conv, resp, n], null, typeBlock]`, `typeBlock = [rich, null, null,
 passages, flag]` (flag 1 answer, 2 thinking), passage = `[x, [.., .., .., .., citedText,
-[[[sourceId]]], ..]]`, marker = `[[null, start, end], [from, to)]` (citation N = index+1).
+[[[sourceId]]], ..]]`, marker = `[[null, start, end], [passage index, ...]]` (citation N = index+1; live captures 2026-10-13 and 2026-10-20 show an index list, not a range).
 
 | file | covers |
 |---|---|
