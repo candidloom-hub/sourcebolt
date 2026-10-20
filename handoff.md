@@ -12,7 +12,8 @@ Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache
   - PR #12, B3 perf: CI p50 2.26 ms uncached, 1.00 ms cached; allocations −72%.
   - PR #14, DOM fallback (P4 Task 5): reviewed, and all 10 review findings fixed.
 - Release: tag v0.1.0 and the GitHub release are approved (2026-10-20). **On hold until the owner approves:** npm, PyPI and the MCP registry listing.
-- Capture #2 (approved 2026-10-20): the in-page hook is installed in a fresh Claude in Chrome tab ("Gemini Notebook"). The owner follows `capture2-checklist.md` (git-excluded) and says "done". The old capture tab from 2026-10-14 was lost.
+- Capture #2 done 2026-10-20: 40 sanitized fixtures (PR #17, merged). Pinned shapes enabled flashcards generation, source/note/chat-history delete and the source guide, and fixed six request builders, source text nesting and citation decoding. The owner still has to delete the capture notebooks ("sourcebolt capture 2d" and the capture #1 notebook).
+- v0.1.0 released 2026-10-20 (GitHub release with binaries, SBOMs and a cosign-signed checksums file; GHCR images `0.1.0` and `0.1.0-browser`).
 - Live verified (2026-10-14): `login --attach`, read tools on 9 notebooks (RTT p50 848 ms), notebook_create → source_add → chat_ask with citation (18.4 s).
 
 # Files touched
@@ -62,6 +63,6 @@ Do NOT retry these.
 # Next steps
 1. Optional, owner-gated: check the DOM fallback against the live NotebookLM page (force drift with NOTEBOOKLM_RPC_IDS).
 2. B3: the uncached path is still above 2 ms on CI; a smaller default page is the remaining lever.
-3. **Capture #2**: when the owner says "done", export `window.__sbcap` in slices with javascript_tool, not the clipboard. Write it with the Write tool, convert it with `go run ./tools/capture`, leak-scan it, then pin the shapes: R7cb6c configs, deletes, tr032e, hizoJc, CYK0Xb chat-save, cYAfTb, mixed izAoDd, EylDcb. Ask the owner to delete the capture notebook.
+3. Next capture (when needed): other Studio types and flashcards options, saving a chat answer as a note, paging of the conversation list, the markdown mode of `source_read`. Method: see CLAUDE.md lessons.
 4. Release: in CHANGELOG.md, turn [Unreleased] into [0.1.0], tag v0.1.0 on main, check the draft GitHub release, then publish it. npm, PyPI and the registry stay on hold.
-5. Owner-only: the `NPM_TOKEN` secret and the PyPI trusted publisher (when npm and PyPI are approved); delete the capture notebook after capture #2.
+5. Owner-only: the `NPM_TOKEN` secret and the PyPI trusted publisher (when npm and PyPI are approved); delete the capture notebooks.

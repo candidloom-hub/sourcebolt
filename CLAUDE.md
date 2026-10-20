@@ -17,7 +17,7 @@ The work has three phases:
 - GitHub: candidloom-hub/sourcebolt is **public** (since 2026-10-14) with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (old PRs #1-#9, local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
 - `main` has P1-P3 tools, P4 transports and login, P5 packaging and docs, the backlog fixes (PR #8) and the design-call fixes (PR #13). In flight: B3 perf (PR #12), DOM fallback (branch `feat/dom-fallback`, plan `docs/superpowers/plans/2026-10-14-p4-task5-dom-fallback.md`).
 - Release: owner approved tag v0.1.0 and the GitHub release (2026-10-20). **On hold until the owner approves:** npm, PyPI (need the owner's `NPM_TOKEN` secret and a PyPI trusted publisher) and the MCP registry listing.
-- Live capture #2 approved 2026-10-20; see `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
+- v0.1.0 released 2026-10-20. Live capture #2 done (PR #17). See `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands
 
@@ -57,7 +57,7 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Tests set `NOTEBOOKLM_BROWSER_FALLBACK=0` and `NOTEBOOKLM_CONFIG_DIR` to a temp dir; no test may launch a browser.
 - Benchmarks: run base and head interleaved (`bench/interleave.sh`); sequential runs drift.
 - Cookie import needs SID/HSID/APISID; without them NotebookLM returns the signed-out shell (200, no SNlM0e). Do not relax this.
-- Live capture: in-page XHR hook via Claude in Chrome. Export via clipboard only from the focused tab; check the file starts with `{"log"`; skeletonize payloads over ~1 MB first. Page CSP blocks localhost and downloads are blocked.
+- Live capture: an in-page hook via Claude in Chrome. NotebookLM calls `fetch(Request)`, so read the body from `input.clone()`, not from `init`. The tab must be visible: bring Chrome forward with computer-use `open_application`. The extension blocks query-string and base64 output, so don't route raw data through the model. Instead: trim in the page (strings over 200 characters, arrays over 25 items, drop `f.sid` and the other query values), put it in a temporary textarea, press Ctrl+C with a real keystroke, then run `Get-Clipboard -Raw > file`. Check the file starts with `{"log"`, run `tools/capture`, then leak-scan. A page reload loses the recording. Autofill extensions can take over the tab.
 - Payloads with `)]}'` or apostrophes: write files with the Write tool, not heredocs or `node -e`.
 - Commands for the owner use `.\bin\sourcebolt.exe`, never bare `sourcebolt`.
 - The repo is public: never commit absolute local paths, the owner's name, notebook ids or titles. Scrub before pushing.
