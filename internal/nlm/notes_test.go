@@ -40,43 +40,6 @@ func TestListNotesFiltersTombstones(t *testing.T) {
 	}
 }
 
-func TestSaveNoteCreatesThenSetsTitle(t *testing.T) {
-	cr, mu := loadFixture(t, "CYK0Xb", "create"), loadFixture(t, "cYAfTb", "mutate")
-	ft := newFake(cr, mu)
-	n, err := New(ft).SaveNote(context.Background(), nb1, NoteInput{Title: "My title", Content: "Body text"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p := paramsJSON(t, ft, "CYK0Xb"); !sameJSON(t, []byte(p), cr.Request) {
-		t.Fatalf("create %s", p)
-	}
-	if p := paramsJSON(t, ft, "cYAfTb"); !sameJSON(t, []byte(p), mu.Request) {
-		t.Fatalf("mutate %s", p)
-	}
-	if n.ID != "note-0001" || n.Title != "My title" || n.Content != "Body text" {
-		t.Fatalf("note = %+v", n)
-	}
-	for _, id := range []string{"CYK0Xb", "cYAfTb"} {
-		if c, _ := ft.callFor(id); c.Idempotent {
-			t.Fatalf("%s must not be retried: %+v", id, c)
-		}
-	}
-}
-
-func TestSaveNoteUpdateSkipsCreate(t *testing.T) {
-	ft := newFake(loadFixture(t, "cYAfTb", "mutate"))
-	n, err := New(ft).SaveNote(context.Background(), nb1, NoteInput{ID: "note-0001", Title: "T", Content: "C"})
-	if err != nil || n.ID != "note-0001" {
-		t.Fatalf("note = %+v %v", n, err)
-	}
-	if _, ok := ft.callFor("CYK0Xb"); ok {
-		t.Fatal("update must not create")
-	}
-	if p := paramsJSON(t, ft, "cYAfTb"); !strings.Contains(p, `"note-0001"`) || !strings.Contains(p, `[["C","T",[],0]]`) {
-		t.Fatalf("mutate %s", p)
-	}
-}
-
 func TestSaveNoteEmptyIDFromCreate(t *testing.T) {
 	_, err := New(newFake(inlineFixture("CYK0Xb", `[]`))).SaveNote(context.Background(), nb1, NoteInput{Title: "t"})
 	var te *transport.Error

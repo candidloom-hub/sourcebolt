@@ -246,7 +246,7 @@ Annotations: title: List notes, readOnly: true, idempotent: true, openWorld: fal
 
 Profiles: default, all.
 
-Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT. The payload shape is not live-verified.
+Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Save note, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 

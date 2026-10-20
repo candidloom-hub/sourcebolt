@@ -24,13 +24,19 @@ type NoteInput struct {
 // Live capture 2026-10-13 (cFji9): params [notebook_id, null, null, HDR].
 func listNotesParams(nb string) []any { return []any{nb, nil, nil, requestOptions()} }
 
-// shape: catalog consensus, not live-verified (CYK0Xb, blank note):
-// [nb, "", [1], null, "New Note"]. The title is ignored on create.
-func createNoteParams(nb string) []any { return []any{nb, "", []any{1}, nil, "New Note"} }
+// createNoteParams is pinned by live capture #2 (2026-10-20, CYK0Xb from the
+// "Copied text" flow, which now creates a note): [nb, content,
+// [1,null×5,1], null, title, null, HDR]. A chat answer saved as a note uses
+// kind 2 instead of 1 plus the answer's rich-text and citation structures at
+// [3] and [5], which the client does not keep (see rpc-catalog).
+func createNoteParams(nb, title, content string) []any {
+	return []any{nb, content, []any{1, nil, nil, nil, nil, nil, 1}, nil, title, nil, requestOptions()}
+}
 
-// shape: catalog consensus, not live-verified (cYAfTb): [nb, note, [[[content, title, [], 0]]]].
+// mutateNoteParams is pinned by live capture #2 (2026-10-20, cYAfTb title
+// edit): [nb, note, [[[content, title, [], 0, null, 1]]], HDR].
 func mutateNoteParams(nb, id, title, content string) []any {
-	return []any{nb, id, []any{[]any{[]any{content, title, []any{}, 0}}}}
+	return []any{nb, id, []any{[]any{[]any{content, title, []any{}, 0, nil, 1}}}, requestOptions()}
 }
 
 // ListNotes lists a notebook's notes (cFji9). Rows are [id,[id,content,meta,null,title]];
@@ -59,26 +65,25 @@ func noteFromRow(r []byte) (Note, bool) {
 	return Note{ID: id, Content: wire.Str(r, 1, 1), Title: wire.Str(r, 1, 4), Updated: stamp(r, 1, 2, 2)}, true
 }
 
-// SaveNote creates a note (empty ID: CYK0Xb blank create, then cYAfTb to set
-// title and content) or rewrites an existing one (cYAfTb only). Neither call
-// is retried: a resent create would leave a second blank note.
+// SaveNote creates a note (empty ID: one CYK0Xb call with title and
+// content, answered by the new note row [[id, content, meta, null, title]])
+// or rewrites an existing one (cYAfTb). Neither call is retried: a resent
+// create would leave a second note.
 func (c *Client) SaveNote(ctx context.Context, nb string, n NoteInput) (Note, error) {
 	opts := callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed}
-	id := n.ID
-	if id == "" {
-		p, err := c.do(ctx, "notes.create", createNoteParams(nb), opts)
-		if err != nil {
-			return Note{}, err
+	if n.ID != "" {
+		if _, err := c.do(ctx, "notes.mutate", mutateNoteParams(nb, n.ID, n.Title, n.Content), opts); err != nil {
+			return Note{ID: n.ID}, err
 		}
-		if id = wire.Str(p, 0, 0); id == "" {
-			id = wire.Str(p, 0)
-		}
-		if id == "" {
-			return Note{}, &transport.Error{Kind: transport.KindDrift, RPC: "notes.create", Message: "create answered without a note id"}
-		}
+		return Note{ID: n.ID, Title: n.Title, Content: n.Content}, nil
 	}
-	if _, err := c.do(ctx, "notes.mutate", mutateNoteParams(nb, id, n.Title, n.Content), opts); err != nil {
-		return Note{ID: id}, err
+	p, err := c.do(ctx, "notes.create", createNoteParams(nb, n.Title, n.Content), opts)
+	if err != nil {
+		return Note{}, err
+	}
+	id := wire.Str(p, 0, 0)
+	if id == "" {
+		return Note{}, &transport.Error{Kind: transport.KindDrift, RPC: "notes.create", Message: "create answered without a note id"}
 	}
 	return Note{ID: id, Title: n.Title, Content: n.Content}, nil
 }
