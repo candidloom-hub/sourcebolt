@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json/v2"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -189,24 +190,60 @@ func TestChatHistory(t *testing.T) {
 func TestChatConfigure(t *testing.T) {
 	tr := newChatStub()
 	cs := connectChat(t, tr, nil, nil)
-	res := call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "concise"})
+	res := call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "learning_guide", "response_length": "shorter"})
 	var out ChatConfigureOut
-	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Length != "shorter" {
+	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Mode != "learning_guide" || out.Length != "shorter" {
 		t.Fatalf("configure = %q %v", text(res), err)
 	}
 	if tr.count("s0tc2d") != 1 {
 		t.Fatalf("mutate calls = %d", tr.count("s0tc2d"))
 	}
-	for _, args := range []map[string]any{
-		{"notebook": idA, "mode": "wild"},
-		{"notebook": idA},
-		{"notebook": idA, "mode": "detailed", "response_length": "shorter"},
-		{"notebook": idA, "mode": "custom"}, // custom without prompt: rejected by the domain layer
+	for _, tc := range []struct {
+		args map[string]any
+		code string
+	}{
+		{map[string]any{"notebook": idA, "mode": "wild"}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA, "mode": "concise"}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA, "mode": "custom", "response_length": "longer"}, "INVALID_ARGUMENT"}, // custom without prompt: rejected by the domain layer
+		{map[string]any{"notebook": idA, "mode": "default", "response_length": "longer"}, "UNSUPPORTED_BY_TRANSPORT"},
+		{map[string]any{"notebook": idA, "mode": "learning_guide", "response_length": "default"}, "UNSUPPORTED_BY_TRANSPORT"},
+		{map[string]any{"notebook": idA, "response_length": "longer"}, "UNSUPPORTED_BY_TRANSPORT"}, // current goal is default
 	} {
-		if e := envelope(t, call(t, cs, "chat_configure", args)); e.Code != "INVALID_ARGUMENT" {
-			t.Fatalf("%v: %+v", args, e)
+		if e := envelope(t, call(t, cs, "chat_configure", tc.args)); e.Code != tc.code {
+			t.Fatalf("%v: %+v", tc.args, e)
 		}
 	}
+	if tr.count("s0tc2d") != 1 {
+		t.Fatalf("refused changes wrote settings: %d mutate calls", tr.count("s0tc2d"))
+	}
+}
+
+// The schema offers only the proven settings.
+func TestChatConfigureSchemaEnums(t *testing.T) {
+	cs := connectChat(t, newChatStub(), nil, nil)
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name != "chat_configure" {
+			continue
+		}
+		b, _ := json.Marshal(tool.InputSchema)
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		if got := enumOf(t, m, "mode"); !slices.Equal(got, []string{"learning_guide", "custom"}) {
+			t.Errorf("mode enum = %v", got)
+		}
+		if got := enumOf(t, m, "response_length"); !slices.Equal(got, []string{"longer", "shorter"}) {
+			t.Errorf("response_length enum = %v", got)
+		}
+		return
+	}
+	t.Fatal("chat_configure not listed")
 }
 
 func TestSuggest(t *testing.T) {

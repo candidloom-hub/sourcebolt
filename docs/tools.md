@@ -15,7 +15,7 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`auth_logout`](#auth_logout) | default, all | Not available through MCP: the credential store is only reachable from the CLI. |
 | [`chat_ask`](#chat_ask) | minimal, default, all | Ask a question about a notebook's sources. |
 | [`chat_ask_many`](#chat_ask_many) | batch, all | Ask the same question in several notebooks (their default conversation thread), at most max_parallel at a time (default 3). |
-| [`chat_configure`](#chat_configure) | default, all | Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. |
+| [`chat_configure`](#chat_configure) | default, all | Change a notebook's chat settings: mode (learning_guide, or custom with custom_prompt) and response_length (longer or shorter). |
 | [`chat_history`](#chat_history) | default, all | Read a notebook conversation (oldest turn first within a page), with cursor paging. |
 | [`chat_status`](#chat_status) | default, all | Status and result of a detached chat_ask (wait=false): running, done, failed or cancelled. |
 | [`delete`](#delete) | default, all | Delete notebooks, sources, notes, artifacts, chat history, labels or collections. |
@@ -124,7 +124,7 @@ Annotations: title: Ask many notebooks, readOnly: false, destructive: false, ide
 
 Profiles: default, all.
 
-Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. Unset fields keep their value. concise and detailed set response_length shorter and longer.
+Change a notebook's chat settings: mode (learning_guide, or custom with custom_prompt) and response_length (longer or shorter). Unset fields keep their value; both are always sent, so on a notebook whose current mode or length is the default, pass both. The web app's default mode and default length are not live-verified and return UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Configure chat, readOnly: false, destructive: false, idempotent: true, openWorld: false.
 
@@ -132,8 +132,8 @@ Annotations: title: Configure chat, readOnly: false, destructive: false, idempot
 |---|---|---|---|
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `custom_prompt` | string | no | instructions for mode custom, up to 10000 characters |
-| `mode` | string | no | default, learning_guide, concise, detailed or custom (custom needs custom_prompt) |
-| `response_length` | string | no | default, longer or shorter |
+| `mode` | string (`learning_guide`, `custom`) | no | conversational goal; custom needs custom_prompt |
+| `response_length` | string (`longer`, `shorter`) | no | response length |
 
 ### `chat_history`
 

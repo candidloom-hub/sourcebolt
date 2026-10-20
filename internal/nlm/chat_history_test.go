@@ -116,73 +116,76 @@ func configNB(t *testing.T, settings any) Fixture {
 	return synthRow(t, "rLM1Ne", []any{row})
 }
 
-func TestConfigureMergesPartial(t *testing.T) {
-	// current: custom goal with prompt, default length. Only length changes.
-	ft := newFake(configNB(t, []any{[]any{2, "text-prompt"}, []any{1}}), loadFixture(t, "s0tc2d", "chat_config"))
-	if err := New(ft).Configure(t.Context(), fakeNB, ChatConfig{Length: "longer"}); err != nil {
-		t.Fatal(err)
-	}
-	c, ok := ft.callFor("s0tc2d")
-	if !ok {
-		t.Fatal("no s0tc2d call")
-	}
-	if c.RPC != "notebooks.mutate" || c.SourcePath != "/notebook/"+fakeNB || c.Idempotent {
-		t.Fatalf("call = %+v", c)
-	}
-	got, _ := json.Marshal(c.Params)
-	if want := loadFixture(t, "s0tc2d", "chat_config").Request; !sameJSON(t, got, want) {
-		t.Fatalf("params %s want %s", got, want)
-	}
-	if _, ok := ft.callFor("rLM1Ne"); !ok {
-		t.Fatal("did not read current settings first")
-	}
-}
-
-func TestConfigureFromNullSettings(t *testing.T) {
-	ft := newFake(loadFixture(t, "rLM1Ne", "get_empty"), loadFixture(t, "s0tc2d", "chat_config"))
-	if err := New(ft).Configure(t.Context(), fakeNB, ChatConfig{Goal: "learning_guide"}); err != nil {
-		t.Fatal(err)
-	}
-	c, _ := ft.callFor("s0tc2d")
-	got, _ := json.Marshal(c.Params)
-	want := `["` + fakeNB + `",[[null,null,null,null,null,null,null,[[3],[1]]]]]`
-	if !sameJSON(t, got, []byte(want)) {
-		t.Fatalf("params %s want %s", got, want)
-	}
-}
-
-func TestConfigureKeepsGoalWhenOnlyPromptMissing(t *testing.T) {
-	ft := newFake(configNB(t, []any{[]any{3}, []any{5}}), loadFixture(t, "s0tc2d", "chat_config"))
-	if err := New(ft).Configure(t.Context(), fakeNB, ChatConfig{Goal: "custom", Prompt: "p"}); err != nil {
-		t.Fatal(err)
-	}
-	c, _ := ft.callFor("s0tc2d")
-	got, _ := json.Marshal(c.Params)
-	want := `["` + fakeNB + `",[[null,null,null,null,null,null,null,[[2,"p"],[5]]]]]`
-	if !sameJSON(t, got, []byte(want)) {
-		t.Fatalf("params %s want %s", got, want)
+// Live capture #3 saved chat settings twice: Learning guide + Shorter
+// (live3_02, again as live3_03) and Custom with a prompt + Longer
+// (live3_04). Both carry HDR last; the answer is the project row with the
+// new settings at [7], the slot Configure reads back from rLM1Ne.
+func TestConfigureLive3(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		current any
+		cfg     ChatConfig
+	}{
+		{"live3_2026-10-20_02", []any{[]any{2, "p"}, []any{4}}, ChatConfig{Goal: "learning_guide", Length: "shorter"}},
+		{"live3_2026-10-20_03", []any{[]any{3}, []any{4}}, ChatConfig{Length: "shorter"}},  // goal kept
+		{"live3_2026-10-20_04", []any{[]any{3}, []any{4}}, ChatConfig{Prompt: "text-554"}}, // custom implied, length kept
+		{"live3_2026-10-20_04", []any{[]any{2, "old"}, []any{5}}, ChatConfig{Goal: "custom", Prompt: "text-554", Length: "longer"}},
+	} {
+		fx := loadFixture(t, "s0tc2d", tc.fixture)
+		ft := newFake(configNB(t, tc.current), fx)
+		cfg := tc.cfg
+		if cfg.Prompt != "" && cfg.Goal == "" {
+			cfg.Goal = "custom"
+		}
+		if err := New(ft).Configure(t.Context(), fakeNB, cfg); err != nil {
+			t.Fatalf("%s %+v: %v", tc.fixture, tc.cfg, err)
+		}
+		c, ok := ft.callFor("s0tc2d")
+		if !ok {
+			t.Fatal("no s0tc2d call")
+		}
+		if c.RPC != "notebooks.mutate" || c.SourcePath != "/notebook/"+fakeNB || c.Idempotent {
+			t.Fatalf("call = %+v", c)
+		}
+		got, _ := json.Marshal(c.Params)
+		if !sameJSON(t, got, fx.Request) {
+			t.Fatalf("%s params\n got %s\nwant %s", tc.fixture, got, fx.Request)
+		}
+		if _, ok := ft.callFor("rLM1Ne"); !ok {
+			t.Fatal("did not read current settings first")
+		}
 	}
 }
 
-func TestConfigureRejectsBadInput(t *testing.T) {
-	cur := configNB(t, []any{[]any{1}, []any{1}})
-	cases := map[string]ChatConfig{
-		"unknown goal":      {Goal: "pirate"},
-		"unknown length":    {Length: "huge"},
-		"custom no prompt":  {Goal: "custom"},
-		"prompt too long":   {Goal: "custom", Prompt: strings.Repeat("x", 10001)},
-		"prompt non-custom": {Goal: "learning_guide", Prompt: "p"},
-		"empty":             {},
-	}
-	for name, cfg := range cases {
-		ft := newFake(cur, loadFixture(t, "s0tc2d", "chat_config"))
-		err := New(ft).Configure(t.Context(), fakeNB, cfg)
+// No capture saved the default goal or the default length, so a change
+// that would send either is refused, naming the option, before writing.
+// Unknown values and bad combinations stay invalid input.
+func TestConfigureRejectsUnprovenAndBadInput(t *testing.T) {
+	for name, tc := range map[string]struct {
+		current any
+		cfg     ChatConfig
+		kind    transport.Kind
+		says    string
+	}{
+		"goal default":             {[]any{[]any{3}, []any{5}}, ChatConfig{Goal: "default"}, transport.KindUnsupported, "goal default"},
+		"length default":           {[]any{[]any{3}, []any{5}}, ChatConfig{Length: "default"}, transport.KindUnsupported, "length default"},
+		"current length default":   {[]any{[]any{3}, []any{1}}, ChatConfig{Goal: "learning_guide"}, transport.KindUnsupported, "length default"},
+		"current settings missing": {nil, ChatConfig{Length: "longer"}, transport.KindUnsupported, "goal default"},
+		"unknown goal":             {nil, ChatConfig{Goal: "pirate"}, transport.KindInvalidArgument, "goal"},
+		"unknown length":           {nil, ChatConfig{Length: "huge"}, transport.KindInvalidArgument, "length"},
+		"custom no prompt":         {[]any{[]any{3}, []any{5}}, ChatConfig{Goal: "custom"}, transport.KindInvalidArgument, "prompt"},
+		"prompt too long":          {nil, ChatConfig{Goal: "custom", Prompt: strings.Repeat("x", 10001)}, transport.KindInvalidArgument, "10000"},
+		"prompt non-custom":        {nil, ChatConfig{Goal: "learning_guide", Prompt: "p"}, transport.KindInvalidArgument, "custom"},
+		"empty":                    {nil, ChatConfig{}, transport.KindInvalidArgument, "no chat setting"},
+	} {
+		ft := newFake(configNB(t, tc.current), loadFixture(t, "s0tc2d", "live3_2026-10-20_02"))
+		err := New(ft).Configure(t.Context(), fakeNB, tc.cfg)
 		var te *transport.Error
-		if !errors.As(err, &te) || te.Kind != transport.KindInvalidArgument {
+		if !errors.As(err, &te) || te.Kind != tc.kind || !strings.Contains(te.Message, tc.says) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 		if _, wrote := ft.callFor("s0tc2d"); wrote {
-			t.Errorf("%s: wrote settings despite invalid input", name)
+			t.Errorf("%s: wrote settings despite refusal", name)
 		}
 	}
 }

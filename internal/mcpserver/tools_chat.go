@@ -11,6 +11,7 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -60,9 +61,9 @@ type ChatHistoryOut struct {
 
 type ChatConfigureIn struct {
 	Notebook       string `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
-	Mode           string `json:"mode,omitempty" jsonschema:"default, learning_guide, concise, detailed or custom (custom needs custom_prompt)"`
+	Mode           string `json:"mode,omitempty" jsonschema:"conversational goal; custom needs custom_prompt"`
 	CustomPrompt   string `json:"custom_prompt,omitempty" jsonschema:"instructions for mode custom, up to 10000 characters"`
-	ResponseLength string `json:"response_length,omitempty" jsonschema:"default, longer or shorter"`
+	ResponseLength string `json:"response_length,omitempty" jsonschema:"response length"`
 }
 
 type ChatConfigureOut struct {
@@ -99,8 +100,9 @@ func (s *server) registerChat(m *mcp.Server) {
 
 	register(s, m, "chat", &mcp.Tool{
 		Name:        "chat_configure",
-		Description: "Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. Unset fields keep their value. concise and detailed set response_length shorter and longer.",
+		Description: "Change a notebook's chat settings: mode (learning_guide, or custom with custom_prompt) and response_length (longer or shorter). Unset fields keep their value; both are always sent, so on a notebook whose current mode or length is the default, pass both. The web app's default mode and default length are not live-verified and return UNSUPPORTED_BY_TRANSPORT.",
 		Annotations: &mcp.ToolAnnotations{Title: "Configure chat", ReadOnlyHint: false, DestructiveHint: &f, IdempotentHint: true, OpenWorldHint: &f},
+		InputSchema: chatConfigureSchema(),
 	}, s.chatConfigure)
 
 	register(s, m, "chat", &mcp.Tool{
@@ -278,6 +280,20 @@ func (s *server) chatHistory(ctx context.Context, in ChatHistoryIn) (ChatHistory
 	return out, nil
 }
 
+// chatConfigureSchema is ChatConfigureIn's schema with enums of the proven
+// settings only. Input is validated against the plain type schema, so
+// "default" reaches the handler and gets UNSUPPORTED_BY_TRANSPORT.
+func chatConfigureSchema() *jsonschema.Schema {
+	s, _ := schemaFor[ChatConfigureIn]()
+	for _, v := range nlm.ChatGoals {
+		s.Properties["mode"].Enum = append(s.Properties["mode"].Enum, v)
+	}
+	for _, v := range nlm.ChatLengths {
+		s.Properties["response_length"].Enum = append(s.Properties["response_length"].Enum, v)
+	}
+	return s
+}
+
 func (s *server) chatConfigure(ctx context.Context, in ChatConfigureIn) (ChatConfigureOut, error) {
 	cfg := nlm.ChatConfig{Prompt: in.CustomPrompt, Length: in.ResponseLength}
 	switch in.Mode {
@@ -285,19 +301,10 @@ func (s *server) chatConfigure(ctx context.Context, in ChatConfigureIn) (ChatCon
 		if in.CustomPrompt != "" {
 			cfg.Goal = "custom"
 		}
-	case "default", "learning_guide", "custom":
+	case "default", "learning_guide", "custom": // default: refused by the domain layer as unproven
 		cfg.Goal = in.Mode
-	case "concise", "detailed":
-		want := map[string]string{"concise": "shorter", "detailed": "longer"}[in.Mode]
-		if in.ResponseLength != "" && in.ResponseLength != want {
-			return ChatConfigureOut{}, badInput("mode %s conflicts with response_length %s", in.Mode, in.ResponseLength)
-		}
-		if in.CustomPrompt != "" {
-			return ChatConfigureOut{}, badInput("custom_prompt needs mode custom")
-		}
-		cfg.Goal, cfg.Length = "default", want
 	default:
-		return ChatConfigureOut{}, badInput("mode must be default, learning_guide, concise, detailed or custom, got %q", in.Mode)
+		return ChatConfigureOut{}, badInput("mode must be learning_guide or custom, got %q", in.Mode)
 	}
 	if cfg.Goal == "" && cfg.Length == "" {
 		return ChatConfigureOut{}, badInput("give mode, custom_prompt or response_length")
