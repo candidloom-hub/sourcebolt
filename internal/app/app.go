@@ -127,7 +127,8 @@ func (l *lazyDOM) get() (*browser.DOM, error) {
 	launcher, err := l.rt.sharedLauncher()
 	l.rt.mu.Unlock()
 	if err != nil {
-		return nil, err
+		// Typed like the DOM's own errors; nothing was sent.
+		return nil, &transport.Error{Kind: transport.KindTransport, Transport: nlm.DOMTransport, Cause: err}
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()

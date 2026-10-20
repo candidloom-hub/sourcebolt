@@ -107,8 +107,10 @@ func TestForProfileWiresLazyDOMFallback(t *testing.T) {
 		t.Fatalf("browser transport does not share the DOM launcher (err %v)", err)
 	}
 	rt.Close()
-	if err := rt.Deps.NLM.DOM.AddURL(context.Background(), "nb", "https://example.test/"); !errors.Is(err, browser.ErrClosed) {
-		t.Fatalf("DOM after Close: err = %v, want ErrClosed", err)
+	err = rt.Deps.NLM.DOM.AddURL(context.Background(), "nb", "https://example.test/")
+	var te *transport.Error
+	if !errors.Is(err, browser.ErrClosed) || !errors.As(err, &te) || te.Kind != transport.KindTransport || te.Sent {
+		t.Fatalf("DOM after Close: err = %#v, want an unsent KindTransport wrapping ErrClosed", err)
 	}
 }
 
