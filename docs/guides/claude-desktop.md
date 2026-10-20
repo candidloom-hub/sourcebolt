@@ -100,7 +100,7 @@ Use this if you prefer to change the settings yourself.
 
 ### Option A: double-click the bundle
 
-1. Open the [v0.2.0 release page](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0).
+1. Open the [v0.3.0 release page](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.3.0).
 2. Under **Assets**, download the `.mcpb` file for your computer:
    - Windows: `sourcebolt-mcp-windows-amd64.mcpb` (or `-arm64` on an ARM PC).
    - Mac with Apple silicon (M1 or newer): `sourcebolt-mcp-darwin-arm64.mcpb`. Older Intel Mac: `sourcebolt-mcp-darwin-amd64.mcpb`.

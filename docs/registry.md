@@ -8,7 +8,7 @@ Nothing has been published. Publishing is an owner step (see the end of this pag
 
 The registry checks that every listed package exists and belongs to this server. Today only the GHCR image does:
 
-- `ghcr.io/candidloom-hub/sourcebolt:0.2.0` carries the label `io.modelcontextprotocol.server.name=io.github.candidloom-hub/sourcebolt` (set in `.goreleaser.yaml`).
+- `ghcr.io/candidloom-hub/sourcebolt:0.3.0` carries the label `io.modelcontextprotocol.server.name=io.github.candidloom-hub/sourcebolt` (set in `.goreleaser.yaml`).
 - The npm package `sourcebolt` is published (0.2.0) and listed in `server.json`. The PyPI package is built by the release workflow but not published yet, so listing it would fail the check.
 
 The image entry passes `--mount type=volume,src=sourcebolt-config,dst=/config` so the encrypted sign-in profile survives between runs.
@@ -27,7 +27,7 @@ Ownership check: `mcpName` in `npm/launcher/package.json` must equal the server 
   "registryType": "npm",
   "registryBaseUrl": "https://registry.npmjs.org",
   "identifier": "sourcebolt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "runtimeHint": "npx",
   "packageArguments": [{ "type": "positional", "value": "serve" }],
   "transport": { "type": "stdio" }
@@ -44,7 +44,7 @@ Ownership check: the PyPI README must contain `mcp-name: io.github.candidloom-hu
   "registryType": "pypi",
   "registryBaseUrl": "https://pypi.org",
   "identifier": "sourcebolt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "runtimeHint": "uvx",
   "packageArguments": [{ "type": "positional", "value": "serve" }],
   "transport": { "type": "stdio" }
@@ -59,7 +59,7 @@ The URL must be a GitHub release download and contain "mcp" (the file name does)
 ```json
 {
   "registryType": "mcpb",
-  "identifier": "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt-mcp-darwin-arm64.mcpb",
+  "identifier": "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.3.0/sourcebolt-mcp-darwin-arm64.mcpb",
   "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "transport": { "type": "stdio" }
 }

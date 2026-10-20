@@ -5,10 +5,10 @@ Ready-made install links and commands for MCP clients. Sign in first (see [auth.
 Two ways to run sourcebolt:
 
 - **Binary on PATH.** Install a release binary (or `go install`) so that `sourcebolt` runs from a terminal.
-- **Docker.** Uses the pinned image `ghcr.io/candidloom-hub/sourcebolt:0.2.0` with a named volume for the encrypted profile. Sign in into that volume once, for example with a cookie export:
+- **Docker.** Uses the pinned image `ghcr.io/candidloom-hub/sourcebolt:0.3.0` with a named volume for the encrypted profile. Sign in into that volume once, for example with a cookie export:
 
   ```bash
-  docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.2.0 login --import - < cookies.txt
+  docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.0 login --import - < cookies.txt
   ```
 
 The npm package is published: with Node.js 18+, any app can run sourcebolt as command `npx`, args `["-y", "sourcebolt", "serve"]` instead of the binary. PyPI (`uvx sourcebolt`) is not published yet.
@@ -64,36 +64,36 @@ cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW
 
 ### Docker
 
-Server config: `{"command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.2.0","serve"]}`
+Server config: `{"command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.3.0","serve"]}`
 
 VS Code install link:
 
 ```text
-vscode:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.2.0%22%2C%22serve%22%5D%7D
+vscode:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.3.0%22%2C%22serve%22%5D%7D
 ```
 
 VS Code Insiders install link:
 
 ```text
-vscode-insiders:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.2.0%22%2C%22serve%22%5D%7D
+vscode-insiders:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.3.0%22%2C%22serve%22%5D%7D
 ```
 
 VS Code from a terminal (bash, zsh):
 
 ```bash
-code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.2.0","serve"]}'
+code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.3.0","serve"]}'
 ```
 
 VS Code from PowerShell:
 
 ```powershell
-code --% --add-mcp "{\"name\":\"sourcebolt\",\"type\":\"stdio\",\"command\":\"docker\",\"args\":[\"run\",\"-i\",\"--rm\",\"-v\",\"sourcebolt-config:/config\",\"ghcr.io/candidloom-hub/sourcebolt:0.2.0\",\"serve\"]}"
+code --% --add-mcp "{\"name\":\"sourcebolt\",\"type\":\"stdio\",\"command\":\"docker\",\"args\":[\"run\",\"-i\",\"--rm\",\"-v\",\"sourcebolt-config:/config\",\"ghcr.io/candidloom-hub/sourcebolt:0.3.0\",\"serve\"]}"
 ```
 
 Cursor install link:
 
 ```text
-cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItaSIsIi0tcm0iLCItdiIsInNvdXJjZWJvbHQtY29uZmlnOi9jb25maWciLCJnaGNyLmlvL2NhbmRpZGxvb20taHViL3NvdXJjZWJvbHQ6MC4yLjAiLCJzZXJ2ZSJdfQ==
+cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItaSIsIi0tcm0iLCItdiIsInNvdXJjZWJvbHQtY29uZmlnOi9jb25maWciLCJnaGNyLmlvL2NhbmRpZGxvb20taHViL3NvdXJjZWJvbHQ6MC4zLjAiLCJzZXJ2ZSJdfQ==
 ```
 
 <!-- END GENERATED -->

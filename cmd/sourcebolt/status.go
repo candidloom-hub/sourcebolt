@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/app"
-	"github.com/zalando/go-keyring"
+	"github.com/candidloom-hub/sourcebolt/internal/session"
 )
 
 func cmdLogout(args []string, stdout, stderr io.Writer) int {
@@ -100,10 +100,11 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	}())
 	check("os keyring", func() error {
 		const svc, user = "sourcebolt-doctor", "probe"
-		if err := keyring.Set(svc, user, "x"); err != nil {
+		kr := session.OSKeyring{} // gives up after session.KeyringTimeout
+		if err := kr.Set(svc, user, "x"); err != nil {
 			return fmt.Errorf("%w (profiles fall back to a 0600 key file)", err)
 		}
-		return keyring.Delete(svc, user)
+		return kr.Delete(svc, user)
 	}())
 
 	rt, err := app.Build(cfg)

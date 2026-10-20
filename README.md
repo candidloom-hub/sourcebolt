@@ -96,7 +96,7 @@ The full walkthrough with expected output is in [docs/getting-started.md](docs/g
 
 ## Install
 
-The current release is [v0.2.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0). Not sure which way to pick? See **[docs/install.md](docs/install.md)**, or use the one-line installer (it verifies the download's checksum, needs no admin rights, and `-Uninstall` / `--uninstall` undoes it):
+The current release is [v0.3.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.3.0). Not sure which way to pick? See **[docs/install.md](docs/install.md)**, or use the one-line installer (it verifies the download's checksum, needs no admin rights, and `-Uninstall` / `--uninstall` undoes it):
 
 ```powershell
 irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1 | iex   # Windows PowerShell
@@ -110,7 +110,7 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 |---|---|---|
 | GitHub release binary | Available | Windows, macOS and Linux, on x64 and ARM64. See below. |
 | `go install` | Available | Needs Go 1.27 or newer. |
-| Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.2.0`. Images are tagged by version only; there is no `latest` tag. |
+| Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.3.0`. Images are tagged by version only; there is no `latest` tag. |
 | npm (`npx`) | Available | `npx -y sourcebolt serve` (needs Node.js 18+). In an app's MCP config: command `npx`, args `["-y", "sourcebolt", "serve"]`. |
 | PyPI (`pipx`, `uvx`) | Not published yet | |
 
@@ -121,19 +121,19 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 ```powershell
 $dir = "$env:LOCALAPPDATA\Programs\sourcebolt"
 New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
+Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.3.0/sourcebolt_0.3.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
 Expand-Archive "$env:TEMP\sourcebolt.zip" -DestinationPath $dir -Force
 [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
 ```
 
-Open a new terminal, then run `sourcebolt --version`. It prints `sourcebolt 0.2.0`.
+Open a new terminal, then run `sourcebolt --version`. It prints `sourcebolt 0.3.0`.
 
 **macOS and Linux (bash).** Set `OS` to `darwin` or `linux` and `ARCH` to `amd64` or `arm64`.
 
 ```bash
 OS=linux ARCH=amd64
-curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz"
-tar -xzf "sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz" sourcebolt
+curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.3.0/sourcebolt_0.3.0_${OS}_${ARCH}.tar.gz"
+tar -xzf "sourcebolt_0.3.0_${OS}_${ARCH}.tar.gz" sourcebolt
 mkdir -p ~/.local/bin && mv sourcebolt ~/.local/bin/
 sourcebolt --version
 ```
@@ -149,7 +149,7 @@ go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest
 ### Docker
 
 ```bash
-docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.2.0
+docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.0
 ```
 
 The image has no OS keyring, so the profile key is kept in a file inside the `/config` volume. Protect that volume like a password. The `0.2.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [docs/auth.md](docs/auth.md#docker).

@@ -45,11 +45,67 @@ type Keyring interface {
 // OSKeyring uses the platform keyring (Windows Credential Manager, macOS
 // Keychain, Linux Secret Service). Only a 32-byte key goes there: Windows
 // limits entries to 2,560 bytes, too small for a cookie jar.
+//
+// Every call gives up after KeyringTimeout: on macOS the keyring is the
+// `security` tool, which waits forever on a locked or missing keychain when
+// nobody can unlock it (ssh, CI, a headless Mac). A new profile's key then
+// goes to the key file instead.
 type OSKeyring struct{}
 
-func (OSKeyring) Get(s, u string) (string, error) { return keyring.Get(s, u) }
-func (OSKeyring) Set(s, u, v string) error        { return keyring.Set(s, u, v) }
-func (OSKeyring) Delete(s, u string) error        { return keyring.Delete(s, u) }
+func (OSKeyring) Get(s, u string) (string, error) { return osTimed().Get(s, u) }
+func (OSKeyring) Set(s, u, v string) error        { return osTimed().Set(s, u, v) }
+func (OSKeyring) Delete(s, u string) error        { return osTimed().Delete(s, u) }
+
+// KeyringTimeout leaves time to answer the macOS "allow access" dialog.
+const KeyringTimeout = 30 * time.Second
+
+func osTimed() TimeoutKeyring { return TimeoutKeyring{Inner: rawKeyring{}, Timeout: KeyringTimeout} }
+
+type rawKeyring struct{}
+
+func (rawKeyring) Get(s, u string) (string, error) { return keyring.Get(s, u) }
+func (rawKeyring) Set(s, u, v string) error        { return keyring.Set(s, u, v) }
+func (rawKeyring) Delete(s, u string) error        { return keyring.Delete(s, u) }
+
+// ErrKeyringTimeout: the OS keyring did not answer within the timeout.
+var ErrKeyringTimeout = errors.New("session: the OS keyring did not answer (is the keychain locked or missing?)")
+
+// TimeoutKeyring returns ErrKeyringTimeout when Inner does not answer within
+// Timeout. The abandoned call keeps running in the background.
+type TimeoutKeyring struct {
+	Inner   Keyring
+	Timeout time.Duration
+}
+
+func (k TimeoutKeyring) Get(s, u string) (string, error) {
+	var v string
+	err := k.do(func() (err error) { v, err = k.Inner.Get(s, u); return err })
+	if err != nil {
+		return "", err
+	}
+	return v, nil
+}
+
+func (k TimeoutKeyring) Set(s, u, v string) error {
+	return k.do(func() error { return k.Inner.Set(s, u, v) })
+}
+
+func (k TimeoutKeyring) Delete(s, u string) error {
+	return k.do(func() error { return k.Inner.Delete(s, u) })
+}
+
+func (k TimeoutKeyring) do(f func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- f() }()
+	t := time.NewTimer(k.Timeout)
+	defer t.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-t.C:
+		return ErrKeyringTimeout
+	}
+}
 
 var ErrStaleRevision = errors.New("session: profile changed on disk since it was loaded")
 
