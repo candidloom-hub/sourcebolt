@@ -130,17 +130,19 @@ You can also type `sourcebolt doctor` in a terminal. Every line should start wit
 
    If you added it yourself, open `mcp_config.json` again (manual step 2) and delete the `"sourcebolt"` line, or switch it off in the **MCPs** section.
 2. **Delete your saved sign-in:** `sourcebolt logout`. This does not sign you out of Google.
-3. **Delete the program.** Windows (PowerShell):
+3. **Delete the program.** If you used the one-line installer, run it again with the uninstall option. Windows (PowerShell):
 
    ```powershell
-   Remove-Item (Get-Command sourcebolt).Source
+   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1))) -Uninstall
    ```
 
    Mac and Linux:
 
    ```bash
-   rm "$(command -v sourcebolt)"
+   curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh -s -- --uninstall
    ```
+
+   This also removes the PATH entry the installer added. Installed it another way (Homebrew, npm, Docker)? See [Install sourcebolt](../install.md) for its undo line.
 
 4. Restart Windsurf.
 

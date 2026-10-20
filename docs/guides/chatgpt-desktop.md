@@ -137,17 +137,19 @@ You can also type `sourcebolt doctor` in a terminal. Every line should start wit
 
 1. **Remove sourcebolt from ChatGPT.** Open `~/.codex/config.toml` in a text editor and delete the `[mcp_servers.sourcebolt]` section (three lines), or add the line `enabled = false` under it to turn it off. Then restart the app.
 2. **Delete your saved sign-in:** `sourcebolt logout`. This does not sign you out of Google.
-3. **Delete the program.** Windows (PowerShell):
+3. **Delete the program.** If you used the one-line installer, run it again with the uninstall option. Windows (PowerShell):
 
    ```powershell
-   Remove-Item (Get-Command sourcebolt).Source
+   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1))) -Uninstall
    ```
 
    Mac:
 
    ```bash
-   rm "$(command -v sourcebolt)"
+   curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh -s -- --uninstall
    ```
+
+   This also removes the PATH entry the installer added. Installed it another way (Homebrew, npm, Docker)? See [Install sourcebolt](../install.md) for its undo line.
 
 ## Something went wrong?
 

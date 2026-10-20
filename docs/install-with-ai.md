@@ -189,8 +189,8 @@ Please install the sourcebolt MCP server for me and connect it to Gemini CLI. I 
    curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh
    If the installer asks whether to run setup now, answer no. You will run it next.
    If "sourcebolt" is not found afterwards, use the full path the installer printed.
-2. Run: sourcebolt setup --client gemini-cli
-   If "--client gemini-cli" is not accepted, run "sourcebolt setup --help" and use the name it lists for Gemini CLI.
+2. Run: sourcebolt setup --client gemini
+   If "--client gemini" is not accepted, run "sourcebolt setup --help" and use the name it lists for Gemini CLI.
 3. Run: sourcebolt login
    It opens a normal browser window. Tell me to sign in to Google there, and wait until the command finishes by itself.
 4. Run: sourcebolt doctor

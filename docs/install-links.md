@@ -106,6 +106,6 @@ These are not links, but each is one command or one file. The ones marked "not r
 |---|---|---|
 | Claude Code (plugin) | `/plugin install sourcebolt --marketplace candidloom-hub/sourcebolt` (Claude Code 2.1.275 or later), or `/plugin marketplace add candidloom-hub/sourcebolt` then `/plugin install sourcebolt@sourcebolt`. Installs the MCP server (binary on PATH) and the sourcebolt skill. | `claude plugin validate --strict` passes on the plugin and the marketplace; install not run |
 | Claude Code (server only) | `claude mcp add sourcebolt -- sourcebolt serve` | run |
-| Claude Desktop | Download `sourcebolt-mcp-<os>-<arch>.mcpb` from a release and double-click it, or use Settings > Extensions > Advanced settings > Install Extension. Bundles are built from the next release on; v0.2.0 has none. | manifest validated against the MCPB v0.3 schema; install not run |
+| Claude Desktop | Download `sourcebolt-mcp-<os>-<arch>.mcpb` from a release and double-click it, or use Settings > Extensions > Advanced settings > Install Extension. Every release from v0.2.0 on has one bundle per platform. | manifest validated against the MCPB v0.3 schema; install not run |
 | Gemini CLI | `gemini extensions install https://github.com/candidloom-hub/sourcebolt` (reads `gemini-extension.json`; needs the binary on PATH) | not run |
 | Codex | `codex mcp add sourcebolt -- sourcebolt serve`, or the `config.toml` snippet in the README | not run |
