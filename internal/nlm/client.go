@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"fmt"
+	"sync"
 
 	"github.com/candidloom-hub/sourcebolt/internal/rpcids"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -19,9 +20,53 @@ type Client struct {
 	t transport.Transport
 	// OnTransport, when set, receives the name of the transport that served each call.
 	OnTransport func(name string)
+	// newThread serializes, per notebook, the asks that start a thread and
+	// read its id back (see Ask).
+	newThread keyedLock
 }
 
 func New(t transport.Transport) *Client { return &Client{t: t} }
+
+// keyedLock is a set of mutexes by key, made on demand and dropped once
+// nobody holds or waits for them. The zero value is ready to use.
+type keyedLock struct {
+	mu sync.Mutex
+	m  map[string]*keyedEntry
+}
+
+type keyedEntry struct {
+	ch   chan struct{} // holds one token while locked
+	refs int           // holder plus waiters
+}
+
+// Lock waits until key is free or ctx ends, and returns the unlock func.
+func (k *keyedLock) Lock(ctx context.Context, key string) (func(), error) {
+	k.mu.Lock()
+	if k.m == nil {
+		k.m = map[string]*keyedEntry{}
+	}
+	e := k.m[key]
+	if e == nil {
+		e = &keyedEntry{ch: make(chan struct{}, 1)}
+		k.m[key] = e
+	}
+	e.refs++
+	k.mu.Unlock()
+	release := func() {
+		k.mu.Lock()
+		if e.refs--; e.refs == 0 {
+			delete(k.m, key)
+		}
+		k.mu.Unlock()
+	}
+	select {
+	case e.ch <- struct{}{}:
+		return func() { <-e.ch; release() }, nil
+	case <-ctx.Done():
+		release()
+		return nil, ctx.Err()
+	}
+}
 
 type callOpts struct {
 	sourcePath string
