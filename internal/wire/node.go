@@ -6,14 +6,13 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"strconv"
-	"sync"
 )
 
-// Node is a lazy, allocation-light view of a JSON payload. It keeps the raw
-// bytes and walks them with a pooled jsontext.Decoder, skipping unneeded
-// values without decoding them. At/Str/Int on a raw jsontext.Value decode
-// whole subtrees into fresh slices on every call; for a 100-notebook list
-// that cost ~40k allocations, a Node walk costs a few per row.
+// Node is a lazy, allocation-free view of a JSON payload. It keeps the raw
+// bytes, validated once by Parse, and walks them structurally, skipping
+// unneeded values without decoding them. At/Str/Int on a raw jsontext.Value
+// decode whole subtrees into fresh slices on every call; for a 100-notebook
+// list that cost ~40k allocations, a Node walk costs none.
 type Node struct{ raw jsontext.Value }
 
 var errInvalidJSON = errors.New("wire: invalid JSON")
@@ -30,35 +29,101 @@ func Parse(v jsontext.Value) (Node, error) {
 	return Node{t}, nil
 }
 
-type scanner struct {
-	r bytes.Reader
-	d jsontext.Decoder
+// skipValue returns the offset just past the JSON value starting at b[i].
+// It trusts b to be valid (Parse checked it), so it only tracks strings and
+// bracket depth: a byte loop that is several times faster than a validating
+// jsontext.Decoder and never allocates.
+func skipValue(b []byte, i int) int {
+	switch b[i] {
+	case '"':
+		return skipString(b, i)
+	case '[', '{':
+		depth := 0
+		for i < len(b) {
+			switch b[i] {
+			case '"':
+				i = skipString(b, i)
+				continue
+			case '[', '{':
+				depth++
+			case ']', '}':
+				depth--
+				if depth == 0 {
+					return i + 1
+				}
+			}
+			i++
+		}
+		return i
+	}
+	for i < len(b) { // number or literal
+		switch b[i] {
+		case ',', ']', '}', ' ', '\t', '\r', '\n':
+			return i
+		}
+		i++
+	}
+	return i
 }
 
-var scanners = sync.Pool{New: func() any { return new(scanner) }}
+// skipString returns the offset just past the string starting at b[i] == '"'.
+func skipString(b []byte, i int) int {
+	i++
+	for {
+		j := bytes.IndexByte(b[i:], '"')
+		if j < 0 {
+			return len(b)
+		}
+		i += j
+		bs := 0 // backslashes right before the quote
+		for k := i - 1; k >= 0 && b[k] == '\\'; k-- {
+			bs++
+		}
+		i++
+		if bs%2 == 0 {
+			return i
+		}
+	}
+}
+
+func skipSpace(b []byte, i int) int {
+	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\r' || b[i] == '\n') {
+		i++
+	}
+	return i
+}
+
+// nextElem returns the element of array raw that starts at or after offset
+// i (just past '[' or a previous element) and the offset after it; ok is
+// false at the closing bracket. raw must be a valid array.
+func nextElem(raw []byte, i int) (e []byte, next int, ok bool) {
+	i = skipSpace(raw, i)
+	if i < len(raw) && raw[i] == ',' {
+		i = skipSpace(raw, i+1)
+	}
+	if i >= len(raw) || raw[i] == ']' {
+		return nil, i, false
+	}
+	end := skipValue(raw, i)
+	return raw[i:end], end, true
+}
 
 // child returns the raw bytes of element i of the array raw, or nil.
 func child(raw jsontext.Value, i int) jsontext.Value {
 	if len(raw) == 0 || raw[0] != '[' || i < 0 {
 		return nil
 	}
-	s := scanners.Get().(*scanner)
-	defer scanners.Put(s)
-	s.r.Reset(raw)
-	s.d.Reset(&s.r, lenient)
-	if tok, err := s.d.ReadToken(); err != nil || tok.Kind() != '[' {
-		return nil
-	}
-	for j := 0; s.d.PeekKind() != ']'; j++ {
-		start := s.d.InputOffset()
-		if err := s.d.SkipValue(); err != nil {
+	off := 1
+	for j := 0; ; j++ {
+		e, next, ok := nextElem(raw, off)
+		if !ok {
 			return nil
 		}
 		if j == i {
-			return jsontext.Value(bytes.TrimLeft(raw[start:s.d.InputOffset()], " \t\r\n,"))
+			return e
 		}
+		off = next
 	}
-	return nil
 }
 
 // At walks positional indexes. A missing index, null or non-array step
@@ -106,27 +171,30 @@ func (n Node) Int() (int64, bool) {
 }
 
 // Len is the array length (0 for non-arrays).
-func (n Node) Len() int { return len(n.Elems()) }
+func (n Node) Len() int {
+	if len(n.raw) == 0 || n.raw[0] != '[' {
+		return 0
+	}
+	c := 0
+	for off, ok := 1, true; ; c++ {
+		if _, off, ok = nextElem(n.raw, off); !ok {
+			return c
+		}
+	}
+}
 
 // Elems returns the array's elements (nil for non-arrays).
 func (n Node) Elems() []Node {
 	if len(n.raw) == 0 || n.raw[0] != '[' {
 		return nil
 	}
-	s := scanners.Get().(*scanner)
-	defer scanners.Put(s)
-	s.r.Reset(n.raw)
-	s.d.Reset(&s.r, lenient)
-	if tok, err := s.d.ReadToken(); err != nil || tok.Kind() != '[' {
-		return nil
-	}
 	var out []Node
-	for s.d.PeekKind() != ']' {
-		start := s.d.InputOffset()
-		if err := s.d.SkipValue(); err != nil {
-			return nil
+	for off := 1; ; {
+		e, next, ok := nextElem(n.raw, off)
+		if !ok {
+			return out
 		}
-		out = append(out, Node{jsontext.Value(bytes.TrimLeft(n.raw[start:s.d.InputOffset()], " \t\r\n,"))})
+		out = append(out, Node{e})
+		off = next
 	}
-	return out
 }
