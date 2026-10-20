@@ -157,9 +157,39 @@ func TestConfigureLive3(t *testing.T) {
 	}
 }
 
-// No capture saved the default goal or the default length, so a change
-// that would send either is refused, naming the option, before writing.
-// Unknown values and bad combinations stay invalid input.
+// Capture #3b saved the chat settings back to Default goal and Default
+// length (twice): [[1],[]], the custom prompt dropped and the length an
+// empty list.
+func TestConfigureDefaultLive3b(t *testing.T) {
+	for _, tc := range []struct {
+		current any
+		cfg     ChatConfig
+		want    string
+	}{
+		{[]any{[]any{2, "p"}, []any{4}}, ChatConfig{Goal: "default", Length: "default"}, ""}, // = the fixture
+		{nil, ChatConfig{Length: "longer"}, `[[1],[4]]`},                                     // current default goal kept
+		{[]any{[]any{3}, []any{}}, ChatConfig{Goal: "custom", Prompt: "p"}, `[[2,"p"],[]]`},  // current default length kept
+		{[]any{[]any{3}, []any{5}}, ChatConfig{Length: "default"}, `[[3],[]]`},
+	} {
+		fx := loadFixture(t, "s0tc2d", "live3b_2026-10-20_01")
+		ft := newFake(configNB(t, tc.current), fx)
+		if err := New(ft).Configure(t.Context(), fakeNB, tc.cfg); err != nil {
+			t.Fatalf("%+v: %v", tc.cfg, err)
+		}
+		c, _ := ft.callFor("s0tc2d")
+		got, _ := json.Marshal(c.Params)
+		want := []byte(fx.Request)
+		if tc.want != "" {
+			want = []byte(`["` + fakeNB + `",[[null,null,null,null,null,null,null,` + tc.want + `]],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`)
+		}
+		if !sameJSON(t, got, want) {
+			t.Fatalf("%+v params\n got %s\nwant %s", tc.cfg, got, want)
+		}
+	}
+}
+
+// Unknown values and bad combinations are invalid input, refused before
+// writing.
 func TestConfigureRejectsUnprovenAndBadInput(t *testing.T) {
 	for name, tc := range map[string]struct {
 		current any
@@ -167,16 +197,12 @@ func TestConfigureRejectsUnprovenAndBadInput(t *testing.T) {
 		kind    transport.Kind
 		says    string
 	}{
-		"goal default":             {[]any{[]any{3}, []any{5}}, ChatConfig{Goal: "default"}, transport.KindUnsupported, "goal default"},
-		"length default":           {[]any{[]any{3}, []any{5}}, ChatConfig{Length: "default"}, transport.KindUnsupported, "length default"},
-		"current length default":   {[]any{[]any{3}, []any{1}}, ChatConfig{Goal: "learning_guide"}, transport.KindUnsupported, "length default"},
-		"current settings missing": {nil, ChatConfig{Length: "longer"}, transport.KindUnsupported, "goal default"},
-		"unknown goal":             {nil, ChatConfig{Goal: "pirate"}, transport.KindInvalidArgument, "goal"},
-		"unknown length":           {nil, ChatConfig{Length: "huge"}, transport.KindInvalidArgument, "length"},
-		"custom no prompt":         {[]any{[]any{3}, []any{5}}, ChatConfig{Goal: "custom"}, transport.KindInvalidArgument, "prompt"},
-		"prompt too long":          {nil, ChatConfig{Goal: "custom", Prompt: strings.Repeat("x", 10001)}, transport.KindInvalidArgument, "10000"},
-		"prompt non-custom":        {nil, ChatConfig{Goal: "learning_guide", Prompt: "p"}, transport.KindInvalidArgument, "custom"},
-		"empty":                    {nil, ChatConfig{}, transport.KindInvalidArgument, "no chat setting"},
+		"unknown goal":      {nil, ChatConfig{Goal: "pirate"}, transport.KindInvalidArgument, "goal"},
+		"unknown length":    {nil, ChatConfig{Length: "huge"}, transport.KindInvalidArgument, "length"},
+		"custom no prompt":  {[]any{[]any{3}, []any{5}}, ChatConfig{Goal: "custom"}, transport.KindInvalidArgument, "prompt"},
+		"prompt too long":   {nil, ChatConfig{Goal: "custom", Prompt: strings.Repeat("x", 10001)}, transport.KindInvalidArgument, "10000"},
+		"prompt non-custom": {nil, ChatConfig{Goal: "learning_guide", Prompt: "p"}, transport.KindInvalidArgument, "custom"},
+		"empty":             {nil, ChatConfig{}, transport.KindInvalidArgument, "no chat setting"},
 	} {
 		ft := newFake(configNB(t, tc.current), loadFixture(t, "s0tc2d", "live3_2026-10-20_02"))
 		err := New(ft).Configure(t.Context(), fakeNB, tc.cfg)

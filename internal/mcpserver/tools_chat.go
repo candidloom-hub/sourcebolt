@@ -107,7 +107,7 @@ func (s *server) registerChat(m *mcp.Server) {
 
 	register(s, m, "chat", &mcp.Tool{
 		Name:        "chat_configure",
-		Description: "Change a notebook's chat settings: mode (learning_guide, or custom with custom_prompt) and response_length (longer or shorter). Unset fields keep their value; both are always sent, so on a notebook whose current mode or length is the default, pass both. The web app's default mode and default length are not live-verified and return UNSUPPORTED_BY_TRANSPORT.",
+		Description: "Change a notebook's chat settings: mode (default, learning_guide, or custom with custom_prompt) and response_length (default, longer or shorter). Unset fields keep their value. mode default with response_length default resets the notebook to the web app's defaults.",
 		Annotations: &mcp.ToolAnnotations{Title: "Configure chat", ReadOnlyHint: false, DestructiveHint: &f, IdempotentHint: true, OpenWorldHint: &f},
 		InputSchema: chatConfigureSchema(),
 	}, s.chatConfigure)
@@ -300,8 +300,7 @@ func (s *server) chatHistory(ctx context.Context, in ChatHistoryIn) (ChatHistory
 }
 
 // chatConfigureSchema is ChatConfigureIn's schema with enums of the proven
-// settings only. Input is validated against the plain type schema, so
-// "default" reaches the handler and gets UNSUPPORTED_BY_TRANSPORT.
+// settings (captures #3 and #3b).
 func chatConfigureSchema() *jsonschema.Schema {
 	s, _ := schemaFor[ChatConfigureIn]()
 	for _, v := range nlm.ChatGoals {
@@ -320,10 +319,10 @@ func (s *server) chatConfigure(ctx context.Context, in ChatConfigureIn) (ChatCon
 		if in.CustomPrompt != "" {
 			cfg.Goal = "custom"
 		}
-	case "default", "learning_guide", "custom": // default: refused by the domain layer as unproven
+	case "default", "learning_guide", "custom":
 		cfg.Goal = in.Mode
 	default:
-		return ChatConfigureOut{}, badInput("mode must be learning_guide or custom, got %q", in.Mode)
+		return ChatConfigureOut{}, badInput("mode must be default, learning_guide or custom, got %q", in.Mode)
 	}
 	if cfg.Goal == "" && cfg.Length == "" {
 		return ChatConfigureOut{}, badInput("give mode, custom_prompt or response_length")

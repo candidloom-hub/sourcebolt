@@ -2,7 +2,6 @@ package nlm
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -27,10 +26,8 @@ type Turn struct {
 // ChatConfig is a partial chat-settings change. Empty fields keep the
 // current server value.
 //
-// Goal: "custom" (needs Prompt) or "learning_guide".
-// Length: "longer" or "shorter".
-// "default" (either) is a web app choice no capture has saved; it is
-// refused with KindUnsupported (see ChatGoals, ChatLengths).
+// Goal: "default", "custom" (needs Prompt) or "learning_guide".
+// Length: "default", "longer" or "shorter".
 type ChatConfig struct {
 	Goal   string `json:"goal,omitempty"`
 	Prompt string `json:"prompt,omitempty"`
@@ -39,21 +36,21 @@ type ChatConfig struct {
 
 const maxChatPrompt = 10000
 
-// Chat-settings wire values pinned by live capture #3 (2026-10-20, s0tc2d
-// live3_02..04): goal learning_guide 3, custom 2 (with its prompt); length
-// shorter 5, longer 4. The web app's "default" choices (1 in the upstream
-// catalog) were never saved in a capture.
+// Chat-settings wire values pinned by live captures #3 (s0tc2d
+// live3_02..04: goal learning_guide 3, custom 2 with its prompt; length
+// shorter 5, longer 4) and #3b (live3b_01, _02: goal default 1, length
+// default sent as an empty list).
 var (
-	chatGoals   = map[string]int{"custom": 2, "learning_guide": 3}
-	chatLengths = map[string]int{"longer": 4, "shorter": 5}
+	chatGoals   = map[string]int{"default": chatDefault, "custom": 2, "learning_guide": 3}
+	chatLengths = map[string]int{"default": chatDefault, "longer": 4, "shorter": 5}
 	// ChatGoals and ChatLengths list the proven values, for tool schemas.
-	ChatGoals   = []string{"learning_guide", "custom"}
-	ChatLengths = []string{"longer", "shorter"}
+	ChatGoals   = []string{"default", "learning_guide", "custom"}
+	ChatLengths = []string{"default", "longer", "shorter"}
 )
 
-// chatDefault is the "default" goal and length: known to the web app, not
-// proven on the wire. A missing or zero value in the current settings is
-// read as this.
+// chatDefault stands for the default goal and length. The goal is sent as
+// [1]; the length as [] (capture #3b). A missing or zero value in the
+// current settings is read as default.
 const chatDefault = 1
 
 // configureParams is pinned by live capture #3 (s0tc2d): [nb, [[null×7,
@@ -64,7 +61,11 @@ func configureParams(nb string, goal int, prompt string, length int) []any {
 	if goal == 2 {
 		goalSlot = []any{2, prompt}
 	}
-	return []any{nb, []any{[]any{nil, nil, nil, nil, nil, nil, nil, []any{goalSlot, []any{length}}}}, requestOptions()}
+	lengthSlot := []any{length}
+	if length == chatDefault {
+		lengthSlot = []any{}
+	}
+	return []any{nb, []any{[]any{nil, nil, nil, nil, nil, nil, nil, []any{goalSlot, lengthSlot}}}, requestOptions()}
 }
 
 // Payload shapes pinned by live capture (2026-10-13): hPTbtc [HDR,null,nb,limit],
@@ -136,18 +137,10 @@ func invalidArg(rpc, msg string) error {
 	return &transport.Error{Kind: transport.KindInvalidArgument, RPC: rpc, Message: msg}
 }
 
-// unprovenDefault is the error for a change that would save a default
-// goal or length.
-func unprovenDefault(option, why string) error {
-	return &transport.Error{Kind: transport.KindUnsupported, RPC: "notebooks.mutate", Message: fmt.Sprintf(
-		"chat %s default is not supported yet: no live capture saved it%s", option, why)}
-}
-
 // Configure changes chat settings (s0tc2d slot 7). It reads the current
 // settings from rLM1Ne row [7] first (the s0tc2d answer echoes them at the
 // same project-row slot) and merges the partial change; both the goal and
-// the length are always sent, as the web app does. A result that would
-// send the default goal or length is KindUnsupported (see chatGoals).
+// the length are always sent, as the web app does.
 func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error {
 	if cfg.Goal == "" && cfg.Prompt == "" && cfg.Length == "" {
 		return invalidArg("notebooks.mutate", "no chat setting to change")
@@ -155,21 +148,15 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 	goal, length := 0, 0
 	if cfg.Goal != "" {
 		g, ok := chatGoals[cfg.Goal]
-		switch {
-		case cfg.Goal == "default":
-			return unprovenDefault("goal", "; use learning_guide or custom")
-		case !ok:
-			return invalidArg("notebooks.mutate", "goal must be custom or learning_guide")
+		if !ok {
+			return invalidArg("notebooks.mutate", "goal must be default, custom or learning_guide")
 		}
 		goal = g
 	}
 	if cfg.Length != "" {
 		l, ok := chatLengths[cfg.Length]
-		switch {
-		case cfg.Length == "default":
-			return unprovenDefault("length", "; use longer or shorter")
-		case !ok:
-			return invalidArg("notebooks.mutate", "length must be longer or shorter")
+		if !ok {
+			return invalidArg("notebooks.mutate", "length must be default, longer or shorter")
 		}
 		length = l
 	}
@@ -212,13 +199,6 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 	}
 	if g == 2 && prompt == "" {
 		return invalidArg("notebooks.mutate", "goal custom needs a prompt")
-	}
-	// The untouched setting is resent as it is; a default one cannot be.
-	if g == chatDefault {
-		return unprovenDefault("goal", "; the notebook's current goal is default, so pass goal learning_guide or custom too")
-	}
-	if l == chatDefault {
-		return unprovenDefault("length", "; the notebook's current response length is default, so pass response length longer or shorter too")
 	}
 	_, err = c.do(ctx, "notebooks.mutate", configureParams(nb, g, prompt, l), callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed})
 	return err

@@ -206,9 +206,6 @@ func TestChatConfigure(t *testing.T) {
 		{map[string]any{"notebook": idA}, "INVALID_ARGUMENT"},
 		{map[string]any{"notebook": idA, "mode": "concise"}, "INVALID_ARGUMENT"},
 		{map[string]any{"notebook": idA, "mode": "custom", "response_length": "longer"}, "INVALID_ARGUMENT"}, // custom without prompt: rejected by the domain layer
-		{map[string]any{"notebook": idA, "mode": "default", "response_length": "longer"}, "UNSUPPORTED_BY_TRANSPORT"},
-		{map[string]any{"notebook": idA, "mode": "learning_guide", "response_length": "default"}, "UNSUPPORTED_BY_TRANSPORT"},
-		{map[string]any{"notebook": idA, "response_length": "longer"}, "UNSUPPORTED_BY_TRANSPORT"}, // current goal is default
 	} {
 		if e := envelope(t, call(t, cs, "chat_configure", tc.args)); e.Code != tc.code {
 			t.Fatalf("%v: %+v", tc.args, e)
@@ -216,6 +213,12 @@ func TestChatConfigure(t *testing.T) {
 	}
 	if tr.count("s0tc2d") != 1 {
 		t.Fatalf("refused changes wrote settings: %d mutate calls", tr.count("s0tc2d"))
+	}
+	// Reset to the defaults (capture #3b).
+	res = call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "default", "response_length": "default"})
+	out = ChatConfigureOut{}
+	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Mode != "default" || out.Length != "default" {
+		t.Fatalf("reset = %q %v", text(res), err)
 	}
 }
 
@@ -235,10 +238,10 @@ func TestChatConfigureSchemaEnums(t *testing.T) {
 		if err := json.Unmarshal(b, &m); err != nil {
 			t.Fatal(err)
 		}
-		if got := enumOf(t, m, "mode"); !slices.Equal(got, []string{"learning_guide", "custom"}) {
+		if got := enumOf(t, m, "mode"); !slices.Equal(got, []string{"default", "learning_guide", "custom"}) {
 			t.Errorf("mode enum = %v", got)
 		}
-		if got := enumOf(t, m, "response_length"); !slices.Equal(got, []string{"longer", "shorter"}) {
+		if got := enumOf(t, m, "response_length"); !slices.Equal(got, []string{"default", "longer", "shorter"}) {
 			t.Errorf("response_length enum = %v", got)
 		}
 		return
