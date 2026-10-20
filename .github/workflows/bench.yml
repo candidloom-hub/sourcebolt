@@ -36,11 +36,6 @@ jobs:
         run: go test ./internal/transport/rpc -run TestConnectionReuse -v -count=1
       - name: B2 idle RSS
         run: go run ./bench/rss -bin bin/sourcebolt -check
-      - name: TEMP idle RSS diagnostics
-        run: |
-          cat /sys/kernel/mm/transparent_hugepage/enabled /sys/kernel/mm/transparent_hugepage/defrag || true
-          GODEBUG=disablethp=1 go run ./bench/rss -bin bin/sourcebolt | head -7
-          GODEBUG=gctrace=1 ./bin/sourcebolt version 2>&1 | head -3 || true
       - name: B1 cold start
         run: go run ./bench/coldstart -bin bin/sourcebolt
       # B9 fails above 20 ms over Google's first answer chunk (p50).
