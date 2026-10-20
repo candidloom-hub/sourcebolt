@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -50,17 +52,28 @@ func TestAnswerBlockOptIn(t *testing.T) {
 			t.Fatal("a plain decoder kept the answer block")
 		}
 	}
-	run := func(keep bool) float64 {
-		return testing.AllocsPerRun(5, func() {
+	// Malloc counts drift by a few dozen between runs, so compare bytes:
+	// the least allocated over several runs, with and without the copy.
+	// The difference must be most of the block's size.
+	block := len(LastAnswer(liveStream(t, "live3_2026-10-20_01")).AnswerBlock)
+	run := func(keep bool) uint64 {
+		least := uint64(math.MaxUint64)
+		for range 8 {
+			var a, b runtime.MemStats
+			runtime.ReadMemStats(&a)
 			d := NewStreamDecoder(bytes.NewReader(body))
 			if keep {
 				d.KeepAnswerBlock()
 			}
 			_, _ = drain(d)
-		})
+			runtime.ReadMemStats(&b)
+			least = min(least, b.TotalAlloc-a.TotalAlloc)
+		}
+		return least
 	}
-	if p, k := run(false), run(true); k-p < 1 {
-		t.Fatalf("allocs plain %.0f, keep %.0f: the plain decoder should skip the block copy", p, k)
+	p, k := run(false), run(true)
+	if k < p || k-p < uint64(block)/2 {
+		t.Fatalf("bytes allocated: plain %d, keep %d, block %d: the plain decoder should skip the block copy", p, k, block)
 	}
 }
 
