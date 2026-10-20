@@ -79,7 +79,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -90,14 +90,14 @@ jobs:
       # workflow_dispatch from a tag: real version in the binaries, but nothing is published
       # or signed here (npm/PyPI jobs below publish only if their input is true).
       - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag == 'true'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean --skip=publish,sign,docker,sbom
       # workflow_dispatch from a branch: snapshot build, nothing published or signed.
       - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag != 'true'
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
