@@ -39,6 +39,7 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/runtimecfg"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
+	_ "github.com/candidloom-hub/sourcebolt/internal/thp" // as the served binary
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/time/rate"
