@@ -1,29 +1,19 @@
 # Handoff
 
-Updated 2026-10-14, after the session context filled up.
+Updated 2026-10-20.
 
 # Goal
 Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache-2.0, free) for Google NotebookLM. It unites the features of every public NotebookLM MCP upstream and beats them on speed. It uses internal batchexecute RPC first, with a browser fallback. Distribution: GitHub release binaries, GHCR Docker, npm, PyPI and the MCP registry. Repo: candidloom-hub/sourcebolt (private until the release gate). Source of truth: `docs/plans/2026-10-14-architecture.md`, `docs/mission-prompt.md`.
 
 # Current state
-- Branches:
-  - Repo is a fresh candidloom-hub/sourcebolt (private), built from history rewritten with git filter-repo to remove the owner's local path. Old repo: private candidloom-hub/sourcebolt-archive (old PRs #1-#9; local remote `archive`). All SHAs changed.
-  - **main** has P1 and P2 tools.
-  - **feat/release** is pushed and NOT merged; PR candidloom-hub/sourcebolt#1. P5 docs, gendocs, registry metadata (`server.json`, npm `mcpName`, OCI label, README `mcp-name` comment).
-  - Tests, `goreleaser check` and the npm tests are green.
-- Nothing is released. No tag exists. The repo is still private.
-- Live verified:
-  - `login --attach` works.
-  - Read tools work on 9 notebooks (RTT p50 848 ms).
-  - End-to-end notebook_create → source_add → chat_ask answered with a citation (18.4 s).
-- **Release gate APPROVED by the owner** ("4. approved, go for it"). It covers: make the repo public, merge feat/release → main, tag v0.1.0, publish.
-- **Capture #2 is in progress** in a Claude in Chrome tab, on a throwaway capture notebook (id kept out of git).
-  - `window.__sbcap` holds 125 calls.
-  - `window.__sbhar` holds a skeletonized HAR (123K).
-  - The clipboard export timed out because the tab was not focused.
-  - We are waiting for the owner to front the tab, do the deletes, rename and chat-history delete, then say "done".
-- Secret scan done: gitleaks v8.28.0 over all rewritten history, no leaks; custom grep for owner email, name, cookie values and capture ids, none.
-- Dependabot setup-go 7 PR lived in the old repo; Dependabot reopens it in the new repo on its own.
+- Repo candidloom-hub/sourcebolt is **public**; private vulnerability reporting is on. History was rewritten with git filter-repo before going public; old private repo: candidloom-hub/sourcebolt-archive (local remote `archive`).
+- **main** has P1 to P5, the backlog fixes (PR #8), the design-call fixes (PR #13) and the Dependabot bumps (#7, #9, #10, #11). CI green.
+- Merged 2026-10-20:
+  - PR #12, B3 perf: CI p50 2.26 ms uncached, 1.00 ms cached; allocations −72%.
+  - PR #14, DOM fallback (P4 Task 5): reviewed, and all 10 review findings fixed.
+- Release: tag v0.1.0 and the GitHub release are approved (2026-10-20). **On hold until the owner approves:** npm, PyPI and the MCP registry listing.
+- Capture #2 (approved 2026-10-20): the in-page hook is installed in a fresh Claude in Chrome tab ("Gemini Notebook"). The owner follows `capture2-checklist.md` (git-excluded) and says "done". The old capture tab from 2026-10-14 was lost.
+- Live verified (2026-10-14): `login --attach`, read tools on 9 notebooks (RTT p50 848 ms), notebook_create → source_add → chat_ask with citation (18.4 s).
 
 # Files touched
 - `cmd/sourcebolt/{main,serve,call,login,status}.go`: CLI (serve/call/login/logout/status/doctor); help documents NOTEBOOKLM_BROWSER_FALLBACK=0.
@@ -70,28 +60,8 @@ Do NOT retry these.
 - **Base-then-head bench runs**: they drift. Use interleave.sh.
 
 # Next steps
-1. Update CLAUDE.md "Current state" (main has P1+P2; feat/release pending; release gate approved). Save the lessons to memory (see the session's final message for the list and locations).
-2. **Capture #2**:
-   - After the owner says "done", export `window.__sbhar` via the clipboard from the focused tab.
-   - Save it to the scratchpad and run `go run ./tools/capture --har <file> --out testdata/fixtures`.
-   - Leak-scan for the email, real ids and cookie names.
-   - Pin the shapes: R7cb6c configs, deletes, tr032e, hizoJc, CYK0Xb chat-save, cYAfTb, mixed izAoDd, EylDcb cost table.
-   - Ask the owner to delete the capture notebook.
-3. **Release** (approved):
-   - Make the repo public, then merge feat/release → main via PR candidloom-hub/sourcebolt#1 once CI is green.
-   - Tag v0.1.0. That produces a draft GH release and GHCR images.
-   - npm needs the owner's `NPM_TOKEN` repo secret. PyPI needs the owner to configure a trusted publisher. Both are owner-held, so they cannot be automated.
-   - Owner enables private vulnerability reporting.
-4. Handle the Dependabot setup-go 7 PR when it reappears in the new repo.
-5. Engineering backlog:
-   - P4 Task 5 DOM fallback.
-   - B3 refresh path (3.3 ms on CI vs the 2 ms target).
-   - Do not fall back to the browser on connection-refused network errors.
-   - ResponseHeaderTimeout 30 s vs stream first chunk.
-   - Deferred minors in `.superpowers/sdd/*/progress.md`.
-   - Research capture.
-6. Owner-only steps:
-   - Sign out of other Google sessions.
-   - `Remove-Item "$env:USERPROFILE\Workspaces\AI\notebook.google.com_cookies.txt"`
-   - `.\bin\sourcebolt.exe call delete '{"kind":"notebook","ids":["sourcebolt test (safe to delete)"],"confirm":true}'`
-   - Clean up stale agent worktrees (`git worktree list`).
+1. Optional, owner-gated: check the DOM fallback against the live NotebookLM page (force drift with NOTEBOOKLM_RPC_IDS).
+2. B3: the uncached path is still above 2 ms on CI; a smaller default page is the remaining lever.
+3. **Capture #2**: when the owner says "done", export `window.__sbcap` in slices with javascript_tool, not the clipboard. Write it with the Write tool, convert it with `go run ./tools/capture`, leak-scan it, then pin the shapes: R7cb6c configs, deletes, tr032e, hizoJc, CYK0Xb chat-save, cYAfTb, mixed izAoDd, EylDcb. Ask the owner to delete the capture notebook.
+4. Release: in CHANGELOG.md, turn [Unreleased] into [0.1.0], tag v0.1.0 on main, check the draft GitHub release, then publish it. npm, PyPI and the registry stay on hold.
+5. Owner-only: the `NPM_TOKEN` secret and the PyPI trusted publisher (when npm and PyPI are approved); delete the capture notebook after capture #2.
