@@ -312,6 +312,52 @@ func TestSetupClaudeCodeUsesCLI(t *testing.T) {
 	}
 }
 
+// Run through npx with nothing installed: apps get the npx command, never
+// the npx cache path, which npm may delete.
+func TestSetupUnderNpxWritesNpxCommand(t *testing.T) {
+	w := newSetupWorld(t, "claude")
+	cache := filepath.Join(w.home, ".npm", "_npx", "3f2a", "node_modules", "@sourcebolt", "x64", "bin", "sourcebolt")
+	selfPath = func() (string, error) { return cache, nil }
+	write(t, w.path(".claude.json"), `{}`)
+	write(t, w.path(".cursor", "mcp.json"), `{}`)
+	code, out, errOut := w.run(t, "", "--yes", "--no-login", "--client", "claude-code", "--client", "cursor")
+	if code != 0 {
+		t.Fatalf("code=%d err=%q out=%q", code, errOut, out)
+	}
+	want := []string{"fake-claude", "mcp", "add", "--scope", "user", "--transport", "stdio", "sourcebolt", "--", "npx", "-y", "sourcebolt", "serve"}
+	if len(w.calls) != 1 || !slices.Equal(w.calls[0], want) {
+		t.Fatalf("claude calls = %q", w.calls)
+	}
+	var m map[string]any
+	json.Unmarshal([]byte(read(t, w.path(".cursor", "mcp.json"))), &m)
+	sb := m["mcpServers"].(map[string]any)["sourcebolt"].(map[string]any)
+	if sb["command"] != "npx" || !slices.Equal(toStrings(sb["args"]), []string{"-y", "sourcebolt", "serve"}) {
+		t.Fatalf("cursor entry = %v", sb)
+	}
+}
+
+// Run from a temp folder with nothing installed: refuse and change nothing.
+func TestSetupFromTempFolderRefuses(t *testing.T) {
+	w := newSetupWorld(t)
+	selfPath = func() (string, error) { return filepath.Join(os.TempDir(), "go-build1", "b001", "exe", "sourcebolt"), nil }
+	write(t, w.path(".cursor", "mcp.json"), cursorBefore)
+	code, _, errOut := w.run(t, "", "--yes", "--no-login")
+	if code != 1 || !strings.Contains(errOut, "Install sourcebolt first") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if read(t, w.path(".cursor", "mcp.json")) != cursorBefore || len(backups(t, w.path(".cursor", "mcp.json"))) != 0 {
+		t.Fatal("nothing may change")
+	}
+}
+
+func toStrings(v any) []string {
+	var out []string
+	for _, x := range v.([]any) {
+		out = append(out, x.(string))
+	}
+	return out
+}
+
 func TestSetupClaudeCodeReplaceRemovesFirst(t *testing.T) {
 	w := newSetupWorld(t, "claude")
 	write(t, w.path(".claude.json"), `{"mcpServers": {"sourcebolt": {"command": "old"}}}`)

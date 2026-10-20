@@ -16,6 +16,11 @@ type Env struct {
 	XDGConfig string                       // $XDG_CONFIG_HOME; empty = <home>/.config
 	Exists    func(path string) bool       // file or directory exists
 	LookPath  func(string) (string, error) // finds a program on PATH
+
+	LocalAppData   string // %LOCALAPPDATA% (Windows installer target)
+	TempDir        string // the OS temp dir (go run, unpacked downloads)
+	HomebrewPrefix string // $HOMEBREW_PREFIX
+	NPMCommand     string // $npm_command; "exec" under npx / npm exec
 }
 
 // OSEnv reads the real machine.
@@ -31,6 +36,11 @@ func OSEnv() Env {
 			return err == nil
 		},
 		LookPath: exec.LookPath,
+
+		LocalAppData:   os.Getenv("LOCALAPPDATA"),
+		TempDir:        os.TempDir(),
+		HomebrewPrefix: os.Getenv("HOMEBREW_PREFIX"),
+		NPMCommand:     os.Getenv("npm_command"),
 	}
 }
 
