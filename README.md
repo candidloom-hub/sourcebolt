@@ -73,7 +73,15 @@ The full walkthrough with expected output is in [docs/getting-started.md](docs/g
 
 ## Install
 
-The current release is [v0.2.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0).
+The current release is [v0.2.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0). Not sure which way to pick? See **[docs/install.md](docs/install.md)**, or use the one-line installer (it verifies the download's checksum, needs no admin rights, and `-Uninstall` / `--uninstall` undoes it):
+
+```powershell
+irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1 | iex   # Windows PowerShell
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh   # macOS, Linux
+```
 
 | Channel | Status | How |
 |---|---|---|

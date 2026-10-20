@@ -113,6 +113,103 @@ docker_signs:
       - ${artifact}@${digest}
     output: true
 
+# Package-manager manifests. Each one uploads ONLY when its token env var is set and non-empty
+# (isEnvSet is false for an empty value, which is what Actions passes for a missing secret);
+# otherwise the manifest is generated into dist/ and the upload is skipped, so a release never
+# fails for lack of a token. Uploads happen only in `goreleaser release` on a tag push; snapshot
+# and --skip=publish runs never push anything.
+#
+# Homebrew: `brews` (formulas) is deprecated since GoReleaser v2.10 (hard since v2.16) in favour of
+# `homebrew_casks`, which also install on Linux. Casks have no `test do` block, so the
+# `sourcebolt --version` check runs in CI (installer jobs) instead. Install with
+#   brew install --cask candidloom-hub/tap/sourcebolt
+homebrew_casks:
+  - name: sourcebolt
+    ids: [default]
+    binaries: [sourcebolt]
+    homepage: https://github.com/candidloom-hub/sourcebolt
+    description: Fast MCP server for Google NotebookLM
+    caveats: |
+      Sign in to NotebookLM next: run `sourcebolt login` (see
+      https://github.com/candidloom-hub/sourcebolt/blob/main/docs/auth.md).
+    skip_upload: '{{ if isEnvSet "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "sourcebolt {{ .Tag }}"
+    # The binaries are not Apple-notarized; drop the quarantine flag so macOS lets them run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/sourcebolt"]
+          end
+    repository:
+      owner: candidloom-hub
+      name: homebrew-tap
+      branch: main
+      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+
+# Scoop: scoop bucket add candidloom-hub https://github.com/candidloom-hub/scoop-bucket
+#        scoop install candidloom-hub/sourcebolt
+scoops:
+  - name: sourcebolt
+    ids: [default]
+    homepage: https://github.com/candidloom-hub/sourcebolt
+    description: Fast MCP server for Google NotebookLM
+    license: Apache-2.0
+    skip_upload: '{{ if isEnvSet "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "sourcebolt {{ .Tag }}"
+    repository:
+      owner: candidloom-hub
+      name: scoop-bucket
+      branch: main
+      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+
+# winget: would open a PR from the candidloom-hub/winget-pkgs fork to microsoft/winget-pkgs.
+# Upload is OFF (skip_upload: true) even when WINGET_PKGS_TOKEN is set: a PR to a public
+# Microsoft repo is a submission, and the owner approves each winget submission by hand. The
+# manifests are still generated into dist/ for review. The hand-written v0.2.0 manifests live
+# in packaging/winget/.
+winget:
+  - name: sourcebolt
+    ids: [default]
+    publisher: candidloom-hub
+    package_identifier: candidloom-hub.sourcebolt
+    package_name: sourcebolt
+    short_description: Fast MCP server for Google NotebookLM
+    description: >-
+      sourcebolt is a Model Context Protocol (MCP) server that lets AI apps such as Claude,
+      VS Code and Cursor use your Google NotebookLM notebooks.
+    license: Apache-2.0
+    license_url: https://github.com/candidloom-hub/sourcebolt/blob/main/LICENSE
+    homepage: https://github.com/candidloom-hub/sourcebolt
+    publisher_url: https://github.com/candidloom-hub
+    publisher_support_url: https://github.com/candidloom-hub/sourcebolt/issues
+    release_notes_url: "https://github.com/candidloom-hub/sourcebolt/releases/tag/{{ .Tag }}"
+    tags: [mcp, notebooklm, cli, ai]
+    path: "manifests/c/candidloom-hub/sourcebolt/{{ .Version }}"
+    commit_msg_template: "New version: {{ .PackageIdentifier }} {{ .Version }}"
+    skip_upload: true
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    repository:
+      owner: candidloom-hub
+      name: winget-pkgs
+      branch: "sourcebolt-{{ .Version }}"
+      token: '{{ envOrDefault "WINGET_PKGS_TOKEN" "" }}'
+      pull_request:
+        enabled: true
+        draft: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
 changelog:
   use: git
   sort: asc

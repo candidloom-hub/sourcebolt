@@ -4,12 +4,17 @@ on:
   push:
     branches: [main, "feat/**", "perf/**"]
   pull_request:
+  # Weekly run of the installer jobs only (the Go jobs skip scheduled runs).
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +52,7 @@ jobs:
   # DOM fallback against local HTML fixtures in headless Chrome (preinstalled
   # on ubuntu-latest). Fixtures only: no Google page is loaded.
   browser-dom:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -63,3 +69,110 @@ jobs:
         env:
           NOTEBOOKLM_BROWSER_FALLBACK: "0"
         run: go test -tags browser ./internal/transport/browser -run 'DOM|Find' -v
+
+  # The installer jobs run only when the installers (or their tests) change, plus weekly and on
+  # manual dispatch, to save CI time.
+  installer-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = pull_request ]; then
+            base="$(git merge-base "origin/$BASE_REF" HEAD)"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          if git diff --name-only "$base" HEAD | grep -Eq '^(install\.(sh|ps1)|scripts/test-installers\.(sh|ps1)|\.github/workflows/ci\.yml)$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  installer-unix:
+    needs: installer-changes
+    if: needs.installer-changes.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck --shell=sh install.sh scripts/test-installers.sh
+      - name: offline tests (tampered checksums, PATH blocks, uninstall)
+        run: sh scripts/test-installers.sh
+      - name: install cosign (exercises the signature check)
+        if: runner.os == 'Linux'
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+      - name: install the published v0.2.0 into a temp prefix
+        run: |
+          sh install.sh --version v0.2.0 --dir "$RUNNER_TEMP/sb" --no-setup --no-modify-path | tee "$RUNNER_TEMP/out.txt"
+          grep -qx 'Installed: sourcebolt 0.2.0' "$RUNNER_TEMP/out.txt"
+          test "$("$RUNNER_TEMP/sb/sourcebolt" --version)" = "sourcebolt 0.2.0"
+          if command -v cosign >/dev/null; then grep -q 'signature verified (cosign)' "$RUNNER_TEMP/out.txt"; fi
+      - name: piped form, latest release, PATH block, upgrade, uninstall
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh release view --repo candidloom-hub/sourcebolt --json tagName -q .tagName)"
+          cat install.sh | SOURCEBOLT_INSTALL_DIR="$RUNNER_TEMP/sb2" sh -s -- --no-setup
+          test "$("$RUNNER_TEMP/sb2/sourcebolt" --version)" = "sourcebolt ${latest#v}"
+          cat install.sh | SOURCEBOLT_INSTALL_DIR="$RUNNER_TEMP/sb2" sh -s -- --no-setup | grep upgraded
+          cat install.sh | sh -s -- --uninstall --dir "$RUNNER_TEMP/sb2"
+          test ! -e "$RUNNER_TEMP/sb2/sourcebolt"
+          ! grep -s 'added by sourcebolt installer' ~/.zshrc ~/.bashrc ~/.bash_profile ~/.profile
+
+  installer-windows:
+    needs: installer-changes
+    if: needs.installer-changes.outputs.run == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: offline tests, Windows PowerShell 5.1 (also checks the user PATH entry)
+        shell: powershell
+        run: .\scripts\test-installers.ps1 -TestUserPath
+      - name: offline tests, PowerShell 7
+        shell: pwsh
+        run: .\scripts\test-installers.ps1 -Shell pwsh
+      - name: install the published v0.2.0 into a temp prefix (5.1, -File)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.0 -InstallDir "$env:RUNNER_TEMP\sb" -NoSetup -NoModifyPath | Tee-Object -Variable out
+          if (-not ($out -contains 'Installed: sourcebolt 0.2.0')) { throw 'success line missing' }
+          $v = & "$env:RUNNER_TEMP\sb\sourcebolt.exe" --version
+          if ($v -ne 'sourcebolt 0.2.0') { throw "unexpected version: $v" }
+      - name: iex form, latest release, upgrade, scriptblock -Uninstall (PowerShell 7)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCEBOLT_NO_SETUP: "1"
+        run: |
+          $latest = gh release view --repo candidloom-hub/sourcebolt --json tagName -q .tagName
+          $env:SOURCEBOLT_INSTALL_DIR = "$env:RUNNER_TEMP\sb2"
+          Get-Content .\install.ps1 -Raw | Invoke-Expression
+          if ($LASTEXITCODE -ne 0) { throw "installer failed: $LASTEXITCODE" }
+          $v = & "$env:RUNNER_TEMP\sb2\sourcebolt.exe" --version
+          if ($v -ne "sourcebolt $($latest.TrimStart('v'))") { throw "unexpected version: $v" }
+          Get-Content .\install.ps1 -Raw | Invoke-Expression
+          if ($LASTEXITCODE -ne 0) { throw "re-run failed: $LASTEXITCODE" }
+          & ([scriptblock]::Create((Get-Content .\install.ps1 -Raw))) -Uninstall
+          if (Test-Path "$env:RUNNER_TEMP\sb2\sourcebolt.exe") { throw 'binary still present' }
+          $p = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if ($p -like "*$env:RUNNER_TEMP\sb2*") { throw 'PATH entry still present' }
