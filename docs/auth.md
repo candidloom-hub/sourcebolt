@@ -1,84 +1,155 @@
-# Authentication
+# Sign-in and storage
 
-NotebookLM has no API key. sourcebolt acts as your signed-in browser session, so it needs your Google cookies for the NotebookLM host (default `notebook.google.com`). You sign in yourself, in a browser; sourcebolt never asks for or types your password, and MCP tools cannot sign in (`auth_login` and `auth_logout` only tell you which CLI command to run).
+NotebookLM has no API key. sourcebolt acts as your signed-in browser session, so it needs your Google session cookies for the NotebookLM host (default `notebook.google.com`).
 
-Everything here is a CLI command run in a terminal, not an MCP tool.
+- You sign in yourself, in a browser. sourcebolt never asks for or types your password.
+- Sign-in works only from the command line. The MCP tools `auth_login` and `auth_logout` only tell you which command to run, so cookies never pass through a chat.
 
-## Choosing a login method
+Every command on this page runs in a terminal.
 
-| Method | Command | Notes |
+## Choose a login method
+
+| Method | Command | When to use it |
 |---|---|---|
-| Attach (recommended) | `sourcebolt login --attach http://127.0.0.1:9222` | Reads cookies from a browser you started with a debugging port. Google does not block it because you started and signed in to a normal browser. |
-| Browser window | `sourcebolt login --browser` | sourcebolt launches a browser on a dedicated profile and waits for sign-in (default 300 s, `--timeout`). Google may show "this browser may not be secure" and refuse sign-in, because automation-launched browsers expose `navigator.webdriver`. This was observed in our own test. |
-| Import | `sourcebolt login --import cookies.txt` | Netscape `cookies.txt`, a JSON export or a `Cookie:` header; `-` reads stdin. `--format netscape\|json\|header` overrides auto-detection. |
+| **Attach** (recommended) | `sourcebolt login --attach http://127.0.0.1:9222` | Default choice. You start a normal browser with a debugging port and sign in. Google does not block it, because it is a normal browser that you started. |
+| Browser window | `sourcebolt login --browser` | sourcebolt opens a browser on its own profile and waits for you to sign in (300 seconds by default; change with `--timeout`). Google may refuse with "This browser or app may not be secure", because browsers started by automation expose `navigator.webdriver`. This happened in our own test. |
+| Import | `sourcebolt login --import cookies.txt` | You already have a cookie export. Accepts a Netscape `cookies.txt`, a JSON export or a `Cookie:` header. `-` reads from standard input. `--format netscape\|json\|header` overrides the automatic detection. |
 
-All methods take `--profile <name>` (default `$NOTEBOOKLM_PROFILE` or `default`) and `--host <host>`.
+All methods accept:
 
-Before saving, `login` calls list-notebooks with the new cookies. If that fails, nothing is saved and an existing working profile is not replaced.
+- `--profile <name>` to keep several accounts apart (default: `$NOTEBOOKLM_PROFILE`, or `default`).
+- `--host <host>` for a different NotebookLM host.
+
+Before saving, `login` checks that these cookies are present: `SID`, `__Secure-1PSIDTS`, and either `OSID` or both `APISID` and `SAPISID`. Then it makes one real call (list notebooks) with the new cookies. If either step fails, nothing is saved, and an existing working profile is kept.
+
+If the existing profile's encryption key is gone (from both the keyring and the key file), that profile can never be read again; `login` replaces it and says so. Other unreadable profiles are left alone, and `login` tells you to run `sourcebolt logout --profile <name>` first.
 
 ## Attach flow in detail
 
-Chrome (since version 136) ignores `--remote-debugging-port` on its default profile, so the browser must run on its own `--user-data-dir`. Use a folder under the sourcebolt config dir. (`<config dir>` is `%APPDATA%\sourcebolt` on Windows, `~/Library/Application Support/sourcebolt` on macOS, `~/.config/sourcebolt` on Linux, unless `NOTEBOOKLM_CONFIG_DIR` is set.) Use a folder name other than your profile name (`attach` below), because `browser/<profile>` is used by `login --browser` and the headless fallback.
+The browser must run on its own profile folder (`--user-data-dir`). Chrome 136 and newer ignore `--remote-debugging-port` on the default profile, and a separate folder keeps your everyday browser out of it.
 
-Windows (PowerShell):
+`<config dir>` below means:
+
+| System | Config dir |
+|---|---|
+| Windows | `%APPDATA%\sourcebolt` |
+| macOS | `~/Library/Application Support/sourcebolt` |
+| Linux | `~/.config/sourcebolt` |
+
+Set `NOTEBOOKLM_CONFIG_DIR` to use another folder.
+
+**1. Start the browser.**
+
+Windows (PowerShell), Brave:
 
 ```powershell
 & "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
 ```
 
-macOS:
+Windows (PowerShell), Chrome:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
+```
+
+macOS, Brave:
 
 ```bash
 "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" --remote-debugging-port=9222 --user-data-dir="$HOME/Library/Application Support/sourcebolt/browser/attach"
 ```
 
-Linux:
+Linux, Brave:
 
 ```bash
 brave-browser --remote-debugging-port=9222 --user-data-dir="$HOME/.config/sourcebolt/browser/attach"
 ```
 
-Chrome works the same way with its own executable (`chrome.exe`, `Google Chrome.app/Contents/MacOS/Google Chrome`, `google-chrome`). Then:
+For Chrome on macOS use `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; on Linux use `google-chrome`.
 
-1. In that window, sign in to Google and open https://notebook.google.com.
-2. In a terminal run `sourcebolt login --attach http://127.0.0.1:9222`.
-3. Close the debugging browser. The debugging port lets any local process control that browser while it is open.
+**2. Sign in.** In that window, sign in to Google and open https://notebook.google.com.
+
+**3. Attach.** In a terminal:
+
+```bash
+sourcebolt login --attach http://127.0.0.1:9222
+```
+
+Expected output: `Saved profile "default" for notebook.google.com (N notebooks visible).`
+
+**4. Close the debugging browser.** While it is open, any program on your computer can control it through the debugging port.
+
+## Sign in the fallback browser
+
+The [browser fallback](#browser-fallback) runs a headless browser on the folder `<config dir>/browser/<profile>` (for the default profile: `browser/default`). It can only help if that browser profile is signed in to Google. Two ways:
+
+- **Attach with that folder.** In step 1 above, use `browser\default` (or `browser/default`) instead of `browser\attach` as `--user-data-dir`. Sign in, attach, then **close the browser**: the headless fallback cannot open the folder while another browser uses it. This flow was tested live on 2026-10-20: `login --attach` on that folder, then `sourcebolt doctor --dom-check <notebook>` passed.
+- **`sourcebolt login --browser`.** This signs in the same folder, but Google may block it (see above).
+
+If you never sign in that folder, sourcebolt still works on the fast direct path; only the fallbacks are unavailable. To check the fallback, run `sourcebolt doctor --dom-check "<notebook id or title>"` ([troubleshooting.md](troubleshooting.md#check-that-the-dom-fallback-works-before-you-need-it)).
+
+## Docker
+
+The Docker image stores its config in the `/config` volume. It has no OS keyring, so the profile key is kept in a private file in that volume. Protect the volume like a password.
+
+The simplest way is to import cookies through standard input.
+
+bash:
+
+```bash
+docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0 login --import - < cookies.txt
+```
+
+PowerShell:
+
+```powershell
+Get-Content cookies.txt -Raw | docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0 login --import -
+```
+
+Export every `google.com` cookie, not only the `__Secure-` ones: `login` needs `SID`, `__Secure-1PSIDTS`, and `OSID` or `APISID` plus `SAPISID`. Delete the cookie file afterwards.
 
 ## Where data is stored
 
 | Item | Location |
 |---|---|
 | Encrypted profile | `<config dir>/profiles/<name>.profile` (AES-256-GCM; holds cookies, host, revision, timestamp) |
-| Encryption key | OS keyring entry, service `sourcebolt`, user `<name>` (Windows Credential Manager, macOS Keychain, Linux Secret Service). If no keyring is usable: `<config dir>/profiles/<name>.key`, file mode `0600`. |
-| Browser profile for `login --browser` and the headless fallback | `<config dir>/browser/<profile>` |
-| Optional RPC id overrides | `<config dir>/rpc-ids.json` (or `NOTEBOOKLM_RPC_IDS`) |
-| Optional UI selector overrides for the DOM fallback | `<config dir>/selectors.json` |
+| Encryption key | OS keyring entry, service `sourcebolt`, user `<name>` (Windows Credential Manager, macOS Keychain, Linux Secret Service). Without a usable keyring: `<config dir>/profiles/<name>.key`, readable only by you (file mode `0600`). |
+| Browser profile for `login --browser` and the fallback | `<config dir>/browser/<profile>` |
+| Optional request id overrides | `<config dir>/rpc-ids.json` (or `NOTEBOOKLM_RPC_IDS`) |
+| Optional page control overrides for the DOM fallback | `<config dir>/selectors.json` |
 
-If the keyring is locked or fails with an error other than "not found", sourcebolt reports it instead of minting a new key, so an existing profile is never orphaned. Saves are revision-checked, so two processes cannot silently overwrite each other.
+If the keyring is locked or fails with an error other than "not found", sourcebolt reports it instead of creating a new key, so an existing profile is never orphaned. Saves are revision-checked, so two sourcebolt processes cannot silently overwrite each other.
 
 ## Browser fallback
 
-With the browser fallback on (the default; `--no-browser-fallback` or `NOTEBOOKLM_BROWSER_FALLBACK=0` turns it off), the headless browser runs on `<config dir>/browser/<profile>`, so it is signed in only after `login --browser` has run on that profile.
+sourcebolt sends requests directly first. With the browser fallback on (the default), two extra paths can help when the direct path fails:
 
-When Google changes the shape of the chat or add-source request (a `DRIFT` error), sourcebolt drives the NotebookLM page in that browser instead: it types the question into the chat box and reads the answer, or opens the add-source dialog and adds the URL or pasted text. Such calls report the transport `browser-dom` (`server_info` shows the last transport). Limits of this path:
+1. **Browser replay.** If Google rejects the direct request, the same request is sent again from inside the headless browser.
+2. **DOM fallback.** If Google changed the format of the chat or add-source request (a `DRIFT` error), sourcebolt drives the NotebookLM page itself: it types the question into the chat box and reads the answer, or opens the add-source dialog and adds the URL or text. These calls report the transport `browser-dom`; `server_info` shows the last transport.
 
-- Chat: only questions about all sources in the notebook's default thread. A question scoped to some sources, to another thread or to a new thread returns the original error. The answer is text only, without citation details. A chat request that drifted after it was sent is asked once more on the page (one extra turn against the daily limit).
-- Add source: only URLs and pasted text, and only when the request was not sent; an add that may have reached Google is never repeated. Drive sources stay unsupported. The pasted-text title is not set on this path (NotebookLM names the source).
+Turn both off with `--no-browser-fallback` or `NOTEBOOKLM_BROWSER_FALLBACK=0`. Quota, sign-in and permission errors never trigger a fallback, because another path cannot fix them. A request that may already have reached Google is not replayed if repeating it could apply a change twice.
 
-The page controls are found through a selector registry built into sourcebolt. If NotebookLM's page changes before a new release, you can override any control in `<config dir>/selectors.json`. Each key replaces the built-in list for that control, and candidates are tried in order:
+Limits of the DOM fallback:
+
+- **Chat:** only questions about all sources, in the notebook's default conversation. A question limited to some sources, or in another or a new conversation, returns the original error. The answer is text only, without citation details. A chat request that drifted after it was sent is asked once more on the page (one extra question against your daily limit).
+- **Add source:** only URLs and pasted text, and only when the request was not sent. An add that may have reached Google is never repeated. Drive sources are not supported. The title of pasted text is not set on this path; NotebookLM names the source.
+
+### Overriding page controls
+
+The page controls are found through a list of selectors built into sourcebolt. If the NotebookLM page changes before a new release, you can override any control in `<config dir>/selectors.json`. Each key replaces the built-in list for that control; candidates are tried in order:
 
 ```json
 {"chat.input": ["textarea.query-box-input", "textarea[aria-label=\"Query box\"]"]}
 ```
 
-A candidate is a CSS selector, `text:<words>` (a visible button or menu item containing the words) or `icon:<name>` (the button around a Material icon). If the file is not valid JSON, sourcebolt prints one warning on stderr and uses the built-in registry.
+A candidate is a CSS selector, `text:<words>` (a visible button or menu item containing the words) or `icon:<name>` (the button around a Material icon). If the file is not valid JSON, sourcebolt prints one warning and uses the built-in list.
 
 ## Commands
 
 - `sourcebolt status` shows the config dir, the active profile and, for each saved profile, the host, last update, where the key lives and whether the required cookies are present.
-- `sourcebolt doctor` checks that the config dir is writable, that the OS keyring works (otherwise profiles use the key file), that the profile loads, that the cookies are complete, and does a token bootstrap against Google. It exits 1 on any failure. The bootstrap is the only step that touches the network, and only when a valid session exists.
-- `sourcebolt logout [--profile p]` deletes the encrypted profile and its key. It does not sign you out of Google; to revoke the session, sign out of Google in the browser or from your Google account's security page.
+- `sourcebolt doctor --dom-check "<notebook>"` runs the checks below and also asks one short question through the page fallback.
+- `sourcebolt doctor` checks that the config dir is writable, that the OS keyring works (otherwise profiles use the key file), that the profile loads, that the cookies are complete, and does a token bootstrap against Google. It exits with code 1 if any check fails. Only the bootstrap uses the network, and only when a valid session exists.
+- `sourcebolt logout [--profile p]` deletes the encrypted profile and its key. It does **not** sign you out of Google. To end the session, sign out of Google in that browser or on your Google account's security page.
 
 ## Sessions expire
 
-Google rotates and expires cookies. When a call fails with an authentication error, run `login` again. For a long-running setup, `doctor` tells you whether the session still works.
+Google rotates and expires session cookies. When a call fails with `AUTH_REQUIRED`, run `login` again. For a long-running setup, `doctor` tells you whether the session still works. More fixes: [troubleshooting.md](troubleshooting.md#sign-in-problems).
