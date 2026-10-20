@@ -1,6 +1,6 @@
 # Sponsor sourcebolt
 
-sourcebolt is free and open source under the Apache-2.0 license. There is no paid tier and there will not be one. If it saves you time, you can support the work through [GitHub Sponsors](https://github.com/sponsors/candidloom-hub).
+sourcebolt is free and open source under the Apache-2.0 license. There is no paid tier and there will not be one. If it saves you time, you will be able to support the work through GitHub Sponsors or Open Collective. Donation links are not live yet; this page will link them as soon as they are.
 
 ## What sponsorship pays for
 
