@@ -19,3 +19,8 @@ here before the change is merged:
 
 Projects with no license or a copyleft license were read for behavior only
 and nothing from them was used.
+
+tools/internal/schemas/ holds unmodified copies of two JSON Schemas from the
+Model Context Protocol project (MCPB manifest v0.3 and the MCP registry
+server.json schema 2025-12-11), used only by build-time checks. They are
+licensed by the MCP project under Apache-2.0 (earlier contributions MIT).

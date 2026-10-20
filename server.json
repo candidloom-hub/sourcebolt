@@ -10,26 +10,17 @@
   "version": "0.1.0",
   "packages": [
     {
-      "registryType": "npm",
-      "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "sourcebolt",
-      "version": "0.1.0",
-      "runtimeHint": "npx",
-      "packageArguments": [{ "type": "positional", "value": "serve" }],
-      "transport": { "type": "stdio" }
-    },
-    {
-      "registryType": "pypi",
-      "registryBaseUrl": "https://pypi.org",
-      "identifier": "sourcebolt",
-      "version": "0.1.0",
-      "runtimeHint": "uvx",
-      "packageArguments": [{ "type": "positional", "value": "serve" }],
-      "transport": { "type": "stdio" }
-    },
-    {
       "registryType": "oci",
       "identifier": "ghcr.io/candidloom-hub/sourcebolt:0.1.0",
+      "runtimeHint": "docker",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "value": "type=volume,src=sourcebolt-config,dst=/config",
+          "description": "Keeps the encrypted sign-in profile in a named Docker volume. Sign in once with: docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0 login --import - < cookies.txt"
+        }
+      ],
       "transport": { "type": "stdio" }
     }
   ]

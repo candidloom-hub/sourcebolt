@@ -1,0 +1,17 @@
+{
+  "name": "sourcebolt",
+  "description": "sourcebolt: an unofficial MCP server for Google NotebookLM, packaged as a Claude Code plugin",
+  "owner": {
+    "name": "candidloom-hub",
+    "url": "https://github.com/candidloom-hub"
+  },
+  "plugins": [
+    {
+      "name": "sourcebolt",
+      "source": "./plugins/sourcebolt",
+      "description": "NotebookLM tools for Claude Code: notebooks, sources, cited chat, research and notes. Needs the sourcebolt binary on PATH.",
+      "category": "productivity",
+      "keywords": ["notebooklm", "mcp", "research", "citations"]
+    }
+  ]
+}
