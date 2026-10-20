@@ -296,7 +296,7 @@ func (c *Client) Generate(ctx context.Context, nb string, r StudioRequest) (Arti
 		}
 		sources = ids
 	}
-	p, err := c.do(ctx, "studio.create", flashcardsParams(nb, sources, r.Instructions, lang, qv, dv), callOpts{sourcePath: notebookPath(nb)})
+	p, err := c.do(ctx, "studio.create", flashcardsParams(nb, sources, r.Instructions, lang, qv, dv), callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed})
 	if err != nil {
 		return Artifact{}, err
 	}

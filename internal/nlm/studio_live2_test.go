@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
 
 // Source ids of the flashcards generation in live capture #2. The web app
@@ -62,6 +64,28 @@ func TestGenerateFlashcardsLive(t *testing.T) {
 		if c.Idempotent || c.SourcePath != "/notebook/"+fakeNB2 {
 			t.Fatalf("call = %+v", c)
 		}
+	}
+}
+
+// Review item 7: the R7cb6c answer is decoded from the live fixture, the
+// call allows a null answer like the other notebook-scoped calls (one
+// non-null capture does not prove it is never null), and a null answer is
+// KindDrift, not a transport failure.
+func TestGenerateFlashcardsNullAnswer(t *testing.T) {
+	ft := newFake(loadFixture(t, "R7cb6c", "live_2026-10-20_01"))
+	a, err := New(ft).Generate(context.Background(), fakeNB2, StudioRequest{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "text-92"})
+	if err != nil || a.ID != "00000000-0000-4000-8000-000000000018" || a.Title != "text-78" || a.Kind != StudioFlashcards || a.Status != ArtifactPending {
+		t.Fatalf("artifact = %+v %v", a, err)
+	}
+	if c, _ := ft.callFor("R7cb6c"); c.Null != wire.NullAllowed {
+		t.Fatalf("null policy = %v, want NullAllowed", c.Null)
+	}
+	row := `[["wrb.fr","R7cb6c",null,null,null,null,"generic"]]`
+	null := Fixture{RPC: "R7cb6c", ResponseBody: ")]}'\n\n" + fmt.Sprint(len(row)+1) + "\n" + row + "\n"}
+	_, err = New(newFake(null)).Generate(context.Background(), fakeNB2, StudioRequest{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t"})
+	var te *transport.Error
+	if !errors.As(err, &te) || te.Kind != transport.KindDrift {
+		t.Fatalf("null answer: err = %v", err)
 	}
 }
 
