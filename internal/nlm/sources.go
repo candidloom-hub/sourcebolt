@@ -68,7 +68,7 @@ func urlSpec(u string) []any {
 	return []any{nil, nil, []any{u}, nil, nil, nil, nil, nil, nil, nil, 1}
 }
 
-// youtubeSpec: shape: catalog consensus, not live-verified (URL at slot 7).
+// youtubeSpec: URL at slot 7, pinned by live capture #2 (izAoDd/live_2026-10-20_01.json).
 func youtubeSpec(u string) []any {
 	return []any{nil, nil, nil, nil, nil, nil, nil, []any{u}, nil, nil, 1}
 }
@@ -152,7 +152,8 @@ func matchRows(keys []string, rows []srcRow, positional bool) []*srcRow {
 // call is never resent. If the server answers code 3 or 9 (accepted, maybe
 // applied) the notebook is listed and specs are matched by URL or title:
 // matched ones report added, the rest pending. A spec absent from a
-// successful response failed. Drive specs return KindUnsupported before any
+// successful response is looked up in the notebook (reconcileOmitted).
+// Drive specs return KindUnsupported before any
 // call. With c.DOM set, a KindDrift that happened before the request was
 // sent adds the specs through the page instead (addSourcesDOM).
 func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) ([]AddOutcome, error) {
@@ -186,13 +187,48 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 		rows = append(rows, parseSrcRow(r))
 	}
 	out := make([]AddOutcome, len(specs))
+	var missing []int
+	answered := map[string]bool{}
 	for i, m := range matchRows(keys, rows, true) {
-		out[i] = AddOutcome{Index: i, Status: AddFailed, Error: "omitted from the server response"}
+		if m == nil {
+			missing = append(missing, i)
+			continue
+		}
+		answered[m.ID] = true
+		out[i] = AddOutcome{Index: i, SourceID: m.ID, Status: AddAdded}
+	}
+	if len(missing) > 0 {
+		c.reconcileOmitted(ctx, nb, keys, missing, answered, out)
+	}
+	return out, nil
+}
+
+// reconcileOmitted settles specs that a successful izAoDd answer left out.
+// Live capture #2 (2026-10-20) added a website and a YouTube video in one
+// call and the answer listed only the website, although the video was
+// added. So the notebook is listed (rows from the answer excluded) and each
+// missing spec matched by URL or title: found = added, not found = failed,
+// listing failed = pending.
+func (c *Client) reconcileOmitted(ctx context.Context, nb string, keys []string, missing []int, answered map[string]bool, out []AddOutcome) {
+	rows, err := c.listRows(ctx, nb)
+	if err != nil {
+		for _, i := range missing {
+			out[i] = AddOutcome{Index: i, Status: AddPending, Error: "omitted from the server response; listing the notebook failed: " + safety.Redact(err.Error())}
+		}
+		return
+	}
+	rows = slices.DeleteFunc(rows, func(r srcRow) bool { return answered[r.ID] })
+	mk := make([]string, len(missing))
+	for j, i := range missing {
+		mk[j] = keys[i]
+	}
+	for j, m := range matchRows(mk, rows, false) {
+		i := missing[j]
+		out[i] = AddOutcome{Index: i, Status: AddFailed, Error: "omitted from the server response and not in the notebook"}
 		if m != nil {
 			out[i] = AddOutcome{Index: i, SourceID: m.ID, Status: AddAdded}
 		}
 	}
-	return out, nil
 }
 
 // addSourcesDOM adds each spec through the DOM fallback, one at a time,

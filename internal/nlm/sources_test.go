@@ -176,7 +176,11 @@ func TestPendingListFails(t *testing.T) {
 }
 
 func TestPartialFailure(t *testing.T) {
-	ft := newFake(synthFixture(t, "izAoDd", `[[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`]]`))
+	ft := newFake(
+		synthFixture(t, "izAoDd", `[[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`]]`),
+		// The item missing from the answer is not in the notebook either.
+		synthFixture(t, "rLM1Ne", `[["T",[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`],"`+nb1+`"]]`),
+	)
 	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{
 		{URL: "https://example.com/1"},
 		{URL: "https://example.com/2"},
