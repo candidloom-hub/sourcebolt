@@ -65,6 +65,19 @@ func checkNodeAgainstReference(t *testing.T, b []byte) {
 		if len(got) != len(want) || n.Len() != len(want) {
 			t.Fatalf("%q: %d elems, want %d", ref, len(got), len(want))
 		}
+		var hb [3]Node
+		h := n.Head(hb[:])
+		if len(h) != min(3, len(want)) {
+			t.Fatalf("%q: Head = %d elems, want %d", ref, len(h), min(3, len(want)))
+		}
+		for i := range h {
+			if !bytes.Equal(h[i].raw, got[i].raw) || !bytes.Equal(Get(h, i).raw, got[i].raw) {
+				t.Fatalf("%q: Head[%d] = %q, want %q", ref, i, h[i].raw, got[i].raw)
+			}
+		}
+		if !Get(h, len(h)).IsNull() || !Get(h, -1).IsNull() {
+			t.Fatalf("%q: Get out of range must be null", ref)
+		}
 		for i, w := range want {
 			w = bytes.TrimSpace(w)
 			if !bytes.Equal(got[i].raw, w) {

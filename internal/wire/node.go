@@ -183,7 +183,8 @@ func (n Node) Len() int {
 	}
 }
 
-// Elems returns the array's elements (nil for non-arrays).
+// Elems returns the array's elements (nil for non-arrays). A null element
+// is a null Node, as At would return.
 func (n Node) Elems() []Node {
 	if len(n.raw) == 0 || n.raw[0] != '[' {
 		return nil
@@ -197,4 +198,33 @@ func (n Node) Elems() []Node {
 		out = append(out, Node{e})
 		off = next
 	}
+}
+
+// Head fills buf with the array's first len(buf) elements in one pass and
+// returns the filled part; it stops scanning there. Reading several fields
+// of a row this way costs one scan instead of one per At, and a caller's
+// fixed-size buf stays on the stack.
+func (n Node) Head(buf []Node) []Node {
+	if len(n.raw) == 0 || n.raw[0] != '[' {
+		return buf[:0]
+	}
+	off := 1
+	for k := range buf {
+		e, next, ok := nextElem(n.raw, off)
+		if !ok {
+			return buf[:k]
+		}
+		buf[k] = Node{e}
+		off = next
+	}
+	return buf
+}
+
+// Get returns element i of a slice from Elems or Head, or a null Node when
+// i is out of range.
+func Get(es []Node, i int) Node {
+	if i < 0 || i >= len(es) {
+		return Node{}
+	}
+	return es[i]
 }
