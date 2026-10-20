@@ -52,11 +52,17 @@ jobs:
         id: base
         env:
           BENCH_CPU: ${{ inputs.cpu }}
+          # Passed as env, never interpolated into the script (branch names
+          # are user-controlled).
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           echo "runner CPUs: $(nproc), BENCH_CPU=${BENCH_CPU:-default}"
-          base_ref="${{ github.base_ref }}"
-          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.ref_name }}" != "${{ github.event.repository.default_branch }}" ]; then
-            base_ref="${{ github.event.repository.default_branch }}"
+          base_ref="$BASE_REF"
+          if [ "$EVENT_NAME" = workflow_dispatch ] && [ "$REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            base_ref="$DEFAULT_BRANCH"
           fi
           if [ -n "$base_ref" ] && git cat-file -e "origin/$base_ref:internal/wire/bench_test.go" 2>/dev/null; then
             git worktree add "$RUNNER_TEMP/base" "origin/$base_ref"
