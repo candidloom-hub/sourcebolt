@@ -124,7 +124,7 @@ func TestGenerateBlocked(t *testing.T) {
 	ft := newFake()
 	_, err := New(ft).Generate(context.Background(), nb1, StudioRequest{Kind: StudioInteractiveReport, Instructions: "t"})
 	var te *transport.Error
-	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "no live capture") {
+	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "with instructions") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(ft.calls) != 0 {

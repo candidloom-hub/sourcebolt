@@ -51,7 +51,7 @@ func TestStudioGenerateUnsupportedAndBadKind(t *testing.T) {
 	st := newStub()
 	st.payloads["EylDcb"] = quotaPayload
 	cs := connect(t, st, "default")
-	e := envelope(t, call(t, cs, "studio_generate", map[string]any{"notebook": idA, "kind": "audio"}))
+	e := envelope(t, call(t, cs, "studio_generate", map[string]any{"notebook": idA, "kind": "data_table"}))
 	if e.Code != "UNSUPPORTED_BY_TRANSPORT" {
 		t.Fatalf("envelope = %+v", e)
 	}

@@ -55,20 +55,20 @@ func TestStudioGenerateSchemaEnums(t *testing.T) {
 		path []string
 		want []string
 	}{
-		{[]string{"kind"}, []string{"audio", "data_table", "flashcards", "infographic", "mind_map", "quiz", "report", "slide_deck", "video"}},
-		{[]string{"audio", "format"}, []string{"critique"}},
-		{[]string{"audio", "length"}, []string{"short"}},
-		{[]string{"video", "format"}, []string{"short"}},
-		{[]string{"slide_deck", "format"}, []string{"presenter_slides"}},
-		{[]string{"slide_deck", "length"}, []string{"short"}},
-		{[]string{"quiz", "quantity"}, []string{"more"}},
-		{[]string{"quiz", "difficulty"}, []string{"easy"}},
+		{[]string{"kind"}, []string{"audio", "data_table", "flashcards", "infographic", "interactive_report", "mind_map", "quiz", "report", "slide_deck", "video"}},
+		{[]string{"audio", "format"}, []string{"deep_dive", "critique"}},
+		{[]string{"audio", "length"}, []string{"short", "default"}},
+		{[]string{"video", "format"}, []string{"cinematic", "short"}},
+		{[]string{"slide_deck", "format"}, []string{"detailed_deck", "presenter_slides"}},
+		{[]string{"slide_deck", "length"}, []string{"default", "short"}},
+		{[]string{"quiz", "quantity"}, []string{"standard", "more"}},
+		{[]string{"quiz", "difficulty"}, []string{"easy", "medium"}},
 		{[]string{"flashcards", "quantity"}, []string{"fewer", "standard"}},
 		{[]string{"flashcards", "difficulty"}, []string{"medium", "hard"}},
 		{[]string{"flashcards", "images"}, []string{"include", "text_only"}},
-		{[]string{"infographic", "orientation"}, []string{"portrait"}},
-		{[]string{"infographic", "detail"}, []string{"concise"}},
-		{[]string{"infographic", "style"}, []string{"sketch_note"}},
+		{[]string{"infographic", "orientation"}, []string{"landscape", "portrait"}},
+		{[]string{"infographic", "detail"}, []string{"concise", "standard"}},
+		{[]string{"infographic", "style"}, []string{"auto", "sketch_note"}},
 	} {
 		if got := enumOf(t, s, tc.path...); !slices.Equal(got, tc.want) {
 			t.Errorf("%v enum = %v, want %v", tc.path, got, tc.want)
@@ -82,13 +82,16 @@ func TestStudioGenerateEveryKind(t *testing.T) {
 		want string // fragment of the R7cb6c params
 	}{
 		{map[string]any{"kind": "audio", "instructions": "focus", "audio": map[string]any{"format": "critique", "length": "short"}}, `[null,["focus",1,null,[["s1"]],"en",null,3]]`},
-		{map[string]any{"kind": "video", "instructions": "focus", "language": "en_in"}, `[null,null,[[["s1"]],"en_in","focus",null,4]]`},
+		{map[string]any{"kind": "video", "instructions": "focus", "language": "en_in", "video": map[string]any{"format": "short"}}, `[null,null,[[["s1"]],"en_in","focus",null,4]]`},
+		{map[string]any{"kind": "video"}, `[null,null,[[["s1"]],null,null,null,3]]`},
+		{map[string]any{"kind": "audio"}, `[null,[null,2,null,[["s1"]],"en",null,1]]`},
+		{map[string]any{"kind": "interactive_report"}, `[null,[null,"en"]]`},
 		{map[string]any{"kind": "report", "instructions": "p", "report": map[string]any{"title": "T", "description": "D"}}, `[null,["T","D",null,[["s1"]],"en","p"]]`},
-		{map[string]any{"kind": "slide_deck", "instructions": "d", "slide_deck": map[string]any{"format": "presenter_slides"}}, `[["d","en",2,2]]`},
+		{map[string]any{"kind": "slide_deck", "instructions": "d", "slide_deck": map[string]any{"format": "presenter_slides"}}, `[["d","en",2,3]]`},
 		{map[string]any{"kind": "mind_map", "instructions": "m"}, `[null,[4,null,"m","en"]]`},
 		{map[string]any{"kind": "quiz", "instructions": "q", "quiz": map[string]any{"quantity": "more", "difficulty": "easy"}}, `[null,[2,null,"q","en",null,null,null,[3,1]]]`},
 		{map[string]any{"kind": "flashcards", "instructions": "f"}, `[null,[1,null,"f","en",null,null,[2,2,[]]]]`},
-		{map[string]any{"kind": "infographic", "infographic": map[string]any{"orientation": "portrait"}}, `[[null,"en",null,2,1,2]]`},
+		{map[string]any{"kind": "infographic", "infographic": map[string]any{"orientation": "portrait"}}, `[[null,"en",null,2,2,1]]`},
 		{map[string]any{"kind": "data_table", "instructions": "d"}, `[null,["d","en"]]`},
 	} {
 		st := newStub()
@@ -124,8 +127,8 @@ func TestStudioGenerateRefusesBeforeQuota(t *testing.T) {
 		code string
 		says string
 	}{
-		{map[string]any{"kind": "audio", "instructions": "f", "audio": map[string]any{"format": "deep_dive"}}, "UNSUPPORTED_BY_TRANSPORT", "format"},
-		{map[string]any{"kind": "slide_deck", "instructions": "f", "slide_deck": map[string]any{"length": "default"}}, "UNSUPPORTED_BY_TRANSPORT", "length"},
+		{map[string]any{"kind": "audio", "instructions": "f", "audio": map[string]any{"format": "brief"}}, "UNSUPPORTED_BY_TRANSPORT", "format"},
+		{map[string]any{"kind": "slide_deck", "instructions": "f", "slide_deck": map[string]any{"length": "long"}}, "INVALID_ARGUMENT", "length"},
 		{map[string]any{"kind": "infographic", "infographic": map[string]any{"orientation": "square"}}, "UNSUPPORTED_BY_TRANSPORT", "orientation"},
 		{map[string]any{"kind": "report", "instructions": "p"}, "UNSUPPORTED_BY_TRANSPORT", "title"},
 		// One unproven value per mapped field, so each field reaches nlm.
@@ -133,16 +136,16 @@ func TestStudioGenerateRefusesBeforeQuota(t *testing.T) {
 		{map[string]any{"kind": "video", "instructions": "f", "video": map[string]any{"format": "explainer"}}, "UNSUPPORTED_BY_TRANSPORT", "format"},
 		{map[string]any{"kind": "report", "instructions": "p", "report": map[string]any{"title": "T"}}, "UNSUPPORTED_BY_TRANSPORT", "description"},
 		{map[string]any{"kind": "report", "instructions": "p", "report": map[string]any{"description": "D"}}, "UNSUPPORTED_BY_TRANSPORT", "title"},
-		{map[string]any{"kind": "slide_deck", "instructions": "f", "slide_deck": map[string]any{"format": "detailed_deck"}}, "UNSUPPORTED_BY_TRANSPORT", "format"},
+		{map[string]any{"kind": "slide_deck", "instructions": "f", "slide_deck": map[string]any{"format": "outline"}}, "INVALID_ARGUMENT", "format"},
 		{map[string]any{"kind": "quiz", "instructions": "q", "quiz": map[string]any{"quantity": "fewer"}}, "UNSUPPORTED_BY_TRANSPORT", "quantity"},
 		{map[string]any{"kind": "quiz", "instructions": "q", "quiz": map[string]any{"difficulty": "hard"}}, "UNSUPPORTED_BY_TRANSPORT", "difficulty"},
 		{map[string]any{"kind": "flashcards", "instructions": "q", "flashcards": map[string]any{"quantity": "more"}}, "UNSUPPORTED_BY_TRANSPORT", "quantity"},
 		{map[string]any{"kind": "flashcards", "instructions": "q", "flashcards": map[string]any{"difficulty": "easy"}}, "UNSUPPORTED_BY_TRANSPORT", "difficulty"},
 		{map[string]any{"kind": "flashcards", "instructions": "q", "flashcards": map[string]any{"images": "some"}}, "INVALID_ARGUMENT", "images"},
-		{map[string]any{"kind": "infographic", "infographic": map[string]any{"detail": "standard"}}, "UNSUPPORTED_BY_TRANSPORT", "detail"},
-		{map[string]any{"kind": "infographic", "infographic": map[string]any{"style": "auto"}}, "INVALID_ARGUMENT", "style"},
+		{map[string]any{"kind": "infographic", "infographic": map[string]any{"detail": "detailed"}}, "UNSUPPORTED_BY_TRANSPORT", "detail"},
+		{map[string]any{"kind": "infographic", "infographic": map[string]any{"style": "watercolor"}}, "INVALID_ARGUMENT", "style"},
 		{map[string]any{"kind": "quiz", "instructions": "q", "audio": map[string]any{"format": "critique"}}, "INVALID_ARGUMENT", "audio"},
-		{map[string]any{"kind": "interactive_report", "instructions": "q"}, "UNSUPPORTED_BY_TRANSPORT", "interactive_report"},
+		{map[string]any{"kind": "interactive_report", "instructions": "q"}, "UNSUPPORTED_BY_TRANSPORT", "instructions"},
 	} {
 		st := newStub()
 		st.payloads["EylDcb"] = quotaPayload

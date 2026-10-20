@@ -33,6 +33,9 @@ type StudioRequest struct {
 	Style       string // infographic visual style
 	Title       string // report
 	Description string // report
+	// GenerateLater is the web app's "Generate later" (deferred) choice:
+	// video only, captured with the cinematic format.
+	GenerateLater bool
 }
 
 // StudioOption is one option of a Studio kind: the values the web app
@@ -52,17 +55,32 @@ type studioOption struct {
 	field func(*StudioRequest) *string
 }
 
+// topicRule says whether a kind's free text (Instructions) is required,
+// optional or refused, after what the captures sent.
+type topicRule int
+
+const (
+	topicRequired topicRule = iota // only captured with free text
+	topicOptional                  // captured with and without (sent as null)
+	topicRefused                   // only captured without
+)
+
+// studioCfg is what a config builder needs besides the option values:
+// the free text and language as sent (null when absent).
+type studioCfg struct {
+	topic, lang        any
+	title, description string
+}
+
 // studioSpec is one generatable kind: its R7cb6c type code, the slot its
 // config goes to, its options and the config builder.
 type studioSpec struct {
 	typ, slot int
 	options   []studioOption
-	// topic: true when the capture had free text (Instructions required),
-	// false when it had none (Instructions refused).
-	topic bool
+	topic     topicRule
 	// build returns the config for the slot; v holds the wire value of
 	// every option by name, src2 the sources as [[sid]..].
-	build func(r StudioRequest, v map[string]any, src2 []any) any
+	build func(c studioCfg, v map[string]any, src2 []any) any
 }
 
 func opt(name string, known []string, def string, wire map[string]any, field func(*StudioRequest) *string) studioOption {
@@ -86,82 +104,95 @@ var (
 	fStyle       = func(r *StudioRequest) *string { return &r.Style }
 )
 
+// videoCinematic is the wire value of the cinematic video format; it was
+// captured without a language (null) and with "Generate later".
+const videoCinematic = 3
+
 // studioSpecs holds every kind sourcebolt can generate. Each request shape
 // and every wire value is pinned by a live capture: capture #3
-// (2026-10-20, R7cb6c live3_*_01..09, one per kind) and, for flashcards
-// "fewer", "hard" and text only, capture #2 (R7cb6c live_2026-10-20_01).
-// The option names the web app offers but no capture has sent are Known
-// only and refused with KindUnsupported.
+// (2026-10-20, R7cb6c live3_*_01..09, one per kind, chosen options and
+// free text), capture #3b (live3b_*_01..06, the web app's defaults and no
+// free text) and, for flashcards "fewer", "hard" and text only, capture #2
+// (R7cb6c live_2026-10-20_01). Defaults are the web app's defaults where
+// #3b captured them. The option names the web app offers but no capture
+// has sent are Known only and refused with KindUnsupported.
 var studioSpecs = map[StudioKind]studioSpec{
 	// Audio Overview, slot 6: [null, [focus, length, null, src2, lang, null, format]].
-	// Capture #3: format Critique 3, length Short 1. sqTeoe lists four
-	// audio formats (codes 1-4).
-	StudioAudio: {typ: 1, slot: 6, topic: true, options: []studioOption{
-		opt("format", []string{"deep_dive", "brief", "critique", "debate"}, "critique", map[string]any{"critique": 3}, fFormat),
-		opt("length", []string{"short", "default", "long"}, "short", map[string]any{"short": 1}, fLength),
-	}, build: func(r StudioRequest, v map[string]any, src2 []any) any {
-		return []any{nil, []any{r.Instructions, v["length"], nil, src2, r.Language, nil, v["format"]}}
+	// #3: Critique 3, Short 1, a focus; #3b: Deep dive 1, default length 2,
+	// focus null. sqTeoe lists four audio formats (codes 1-4).
+	StudioAudio: {typ: 1, slot: 6, topic: topicOptional, options: []studioOption{
+		opt("format", []string{"deep_dive", "brief", "critique", "debate"}, "deep_dive", map[string]any{"deep_dive": 1, "critique": 3}, fFormat),
+		opt("length", []string{"short", "default", "long"}, "default", map[string]any{"short": 1, "default": 2}, fLength),
+	}, build: func(c studioCfg, v map[string]any, src2 []any) any {
+		return []any{nil, []any{c.topic, v["length"], nil, src2, c.lang, nil, v["format"]}}
 	}},
-	// Report, slot 7: [null, [title, description, null, src2, lang, prompt]].
-	// Capture #3 sent the "Study guide" template's texts; the format choice
-	// "Document" has no wire value of its own (type code 2). Templates are
-	// client-side texts, so the caller passes title, description and prompt
-	// (for example from suggest surface report).
-	StudioReport: {typ: 2, slot: 7, topic: true, build: func(r StudioRequest, _ map[string]any, src2 []any) any {
-		return []any{nil, []any{r.Title, r.Description, nil, src2, r.Language, r.Instructions}}
+	// Report (format Document), slot 7: [null, [title, description, null,
+	// src2, lang, prompt]]. #3 sent the "Study guide" template's texts; the
+	// templates are client-side texts, so the caller passes title,
+	// description and prompt (for example from suggest surface report).
+	StudioReport: {typ: 2, slot: 7, topic: topicRequired, build: func(c studioCfg, _ map[string]any, src2 []any) any {
+		return []any{nil, []any{c.title, c.description, nil, src2, c.lang, c.topic}}
 	}},
 	// Video Overview, slot 8: [null, null, [src2, lang, focus, null, format]].
-	// Capture #3: format Short 4 (no visual style slot). sqTeoe lists four
+	// #3: Short 4 with en_in and a focus; #3b: Cinematic 3 (the default),
+	// language and focus null, sent with "Generate later". sqTeoe lists four
 	// video formats.
-	StudioVideo: {typ: 3, slot: 8, topic: true, options: []studioOption{
-		opt("format", []string{"explainer", "brief", "short"}, "short", map[string]any{"short": 4}, fFormat),
-	}, build: func(r StudioRequest, v map[string]any, src2 []any) any {
-		return []any{nil, nil, []any{src2, r.Language, r.Instructions, nil, v["format"]}}
+	StudioVideo: {typ: 3, slot: 8, topic: topicOptional, options: []studioOption{
+		opt("format", []string{"explainer", "brief", "cinematic", "short"}, "cinematic", map[string]any{"cinematic": videoCinematic, "short": 4}, fFormat),
+	}, build: func(c studioCfg, v map[string]any, src2 []any) any {
+		return []any{nil, nil, []any{src2, c.lang, c.topic, nil, v["format"]}}
 	}},
-	// Mind map, slot 9 variant 4: [null, [4, null, topic, lang]] (capture #3).
-	StudioMindMap: {typ: 4, slot: 9, topic: true, build: func(r StudioRequest, _ map[string]any, _ []any) any {
-		return []any{nil, []any{mindMapVariant, nil, r.Instructions, r.Language}}
+	// Mind map, slot 9 variant 4: [null, [4, null, topic, lang]] (#3).
+	StudioMindMap: {typ: 4, slot: 9, topic: topicRequired, build: func(c studioCfg, _ map[string]any, _ []any) any {
+		return []any{nil, []any{mindMapVariant, nil, c.topic, c.lang}}
 	}},
 	// Quiz, slot 9 variant 2: [null, [2, null, topic, lang, null, null, null,
-	// [quantity, difficulty]]]. Capture #3: More questions 3, Easy 1.
-	StudioQuiz: {typ: 4, slot: 9, topic: true, options: []studioOption{
-		opt("quantity", []string{"fewer", "standard", "more"}, "more", map[string]any{"more": 3}, fQuantity),
-		opt("difficulty", []string{"easy", "medium", "hard"}, "easy", map[string]any{"easy": 1}, fDifficulty),
-	}, build: func(r StudioRequest, v map[string]any, _ []any) any {
-		return []any{nil, []any{quizVariant, nil, r.Instructions, r.Language, nil, nil, nil, []any{v["quantity"], v["difficulty"]}}}
+	// [quantity, difficulty]]]. #3: More 3, Easy 1, a topic; #3b: Standard 2,
+	// Medium 2, topic null.
+	StudioQuiz: {typ: 4, slot: 9, topic: topicOptional, options: []studioOption{
+		opt("quantity", []string{"fewer", "standard", "more"}, "standard", map[string]any{"standard": 2, "more": 3}, fQuantity),
+		opt("difficulty", []string{"easy", "medium", "hard"}, "medium", map[string]any{"easy": 1, "medium": 2}, fDifficulty),
+	}, build: func(c studioCfg, v map[string]any, _ []any) any {
+		return []any{nil, []any{quizVariant, nil, c.topic, c.lang, nil, nil, nil, []any{v["quantity"], v["difficulty"]}}}
 	}},
 	// Flashcards, slot 9 variant 1: [null, [1, null, topic, lang, null, null,
-	// [quantity, difficulty, images]]]. Capture #2: Fewer 1, Hard 3, Text
-	// only [1]; capture #3 (the web app's defaults): Standard 2, Medium 2,
-	// with images [].
-	StudioFlashcards: {typ: 4, slot: 9, topic: true, options: []studioOption{
+	// [quantity, difficulty, images]]]. #2: Fewer 1, Hard 3, Text only [1];
+	// #3 (the web app's defaults): Standard 2, Medium 2, with images [].
+	StudioFlashcards: {typ: 4, slot: 9, topic: topicRequired, options: []studioOption{
 		opt("quantity", []string{"fewer", "standard", "more"}, "standard", map[string]any{"fewer": 1, "standard": 2}, fQuantity),
 		opt("difficulty", []string{"easy", "medium", "hard"}, "medium", map[string]any{"medium": 2, "hard": 3}, fDifficulty),
 		opt("images", []string{"include", "text_only"}, "include", map[string]any{"include": []any{}, "text_only": []any{1}}, fImages),
-	}, build: func(r StudioRequest, v map[string]any, _ []any) any {
-		return []any{nil, []any{flashcardsVariant, nil, r.Instructions, r.Language, nil, nil, []any{v["quantity"], v["difficulty"], v["images"]}}}
+	}, build: func(c studioCfg, v map[string]any, _ []any) any {
+		return []any{nil, []any{flashcardsVariant, nil, c.topic, c.lang, nil, nil, []any{v["quantity"], v["difficulty"], v["images"]}}}
 	}},
 	// Infographic, slot 14: [[null, lang, null, orientation, detail, style]].
-	// Capture #3: Portrait 2, Concise 1, visual style Sketch note 2, and no
-	// description (the first slot was null).
-	StudioInfographic: {typ: 7, slot: 14, topic: false, options: []studioOption{
-		opt("orientation", []string{"landscape", "portrait", "square"}, "portrait", map[string]any{"portrait": 2}, fOrientation),
-		opt("detail", []string{"concise", "standard", "detailed"}, "concise", map[string]any{"concise": 1}, fDetail),
-		opt("style", []string{"sketch_note"}, "sketch_note", map[string]any{"sketch_note": 2}, fStyle),
-	}, build: func(r StudioRequest, v map[string]any, _ []any) any {
-		return []any{[]any{nil, r.Language, nil, v["orientation"], v["detail"], v["style"]}}
+	// #3: Portrait 2, Concise 1, Sketch note 2; #3b: Landscape 1, Standard 2,
+	// Auto-select 1. Both without a description.
+	StudioInfographic: {typ: 7, slot: 14, topic: topicRefused, options: []studioOption{
+		opt("orientation", []string{"landscape", "portrait", "square"}, "landscape", map[string]any{"landscape": 1, "portrait": 2}, fOrientation),
+		opt("detail", []string{"concise", "standard", "detailed"}, "standard", map[string]any{"concise": 1, "standard": 2}, fDetail),
+		opt("style", []string{"auto", "sketch_note"}, "auto", map[string]any{"auto": 1, "sketch_note": 2}, fStyle),
+	}, build: func(c studioCfg, v map[string]any, _ []any) any {
+		return []any{[]any{nil, c.lang, nil, v["orientation"], v["detail"], v["style"]}}
 	}},
-	// Slide deck, slot 16: [[description, lang, format, length]]. Capture #3:
-	// Presenter slides 2, Short 2. sqTeoe lists two slide formats.
-	StudioSlides: {typ: 8, slot: 16, topic: true, options: []studioOption{
-		opt("format", []string{"detailed_deck", "presenter_slides"}, "presenter_slides", map[string]any{"presenter_slides": 2}, fFormat),
-		opt("length", []string{"default", "short"}, "short", map[string]any{"short": 2}, fLength),
-	}, build: func(r StudioRequest, v map[string]any, _ []any) any {
-		return []any{[]any{r.Instructions, r.Language, v["format"], v["length"]}}
+	// Slide deck, slot 16: [[description, lang, format, length]]. #3:
+	// Presenter slides 2, Short 2, a description; #3b: Detailed deck 1,
+	// default length 3, no description.
+	StudioSlides: {typ: 8, slot: 16, topic: topicOptional, options: []studioOption{
+		opt("format", []string{"detailed_deck", "presenter_slides"}, "detailed_deck", map[string]any{"detailed_deck": 1, "presenter_slides": 2}, fFormat),
+		opt("length", []string{"default", "short"}, "default", map[string]any{"default": 3, "short": 2}, fLength),
+	}, build: func(c studioCfg, v map[string]any, _ []any) any {
+		return []any{[]any{c.topic, c.lang, v["format"], v["length"]}}
 	}},
-	// Data table, slot 18: [null, [description, lang]] (capture #3).
-	StudioDataTable: {typ: 9, slot: 18, topic: true, build: func(r StudioRequest, _ map[string]any, _ []any) any {
-		return []any{nil, []any{r.Instructions, r.Language}}
+	// Data table, slot 18: [null, [description, lang]] (#3).
+	StudioDataTable: {typ: 9, slot: 18, topic: topicRequired, build: func(c studioCfg, _ map[string]any, _ []any) any {
+		return []any{nil, []any{c.topic, c.lang}}
+	}},
+	// Interactive report (the report dialog's Interactive format), type 11,
+	// slot 34: [null, [null, lang]] (#3b, template "Learning overview",
+	// which has no wire value of its own; no free text).
+	StudioInteractiveReport: {typ: 11, slot: 34, topic: topicRefused, build: func(c studioCfg, _ map[string]any, _ []any) any {
+		return []any{nil, []any{nil, c.lang}}
 	}},
 }
 
@@ -216,11 +247,6 @@ func studioParams(nb string, r StudioRequest) ([]any, error) {
 	const rpc = "studio.create"
 	spec, ok := studioSpecs[r.Kind]
 	if !ok {
-		switch r.Kind {
-		case StudioInteractiveReport:
-			return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc,
-				Message: "generating interactive_report artifacts is not supported yet: no live capture of its request"}
-		}
 		return nil, invalidArg(rpc, fmt.Sprintf("kind %q cannot be generated; use one of %v", r.Kind, GeneratableKinds()))
 	}
 	own := map[string]bool{}
@@ -254,10 +280,10 @@ func studioParams(nb string, r StudioRequest) ([]any, error) {
 	}
 	hasTopic := strings.TrimSpace(r.Instructions) != ""
 	switch {
-	case spec.topic && !hasTopic:
+	case spec.topic == topicRequired && !hasTopic:
 		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: fmt.Sprintf(
 			"%s without instructions is not supported yet: only a request with them is pinned by a live capture", r.Kind)}
-	case !spec.topic && hasTopic:
+	case spec.topic == topicRefused && hasTopic:
 		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: fmt.Sprintf(
 			"%s with instructions is not supported yet: only a request without them is pinned by a live capture", r.Kind)}
 	}
@@ -269,8 +295,28 @@ func studioParams(nb string, r StudioRequest) ([]any, error) {
 			}
 		}
 	}
-	if r.Language == "" {
-		r.Language = defaultStudioLanguage
+	if r.GenerateLater {
+		switch {
+		case r.Kind != StudioVideo:
+			return nil, invalidArg(rpc, fmt.Sprintf("option generate_later applies to video only, got %s", r.Kind))
+		case v["format"] != videoCinematic:
+			return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: "video option generate_later with a format other than cinematic is not supported yet: only cinematic is pinned by a live capture"}
+		}
+	}
+	c := studioCfg{title: r.Title, description: r.Description}
+	if hasTopic {
+		c.topic = r.Instructions
+	}
+	switch {
+	case r.Kind == StudioVideo && v["format"] == videoCinematic:
+		// Captured with a null language; sending one is unproven.
+		if r.Language != "" {
+			return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: "video option language with format cinematic is not supported yet: the capture sent no language"}
+		}
+	case r.Language == "":
+		c.lang = defaultStudioLanguage
+	default:
+		c.lang = r.Language
 	}
 	src2 := make([]any, len(r.SourceIDs))
 	src3 := make([]any, len(r.SourceIDs))
@@ -280,7 +326,12 @@ func studioParams(nb string, r StudioRequest) ([]any, error) {
 	}
 	spec3 := make([]any, spec.slot+1)
 	spec3[2], spec3[3] = spec.typ, src3
-	spec3[spec.slot] = spec.build(r, v, src2)
+	spec3[spec.slot] = spec.build(c, v, src2)
+	if r.GenerateLater {
+		// "Generate later" (capture #3b): [1] at params[6]; the answer row
+		// then has status 7.
+		return []any{artifactOptions(), nb, spec3, nil, nil, nil, []any{1}}, nil
+	}
 	return []any{artifactOptions(), nb, spec3}, nil
 }
 

@@ -113,7 +113,7 @@ func TestGenerateUnpinnedOptionsUnsupported(t *testing.T) {
 		"difficulty":   {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Difficulty: "easy"},
 		"no topic":     {Kind: StudioFlashcards, SourceIDs: flashcardSources2},
 		"quiz":         {Kind: StudioQuiz, SourceIDs: flashcardSources2, Instructions: "t", Difficulty: "hard"},
-		"audio":        {Kind: StudioAudio, SourceIDs: flashcardSources2},
+		"audio":        {Kind: StudioDataTable, SourceIDs: flashcardSources2},
 		"bad quantity": {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Quantity: "lots"},
 	} {
 		ft := newFake()

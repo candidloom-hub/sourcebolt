@@ -2,6 +2,7 @@ package nlm
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"strings"
 	"testing"
@@ -111,21 +112,103 @@ func TestGenerateLive3EveryKind(t *testing.T) {
 	}
 }
 
-// Empty options take the defaults: the only captured value, or for
-// flashcards the web app's own defaults (standard, medium, with images),
-// which capture #3 sent.
-func TestGenerateLive3Defaults(t *testing.T) {
-	for _, tc := range liveStudioRequests3 {
-		r := StudioRequest{Kind: tc.req.Kind, Instructions: tc.req.Instructions, Language: tc.req.Language,
-			Title: tc.req.Title, Description: tc.req.Description, SourceIDs: studioSources3}
+// Capture #3b generated six artifacts with every option left at the web
+// app's default and no instructions. The web app also listed a note as a
+// source; sourcebolt sends sources only, so the note is removed from the
+// captured request before comparing.
+const note3b = "00000000-0000-4000-8000-000000000014"
+
+var studioSources3b = []string{"00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000004"}
+
+// withoutNote drops the note entries ([null×6,[note,2]] and [note]) from
+// a captured request.
+func withoutNote(t *testing.T, raw []byte) []byte {
+	t.Helper()
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+	var walk func(any) any
+	walk = func(x any) any {
+		l, ok := x.([]any)
+		if !ok {
+			return x
+		}
+		out := []any{}
+		for _, e := range l {
+			b, _ := json.Marshal(e)
+			if string(b) == `[null,null,null,null,null,null,["`+note3b+`",2]]` || string(b) == `["`+note3b+`"]` {
+				continue
+			}
+			out = append(out, walk(e))
+		}
+		return out
+	}
+	b, _ := json.Marshal(walk(v))
+	return b
+}
+
+func TestGenerateLive3bDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		req     StudioRequest
+		id      string
+		status  ArtifactStatus
+	}{
+		{"live3b_2026-10-20_01", StudioRequest{Kind: StudioAudio}, "00000000-0000-4000-8000-000000000013", ArtifactPending},
+		{"live3b_2026-10-20_02", StudioRequest{Kind: StudioVideo, GenerateLater: true}, "00000000-0000-4000-8000-000000000015", ArtifactPending},
+		{"live3b_2026-10-20_03", StudioRequest{Kind: StudioSlides}, "00000000-0000-4000-8000-000000000016", ArtifactPending},
+		{"live3b_2026-10-20_04", StudioRequest{Kind: StudioQuiz}, "00000000-0000-4000-8000-000000000017", ArtifactPending},
+		{"live3b_2026-10-20_05", StudioRequest{Kind: StudioInfographic}, "00000000-0000-4000-8000-000000000018", ArtifactPending},
+		{"live3b_2026-10-20_06", StudioRequest{Kind: StudioInteractiveReport}, "00000000-0000-4000-8000-000000000019", ArtifactPending},
+	} {
 		fx := loadFixture(t, "R7cb6c", tc.fixture)
 		ft := newFake(fx)
+		r := tc.req
+		r.SourceIDs = studioSources3b
+		a, err := New(ft).Generate(context.Background(), fakeNB, r)
+		if err != nil {
+			t.Fatalf("%s: %v", r.Kind, err)
+		}
+		if p, want := paramsJSON(t, ft, "R7cb6c"), withoutNote(t, fx.Request); !sameJSON(t, []byte(p), want) {
+			t.Fatalf("%s params\n got %s\nwant %s", r.Kind, p, want)
+		}
+		if a.ID != tc.id || a.Kind != r.Kind || a.Status != tc.status {
+			t.Fatalf("%s: artifact = %+v", r.Kind, a)
+		}
+	}
+}
+
+// The default values are also accepted by name and give the same request.
+func TestGenerateLive3bDefaultsByName(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		req     StudioRequest
+	}{
+		{"live3b_2026-10-20_01", StudioRequest{Kind: StudioAudio, Format: "deep_dive", Length: "default"}},
+		{"live3b_2026-10-20_02", StudioRequest{Kind: StudioVideo, Format: "cinematic", GenerateLater: true}},
+		{"live3b_2026-10-20_03", StudioRequest{Kind: StudioSlides, Format: "detailed_deck", Length: "default"}},
+		{"live3b_2026-10-20_04", StudioRequest{Kind: StudioQuiz, Quantity: "standard", Difficulty: "medium"}},
+		{"live3b_2026-10-20_05", StudioRequest{Kind: StudioInfographic, Orientation: "landscape", Detail: "standard", Style: "auto"}},
+	} {
+		fx := loadFixture(t, "R7cb6c", tc.fixture)
+		ft := newFake(fx)
+		r := tc.req
+		r.SourceIDs = studioSources3b
 		if _, err := New(ft).Generate(context.Background(), fakeNB, r); err != nil {
 			t.Fatalf("%s: %v", r.Kind, err)
 		}
-		if p := paramsJSON(t, ft, "R7cb6c"); !sameJSON(t, []byte(p), fx.Request) {
-			t.Fatalf("%s params\n got %s\nwant %s", r.Kind, p, fx.Request)
+		if p, want := paramsJSON(t, ft, "R7cb6c"), withoutNote(t, fx.Request); !sameJSON(t, []byte(p), want) {
+			t.Fatalf("%s params\n got %s\nwant %s", r.Kind, p, want)
 		}
+	}
+}
+
+// A deferred ("Generate later") request answers with status 7, which lists
+// as pending.
+func TestStatusDeferredIsPending(t *testing.T) {
+	if got := statusFromCode(7); got != ArtifactPending {
+		t.Fatalf("status 7 = %q", got)
 	}
 }
 
@@ -141,29 +224,33 @@ func TestGenerateRejectsUnprovenOptions(t *testing.T) {
 		kind transport.Kind
 		says string
 	}{
-		{StudioRequest{Kind: StudioAudio, Instructions: topic, Format: "deep_dive"}, transport.KindUnsupported, "format"},
+		{StudioRequest{Kind: StudioAudio, Instructions: topic, Format: "brief"}, transport.KindUnsupported, "format"},
 		{StudioRequest{Kind: StudioAudio, Instructions: topic, Length: "long"}, transport.KindUnsupported, "length"},
 		{StudioRequest{Kind: StudioAudio, Instructions: topic, Format: "poem"}, transport.KindInvalidArgument, "format"},
-		{StudioRequest{Kind: StudioAudio}, transport.KindUnsupported, "instructions"},
+		{StudioRequest{Kind: StudioMindMap}, transport.KindUnsupported, "instructions"},
+		{StudioRequest{Kind: StudioFlashcards}, transport.KindUnsupported, "instructions"},
+		{StudioRequest{Kind: StudioVideo, Format: "cinematic", Language: "en"}, transport.KindUnsupported, "language"},
+		{StudioRequest{Kind: StudioVideo, Format: "short", GenerateLater: true}, transport.KindUnsupported, "generate_later"},
+		{StudioRequest{Kind: StudioAudio, GenerateLater: true}, transport.KindInvalidArgument, "generate_later"},
 		{StudioRequest{Kind: StudioVideo, Instructions: topic, Format: "explainer"}, transport.KindUnsupported, "format"},
 		{StudioRequest{Kind: StudioReport, Instructions: topic}, transport.KindUnsupported, "title"},
 		{StudioRequest{Kind: StudioReport, Instructions: topic, Title: "x"}, transport.KindUnsupported, "description"},
 		{StudioRequest{Kind: StudioReport, Title: "x", Description: "y"}, transport.KindUnsupported, "instructions"},
-		{StudioRequest{Kind: StudioSlides, Instructions: topic, Format: "detailed_deck"}, transport.KindUnsupported, "format"},
-		{StudioRequest{Kind: StudioSlides, Instructions: topic, Length: "default"}, transport.KindUnsupported, "length"},
-		{StudioRequest{Kind: StudioQuiz, Instructions: topic, Quantity: "standard"}, transport.KindUnsupported, "quantity"},
+		{StudioRequest{Kind: StudioSlides, Instructions: topic, Format: "outline"}, transport.KindInvalidArgument, "format"},
+		{StudioRequest{Kind: StudioSlides, Instructions: topic, Length: "long"}, transport.KindInvalidArgument, "length"},
+		{StudioRequest{Kind: StudioQuiz, Instructions: topic, Quantity: "fewer"}, transport.KindUnsupported, "quantity"},
 		{StudioRequest{Kind: StudioQuiz, Instructions: topic, Difficulty: "hard"}, transport.KindUnsupported, "difficulty"},
 		{StudioRequest{Kind: StudioFlashcards, Instructions: topic, Quantity: "more"}, transport.KindUnsupported, "quantity"},
 		{StudioRequest{Kind: StudioFlashcards, Instructions: topic, Difficulty: "easy"}, transport.KindUnsupported, "difficulty"},
 		{StudioRequest{Kind: StudioFlashcards, Instructions: topic, Images: "some"}, transport.KindInvalidArgument, "images"},
-		{StudioRequest{Kind: StudioInfographic, Orientation: "landscape"}, transport.KindUnsupported, "orientation"},
+		{StudioRequest{Kind: StudioInfographic, Orientation: "square"}, transport.KindUnsupported, "orientation"},
 		{StudioRequest{Kind: StudioInfographic, Detail: "detailed"}, transport.KindUnsupported, "detail"},
-		{StudioRequest{Kind: StudioInfographic, Style: "auto"}, transport.KindInvalidArgument, "style"},
+		{StudioRequest{Kind: StudioInfographic, Style: "watercolor"}, transport.KindInvalidArgument, "style"},
 		{StudioRequest{Kind: StudioInfographic, Instructions: topic}, transport.KindUnsupported, "instructions"},
 		{StudioRequest{Kind: StudioMindMap, Instructions: topic, Format: "short"}, transport.KindInvalidArgument, "format"},
 		{StudioRequest{Kind: StudioDataTable, Instructions: topic, Quantity: "more"}, transport.KindInvalidArgument, "quantity"},
 		{StudioRequest{Kind: StudioDataTable}, transport.KindUnsupported, "instructions"},
-		{StudioRequest{Kind: StudioInteractiveReport, Instructions: topic}, transport.KindUnsupported, "interactive_report"},
+		{StudioRequest{Kind: StudioInteractiveReport, Instructions: topic}, transport.KindUnsupported, "instructions"},
 		{StudioRequest{Kind: "poem", Instructions: topic}, transport.KindInvalidArgument, "poem"},
 	} {
 		ft := newFake()
