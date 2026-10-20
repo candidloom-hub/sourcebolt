@@ -156,6 +156,9 @@ func idleBinary(bin string) (int64, error) {
 		}
 	}
 	time.Sleep(200 * time.Millisecond) // let the background warm-up fail and settle
+	if d := rssDetail(cmd.Process.Pid); d != "" {
+		fmt.Println("binary idle detail:", d)
+	}
 	return peakRSS(cmd.Process.Pid)
 }
 

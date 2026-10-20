@@ -8,3 +8,6 @@ import "errors"
 func peakRSS(int) (int64, error) { return 0, errors.New("unsupported platform") }
 
 const supported = false
+
+// rssDetail is only implemented on Linux.
+func rssDetail(int) string { return "" }

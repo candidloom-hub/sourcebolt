@@ -38,6 +38,9 @@ jobs:
         run: go run ./bench/rss -bin bin/sourcebolt -check
       - name: B1 cold start
         run: go run ./bench/coldstart -bin bin/sourcebolt
+      # B9 fails above 20 ms over Google's first answer chunk (p50).
+      - name: B9 chat time-to-first-progress
+        run: go run ./bench/ttfp -check
 
       # B3/B4: on pull requests benchmark base and head interleaved on this
       # runner (fair comparison; sequential runs showed 15-30% drift with
