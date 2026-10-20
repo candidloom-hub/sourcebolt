@@ -110,7 +110,7 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 			return fail(stderr, err)
 		}
 		if !jar.Valid() {
-			return fail(stderr, fmt.Errorf("missing required cookies: %s. Export every google.com cookie, including the plain SID, HSID and APISID ones, not only the __Secure- ones", strings.Join(jar.Missing(), ", ")))
+			return fail(stderr, fmt.Errorf("missing required cookies: %s. Export every google.com cookie (sourcebolt needs SID, __Secure-1PSIDTS, and OSID or APISID+SAPISID), not only the __Secure- ones", strings.Join(jar.Missing(), ", ")))
 		}
 	}
 	if !jar.Valid() {

@@ -283,3 +283,20 @@ func TestLoginBrowserRejectsUnsafeProfileName(t *testing.T) {
 		t.Fatalf("code=%d, browser launched with %q", code, got.o.ProfileDir)
 	}
 }
+
+// The advice must name exactly the cookies Jar.Valid checks: not HSID
+// (never checked), and the SAPISID/OSID alternatives that are.
+func TestLoginImportHintMatchesCheck(t *testing.T) {
+	t.Setenv("NOTEBOOKLM_CONFIG_DIR", t.TempDir())
+	var out, errb bytes.Buffer
+	run(context.Background(), []string{"login", "--import", "-", "--format", "header"}, strings.NewReader("Cookie: SID=only"), &out, &errb)
+	msg := errb.String()
+	for _, want := range []string{"__Secure-1PSIDTS", "OSID", "APISID", "SAPISID"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("hint lacks %s: %q", want, msg)
+		}
+	}
+	if strings.Contains(msg, "HSID") {
+		t.Errorf("hint names HSID, which is not required: %q", msg)
+	}
+}
