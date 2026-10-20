@@ -26,15 +26,16 @@ The assistant calls sourcebolt, sourcebolt talks to NotebookLM with your own Goo
 
 ## Key numbers
 
-Measured on a Windows laptop (Intel Core i7-12650H, 16 GB RAM). Method and raw data: [bench/RESULTS.md](bench/RESULTS.md) and [docs/performance.md](docs/performance.md).
+Measured on the GitHub Actions runner (2 CPUs, AMD EPYC 7763), v0.2.0, medians. Method and raw data: [bench/RESULTS.md](bench/RESULTS.md) and [docs/performance.md](docs/performance.md).
 
 | What | Result |
 |---|---|
-| Start-up time (start to ready) | 10.3 ms median |
-| Program size | 10.06 MB, one file |
-| Memory while idle | 12.4 MB |
-| sourcebolt's own work per call, cached (100 notebooks) | 1.6 ms median |
-| A real `notebook_list` call to Google | 848 ms median (Google's time dominates) |
+| Start-up time (start to ready) | 8.2 ms |
+| Program size | about 10 MB, one file |
+| Memory while idle | 16.2 MB |
+| sourcebolt's own work per call, 100 notebooks, cached / not cached | 0.40 ms / 0.76 ms |
+| Chat: first progress after Google's first chunk | +0.3 ms |
+| A real `notebook_list` call to Google | 848 ms median (Google's time dominates; one laptop, 2026-10-14) |
 
 ## Quick start
 

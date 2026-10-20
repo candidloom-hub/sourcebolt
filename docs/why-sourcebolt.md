@@ -4,9 +4,9 @@ There are several ways to connect an AI app to NotebookLM. This page explains wh
 
 ## Fast, and light on your computer
 
-- **Starts in about 10 ms** (median 10.3 ms from process start to a ready MCP connection). Apps can start it on demand without a noticeable pause.
-- **Small:** one 10 MB file, 12.4 MB of memory while idle.
-- **Little overhead per call:** about 1.6 ms of sourcebolt's own work for a cached list of 100 notebooks. A real call to NotebookLM takes most of a second (848 ms median for `notebook_list`), so almost all waiting time is Google's.
+- **Starts in about 8 ms** (median 8.2 ms from process start to a ready MCP connection on the CI runner). Apps can start it on demand without a noticeable pause.
+- **Small:** one file of about 10 MB, 16.2 MB of memory while idle.
+- **Little overhead per call:** about 0.4 ms of sourcebolt's own work for a cached list of 100 notebooks (0.76 ms uncached). A real call to NotebookLM takes most of a second (848 ms median for `notebook_list`), so almost all waiting time is Google's.
 - **Reuses connections:** after the first request, every request reuses the same HTTP/2 connection (100% in the benchmark), so there is one TLS handshake, not one per call.
 
 All numbers, the machine they were measured on and how to reproduce them: [performance.md](performance.md).
