@@ -26,6 +26,8 @@ Installing for people who never used a terminal: one command, a guided setup tha
 - A call cancelled while its answer was being read reported AUTH_REQUIRED (an empty, cut-short body) instead of the cancel, which told the user to sign in again.
 - `setup` never sends a value containing `%` through a `.cmd`/`.bat` CLI (`code.cmd`, an npm `claude.cmd`): cmd.exe expanded it, and the VS Code entry failed. It edits the config file instead.
 
+- On a Mac whose keychain is locked or missing with nobody to unlock it (ssh, CI, a headless Mac), `setup`, `doctor`, `login` and `serve` waited forever on the keychain. Keyring calls now give up after 30 s; a new profile's key goes to the 0600 key file, and the doctor check reports the keyring as unavailable.
+
 ### Security
 
 - Release workflows pin third-party actions to commit SHAs.
