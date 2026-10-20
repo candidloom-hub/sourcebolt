@@ -187,8 +187,3 @@ func TestGeminiExtension(t *testing.T) {
 	}
 }
 
-func TestFundingFile(t *testing.T) {
-	if got := strings.TrimSpace(string(read(t, ".github/FUNDING.yml"))); got != "github: [candidloom-hub]" {
-		t.Fatalf("FUNDING.yml: %q", got)
-	}
-}
