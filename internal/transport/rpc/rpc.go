@@ -145,7 +145,18 @@ func (t *Transport) Do(ctx context.Context, c transport.Call) (transport.Result,
 			return transport.Result{Payload: payload, Transport: t.Name()}, nil
 		}
 		var te *transport.Error
-		if !errors.As(err, &te) || ctx.Err() != nil {
+		isTE := errors.As(err, &te)
+		if cerr := ctx.Err(); cerr != nil {
+			// The caller gave up. Report that, not what a cut-short body
+			// decoded to: an empty body reads as AUTH_REQUIRED.
+			if isTE && !errors.Is(err, cerr) {
+				e := t.fail(c, transport.KindTransport, false, cerr)
+				e.Sent = te.Sent
+				err = e
+			}
+			return transport.Result{}, markSent(err, sent)
+		}
+		if !isTE {
 			return transport.Result{}, markSent(err, sent)
 		}
 		sent = sent || te.Sent
