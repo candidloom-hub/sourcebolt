@@ -1,0 +1,51 @@
+{
+  "manifest_version": "0.3",
+  "name": "sourcebolt",
+  "display_name": "sourcebolt (NotebookLM)",
+  "version": "0.0.0",
+  "description": "Unofficial MCP server for Google NotebookLM: notebooks, sources, cited chat, research and notes.",
+  "long_description": "sourcebolt is a local MCP server for your own Google NotebookLM notebooks. It runs on your computer and talks only to NotebookLM, using your own Google session.\n\n**Sign in first.** The extension cannot sign in for you. Install the sourcebolt command-line binary from the GitHub releases page and run `sourcebolt login --attach http://127.0.0.1:9222` (see docs/auth.md). The extension uses the same saved, encrypted session.\n\nsourcebolt is an independent project. It is not affiliated with, endorsed by or sponsored by Google. \"NotebookLM\" is a trademark of Google LLC.",
+  "author": {
+    "name": "candidloom-hub",
+    "url": "https://github.com/candidloom-hub"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/candidloom-hub/sourcebolt"
+  },
+  "homepage": "https://github.com/candidloom-hub/sourcebolt",
+  "documentation": "https://github.com/candidloom-hub/sourcebolt/blob/main/docs/tools.md",
+  "support": "https://github.com/candidloom-hub/sourcebolt/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/sourcebolt",
+    "mcp_config": {
+      "command": "${__dirname}/server/sourcebolt",
+      "args": ["serve"],
+      "env": {
+        "NOTEBOOKLM_PROFILE": "${user_config.profile}"
+      }
+    }
+  },
+  "tools": [],
+  "tools_generated": false,
+  "keywords": ["notebooklm", "notebook", "research", "citations", "sources"],
+  "license": "Apache-2.0",
+  "privacy_policies": [
+    "https://github.com/candidloom-hub/sourcebolt/blob/main/docs/privacy.md",
+    "https://policies.google.com/privacy"
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  },
+  "user_config": {
+    "profile": {
+      "type": "string",
+      "title": "Profile",
+      "description": "Name of the saved sourcebolt sign-in profile to use (the --profile name given to sourcebolt login).",
+      "default": "default",
+      "required": false
+    }
+  }
+}

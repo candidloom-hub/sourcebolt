@@ -103,6 +103,21 @@ jobs:
           version: "~> v2"
           args: release --snapshot --clean --skip=publish,sign,docker,sbom
 
+      # MCP Bundles (.mcpb), one per platform, built from the binaries above in every mode.
+      # Nothing is published by this step.
+      - name: Build MCP bundles
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VERSION="0.0.0"; fi
+          go run ./tools/mcpb --version "$VERSION" --dist dist --out dist/mcpb
+      # Tag push only: attach the bundles to the DRAFT release GoReleaser just created
+      # (same gate as the archives; a human still publishes the draft).
+      - name: Attach MCP bundles to the draft release
+        if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/mcpb/*.mcpb dist/mcpb/sourcebolt-mcp-checksums.txt --clobber
+
       - uses: actions/upload-artifact@v7
         with:
           name: dist
@@ -111,6 +126,7 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
+            dist/mcpb/
           if-no-files-found: error
 
   npm:
