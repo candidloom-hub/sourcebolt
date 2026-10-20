@@ -4,7 +4,9 @@
 # base rounds first and all head rounds second made the head look 15-30%
 # slower on shared runners with identical code.
 # Usage: bench/interleave.sh <base-dir> <head-dir> <rounds> <pkgs...>
-# Env: BENCH_RE (benchmark regexp). Writes old.txt and new.txt in the cwd.
+# Env: BENCH_RE (benchmark regexp); BENCH_CPU (optional -test.cpu list, e.g.
+# 2 to hold GOMAXPROCS at the targets' 2 CPUs on a larger runner).
+# Writes old.txt and new.txt in the cwd.
 set -euo pipefail
 base="$1" head="$2" rounds="$3"; shift 3
 bins="$(mktemp -d)"
@@ -16,7 +18,7 @@ done
 : > old.txt; : > new.txt
 run() { # side dir pkg
   local name; name="$(echo "$3" | tr '/.' '__')"
-  (cd "$2/$3" && "$bins/$1_$name.test" -test.run '^$' -test.bench "$BENCH_RE" -test.count 1 -test.benchmem) \
+  (cd "$2/$3" && "$bins/$1_$name.test" -test.run '^$' -test.bench "$BENCH_RE" -test.count 1 -test.benchmem ${BENCH_CPU:+-test.cpu "$BENCH_CPU"}) \
     | grep -v -e '^---' -e 'bench_test.go' -e '^PASS' -e '^ok'
 }
 for i in $(seq 1 "$rounds"); do
