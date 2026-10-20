@@ -231,6 +231,9 @@ func connectClient(ctx context.Context, c setup.Client, entry setup.Entry, a ask
 // cliCommands returns the app CLI commands to run instead of editing the
 // file, or nil to edit the file.
 func cliCommands(c setup.Client, e setup.Entry, replace bool) [][]string {
+	if batchExpands(c.CLI, e) {
+		return nil
+	}
 	switch {
 	case c.ID == "claude-code" && c.CLI != "":
 		add := append([]string{c.CLI, "mcp", "add", "--scope", "user", "--transport", "stdio", serverName, "--", e.Command}, e.Args...)
@@ -248,6 +251,26 @@ func cliCommands(c setup.Client, e setup.Entry, replace bool) [][]string {
 		return [][]string{{c.CLI, "--add-mcp", string(b)}}
 	}
 	return nil
+}
+
+// batchExpands reports whether running cli would garble the entry: Windows
+// runs a .cmd/.bat file through cmd.exe, which expands %NAME% in its
+// arguments with no way to escape it (code.cmd, an npm-installed claude.cmd).
+func batchExpands(cli string, e setup.Entry) bool {
+	switch strings.ToLower(filepath.Ext(cli)) {
+	case ".cmd", ".bat":
+	default:
+		return false
+	}
+	if strings.Contains(e.Command, "%") {
+		return true
+	}
+	for _, a := range e.Args {
+		if strings.Contains(a, "%") {
+			return true
+		}
+	}
+	return false
 }
 
 func apply(ctx context.Context, c setup.Client, e setup.Entry, data []byte, cmds [][]string) error {
