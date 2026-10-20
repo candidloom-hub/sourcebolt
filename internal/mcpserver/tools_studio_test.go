@@ -41,7 +41,7 @@ func TestStudioGenerateQuotaExhausted(t *testing.T) {
 	if a := toolAnn(t, cs, "studio_generate"); a.ReadOnlyHint || a.DestructiveHint == nil || *a.DestructiveHint {
 		t.Errorf("annotations = %+v", a)
 	}
-	e := envelope(t, call(t, cs, "studio_generate", map[string]any{"notebook": idA, "kind": "audio"}))
+	e := envelope(t, call(t, cs, "studio_generate", map[string]any{"notebook": idA, "kind": "audio", "instructions": "focus"}))
 	if e.Code != "QUOTA" {
 		t.Fatalf("envelope = %+v", e)
 	}

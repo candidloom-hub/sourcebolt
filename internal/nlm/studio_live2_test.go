@@ -46,8 +46,8 @@ func liveFlashcardsRequest(t *testing.T, fx Fixture) []byte {
 func TestGenerateFlashcardsLive(t *testing.T) {
 	fx := loadFixture(t, "R7cb6c", "live_2026-10-20_01")
 	for _, r := range []StudioRequest{
-		{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "text-92", Language: "en", Quantity: "fewer", Difficulty: "hard"},
-		{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "text-92"}, // defaults: the pinned values, "en"
+		{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "text-92", Language: "en", Quantity: "fewer", Difficulty: "hard", Images: "text_only"},
+		{Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "text-92", Quantity: "fewer", Difficulty: "hard", Images: "text_only"}, // language defaults to "en"
 	} {
 		ft := newFake(fx)
 		a, err := New(ft).Generate(context.Background(), fakeNB2, r)
@@ -109,10 +109,10 @@ func TestGenerateFlashcardsAllSourcesByDefault(t *testing.T) {
 
 func TestGenerateUnpinnedOptionsUnsupported(t *testing.T) {
 	for name, r := range map[string]StudioRequest{
-		"quantity":     {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Quantity: "standard"},
+		"quantity":     {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Quantity: "more"},
 		"difficulty":   {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Difficulty: "easy"},
 		"no topic":     {Kind: StudioFlashcards, SourceIDs: flashcardSources2},
-		"quiz":         {Kind: StudioQuiz, SourceIDs: flashcardSources2, Instructions: "t"},
+		"quiz":         {Kind: StudioQuiz, SourceIDs: flashcardSources2, Instructions: "t", Difficulty: "hard"},
 		"audio":        {Kind: StudioAudio, SourceIDs: flashcardSources2},
 		"bad quantity": {Kind: StudioFlashcards, SourceIDs: flashcardSources2, Instructions: "t", Quantity: "lots"},
 	} {

@@ -180,6 +180,18 @@ func renderTool(b *bytes.Buffer, t *mcp.Tool, inDefault, inMinimal bool) {
 			r = "yes"
 		}
 		fmt.Fprintf(b, "| `%s` | %s | %s | %s |\n", k, oneLine(typeOf(p)), r, oneLine(desc))
+		// One level of nested object properties, as `parent.child` rows.
+		sub, _ := p["properties"].(map[string]any)
+		subKeys := make([]string, 0, len(sub))
+		for sk := range sub {
+			subKeys = append(subKeys, sk)
+		}
+		sort.Strings(subKeys)
+		for _, sk := range subKeys {
+			sp, _ := sub[sk].(map[string]any)
+			sdesc, _ := sp["description"].(string)
+			fmt.Fprintf(b, "| `%s.%s` | %s | no | %s |\n", k, sk, oneLine(typeOf(sp)), oneLine(sdesc))
+		}
 	}
 	b.WriteString("\n")
 }

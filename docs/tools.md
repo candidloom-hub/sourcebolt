@@ -38,8 +38,8 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`source_list`](#source_list) | default, all | List a notebook's sources with type and processing status; optionally filter by status. |
 | [`source_read`](#source_read) | minimal, default, all | Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset). |
 | [`source_update`](#source_update) | default, all | Rename a source (title) and/or check whether it is up to date (check_freshness). |
-| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact. |
-| [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. |
+| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. |
+| [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table) with kind and status (pending while queued or generating, then ready or failed). |
 | [`suggest`](#suggest) | default, all | Suggested prompts for a surface: chat, report or studio_options. |
 
 ## account
@@ -482,24 +482,45 @@ Annotations: title: Update source, readOnly: false, destructive: false, idempote
 
 Profiles: minimal, default, all.
 
-Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Flashcards are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.
+Generate a Studio artifact: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. Each kind takes only the option values a live capture has proven (the enums); other values the web app offers return UNSUPPORTED_BY_TRANSPORT naming the option, before any call. instructions is required for every kind except infographic, which was captured without a description and refuses one. report needs report.title and report.description plus instructions as the prompt (suggest surface report returns ready-made triples). Checks the account quota first and returns a QUOTA error when it is used up. Artifacts are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Not retried after sending.
 
 Annotations: title: Generate studio artifact, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `kind` | string | yes | audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report |
+| `kind` | string (`audio`, `data_table`, `flashcards`, `infographic`, `mind_map`, `quiz`, `report`, `slide_deck`, `video`) | yes | the artifact kind |
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
+| `audio` | null or object | no | options for kind audio |
+| `audio.format` | string (`critique`) | no | audio format: critique (default critique) |
+| `audio.length` | string (`short`) | no | audio length: short (default short) |
 | `flashcards` | null or object | no | options for kind flashcards |
-| `instructions` | string | no | focus or style instructions; for flashcards the topic (required) |
-| `language` | string | no | output language code (default en) |
+| `flashcards.difficulty` | string (`medium`, `hard`) | no | card difficulty: medium, hard (default medium) |
+| `flashcards.images` | string (`include`, `text_only`) | no | card images: include, text_only (default include) |
+| `flashcards.quantity` | string (`fewer`, `standard`) | no | number of cards: fewer, standard (default standard) |
+| `infographic` | null or object | no | options for kind infographic |
+| `infographic.detail` | string (`concise`) | no | level of detail: concise (default concise) |
+| `infographic.orientation` | string (`portrait`) | no | page orientation: portrait (default portrait) |
+| `infographic.style` | string (`sketch_note`) | no | visual style: sketch_note (default sketch_note) |
+| `instructions` | string | no | required free text except for infographic (which refuses it): audio and video focus, report prompt, slide deck and data table description, mind map, quiz and flashcards topic |
+| `language` | string | no | output language code as the web app sends it, for example en or en_in (default en) |
+| `quiz` | null or object | no | options for kind quiz |
+| `quiz.difficulty` | string (`easy`) | no | question difficulty: easy (default easy) |
+| `quiz.quantity` | string (`more`) | no | number of questions: more (default more) |
+| `report` | null or object | no | options for kind report (required) |
+| `report.description` | string | no | report description (required), for example from suggest surface report |
+| `report.title` | string | no | report title (required), for example from suggest surface report |
+| `slide_deck` | null or object | no | options for kind slide_deck |
+| `slide_deck.format` | string (`presenter_slides`) | no | slide deck format: presenter_slides (default presenter_slides) |
+| `slide_deck.length` | string (`short`) | no | slide deck length: short (default short) |
 | `sources` | null or array | no | source ids, id prefixes or titles; default all sources (notes cannot be used as sources) |
+| `video` | null or object | no | options for kind video |
+| `video.format` | string (`short`) | no | video format: short (default short) |
 
 ### `studio_list`
 
 Profiles: minimal, default, all.
 
-List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. Pass artifact to read one with its interactive content (HTML or mind-map tree) when Google has any.
+List a notebook's Studio artifacts (audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table) with kind and status (pending while queued or generating, then ready or failed). Pass artifact to read one with its interactive content (HTML or mind-map tree) when Google has any.
 
 Annotations: title: List studio artifacts, readOnly: true, idempotent: true, openWorld: false.
 
@@ -507,8 +528,8 @@ Annotations: title: List studio artifacts, readOnly: true, idempotent: true, ope
 |---|---|---|---|
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `artifact` | string | no | one artifact id or title; returns it with its interactive content when available |
-| `kind` | string | no | filter by kind, for example audio, report, video |
-| `status` | string | no | filter by status: pending, ready or failed |
+| `kind` | string | no | filter by kind: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table (interactive and unknown for unrecognized rows) |
+| `status` | string | no | filter by status: pending (queued or generating), ready or failed |
 
 ## suggest
 
