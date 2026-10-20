@@ -57,9 +57,21 @@ func (c *Client) ListNotes(ctx context.Context, nb string) ([]Note, error) {
 	return out, nil
 }
 
+// noteFromRow decodes one cFji9 row if it is a note. Live notes (2026-10-13,
+// 2026-10-20) have meta [kind, owner, updated, null, null, created, true]
+// with kind 1 (text note) or 2 (saved chat answer) and meta[3] null. The
+// catalog's note-backed mind maps are created with meta
+// [2,null,null,5,[[sid]..]]: a non-null meta[3], or a kind other than 1 or
+// 2, marks a row that is not a note, and it is skipped.
 func noteFromRow(r []byte) (Note, bool) {
 	id := wire.Str(r, 0)
 	if id == "" || len(wire.Elems(r, 1)) == 0 { // tombstone [id,null,2]
+		return Note{}, false
+	}
+	if m, ok := wire.At(r, 1, 2, 3); ok && string(m) != "null" {
+		return Note{}, false
+	}
+	if kind, ok := wire.Int(r, 1, 2, 0); ok && kind != 1 && kind != 2 {
 		return Note{}, false
 	}
 	return Note{ID: id, Content: wire.Str(r, 1, 1), Title: wire.Str(r, 1, 4), Updated: stamp(r, 1, 2, 2)}, true

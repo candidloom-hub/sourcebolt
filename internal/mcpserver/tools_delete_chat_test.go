@@ -47,6 +47,29 @@ func TestDeleteChatHistoryPreviewPartialHistory(t *testing.T) {
 	}
 }
 
+// Review item 10: note delete only reaches rows that are notes; a mind-map
+// or studio row id from the cFji9 list is refused before any delete call.
+func TestDeleteNoteRefusesNonNoteRows(t *testing.T) {
+	st := newStub()
+	st.payloads["cFji9"] = `[[` +
+		`["n1",["n1","body",[1,"o",[1700000000,0]],null,"First"]],` +
+		`["m1",["m1","{}",[2,null,null,5,[["s1"]]],null,"Mind map"]],` +
+		`["a1",["a1","x",[4,"o",[1700000000,0]],null,"Studio row"]]]]`
+	st.payloads["AH0mwd"] = `[]`
+	cs := connect(t, st, "default")
+	for _, ref := range []string{"m1", "Mind map", "a1"} {
+		if e := envelope(t, call(t, cs, "delete", map[string]any{"kind": "note", "notebook": idA, "ids": []string{ref}, "confirm": true})); e.Code != "NOT_FOUND" {
+			t.Fatalf("%q: envelope = %+v", ref, e)
+		}
+	}
+	if st.count("AH0mwd") != 0 {
+		t.Fatal("a non-note row reached the note delete")
+	}
+	if res := call(t, cs, "delete", map[string]any{"kind": "note", "notebook": idA, "ids": []string{"n1"}, "confirm": true}); res.IsError || st.count("AH0mwd") != 1 {
+		t.Fatalf("note n1: %s", text(res))
+	}
+}
+
 // hPTbtc lists the newest 20 conversations and paging is not pinned by a
 // capture: an id that is not on a full first page gets a clear
 // UNSUPPORTED_BY_TRANSPORT error, not NOT_FOUND. On a short page it is
