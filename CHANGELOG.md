@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Release workflow: npm packages are staged with `npm stage publish`, run with a pinned npm CLI 11.21.0. Every version still waits for the owner's 2FA approval on npmjs.com. See `docs/registry.md`.
+
+### Security
+
+- npm publishing tries trusted publishing (GitHub OIDC, environment `npm`) before the `NPM_TOKEN` secret. Once each package has a trusted publisher, the long-lived token can be deleted and token publishing turned off.
+
 ## [0.3.1] - 2026-10-21
 
 The first published 0.3 release. It has every change listed under 0.3.0: the v0.3.0 tag exists, but its release run failed before anything was published.

@@ -143,13 +143,21 @@ jobs:
     environment: ${{ (inputs.publish_npm && startsWith(github.ref, 'refs/tags/v')) && 'npm' || '' }}
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing (OIDC) and provenance
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1 and `npm stage publish` needs >= 11.15.0
+      # (both with Node >= 22.14.0). The npm bundled with Node 22 is older, so pin one.
+      - name: Install pinned npm CLI
+        run: |
+          npm install -g npm@11.21.0
+          npm --version
+          node -e 'const [a,b]=process.versions.node.split(".").map(Number); if (a<22||(a===22&&b<14)) { console.error("Node >= 22.14.0 required, got "+process.version); process.exit(1) }'
+          npm stage --help >/dev/null
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -159,14 +167,19 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VERSION="0.0.0"; fi
           node scripts/npm-pack.mjs --version "$VERSION" --dist dist --out dist/npm
-      - name: Publish to npm
+      # Auth: npm tries trusted publishing (OIDC, per package) first and falls back to
+      # NODE_AUTH_TOKEN when no trusted publisher matches. Once all 7 packages have a trusted
+      # publisher, the NPM_TOKEN secret can be deleted (empty token = OIDC only).
+      # `npm stage publish` keeps the owner's 2FA approval on npmjs.com for every version,
+      # whichever auth is used. --provenance is automatic with OIDC; it stays for the token path.
+      - name: Stage npm packages (owner approves each on npmjs.com)
         if: inputs.publish_npm && startsWith(github.ref, 'refs/tags/v')
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -e
-          for d in dist/npm/sourcebolt-*; do (cd "$d" && npm publish --access public --provenance); done
-          (cd dist/npm/sourcebolt && npm publish --access public --provenance)
+          for d in dist/npm/sourcebolt-*; do (cd "$d" && npm stage publish --access public --provenance); done
+          (cd dist/npm/sourcebolt && npm stage publish --access public --provenance)
 
   pypi:
     needs: build
