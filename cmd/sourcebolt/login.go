@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -122,9 +124,11 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 func validateAndSave(ctx context.Context, cfg app.Config, h session.Host, jar *session.Jar, stdout, stderr io.Writer) int {
 	store := cfg.Store()
 	p := &session.Profile{Name: cfg.Profile, Host: h, Jar: jar}
-	if old, err := store.Load(cfg.Profile); err == nil {
-		p.Rev = old.Rev
+	rev, replaced, err := prepareSave(store, cfg.Profile)
+	if err != nil {
+		return fail(stderr, err)
 	}
+	p.Rev = rev
 	rt := app.ForProfile(p, nil)
 	vctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -135,8 +139,33 @@ func validateAndSave(ctx context.Context, cfg app.Config, h session.Host, jar *s
 	if err := store.Save(p); err != nil {
 		return fail(stderr, err)
 	}
+	if replaced {
+		fmt.Fprintf(stdout, "Replaced profile %q: its encryption key was missing from the OS keyring, so the old session could not be read.\n", p.Name)
+	}
 	fmt.Fprintf(stdout, "Saved profile %q for %s (%d notebooks visible).\n", p.Name, p.Host, len(nbs))
 	return 0
+}
+
+// prepareSave returns the revision a new login must save over. A profile
+// that exists but whose encryption key is gone (keyring entry and key file
+// both missing) can never be read again; it is deleted so the new login
+// can be saved, and replaced is true. Other load errors are returned.
+func prepareSave(store session.Store, name string) (rev int64, replaced bool, err error) {
+	old, err := store.Load(name)
+	if err == nil {
+		return old.Rev, false, nil
+	}
+	names, lerr := store.List()
+	if lerr != nil || !slices.Contains(names, name) {
+		return 0, false, nil // no profile yet
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return 0, false, fmt.Errorf("profile %q exists but cannot be read (%w); run: sourcebolt logout --profile %s, then log in again", name, err, name)
+	}
+	if derr := store.Delete(name); derr != nil {
+		return 0, false, derr
+	}
+	return 0, true, nil
 }
 
 func failBrowser(stderr io.Writer, err error) int {

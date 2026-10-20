@@ -21,7 +21,7 @@ Usage:
   sourcebolt login  --import <file|-> [--format netscape|json|header] [--profile p] [--host h]
   sourcebolt logout [--profile p]
   sourcebolt status
-  sourcebolt doctor
+  sourcebolt doctor [--dom-check <notebook id>]
   sourcebolt --version
 
 Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
@@ -61,7 +61,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "status":
 		return cmdStatus(stdout, stderr)
 	case "doctor":
-		return cmdDoctor(ctx, stdout, stderr)
+		return cmdDoctor(ctx, rest, stdout, stderr)
 	}
 	fmt.Fprintf(stderr, "unknown command %q\n\n%s", cmd, usage)
 	return 2
