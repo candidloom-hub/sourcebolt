@@ -12,12 +12,11 @@ The work has three phases:
 2. **Synthesis.** Merge the findings into one feature matrix. Choose the stack and architecture.
 3. **Build and release.** Implement the server, test it against real NotebookLM, and publish it.
 
-## Current state (2026-10-20)
+## Current state (2026-10-21)
 
 - GitHub: candidloom-hub/sourcebolt is **public** with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
-- **v0.2.0 released 2026-10-20**: GitHub release with 6 platform binaries, SBOMs, a cosign-signed checksums.txt, 6 `.mcpb` bundles, and GHCR images `0.2.0` and `0.2.0-browser`. v0.1.0 is immutable in the Go proxy; never re-tag a published version.
-- In v0.2.0: every Studio type with captured defaults, chat settings, save answer as note, source/note/chat-history delete, DOM fallback plus `doctor --dom-check`, the perf program (all targets met on CI), the docs rewrite, and distribution (Claude Code plugin marketplace, MCPB, install links, registry-ready `server.json`).
-- **On hold until the owner approves:** npm and PyPI (the owner's `NPM_TOKEN` secret and a PyPI trusted publisher are needed), the MCP registry publish, marketplace and directory submissions, and launch posts. Donations are off (option C) until the owner says a page is live.
+- **v0.3.1 released 2026-10-21** (v0.3.0 was tagged but its release run failed at GoReleaser; never re-tag). Adds one-line installers (`install.ps1`, `install.sh`), `sourcebolt setup`, no-flags `login`, Homebrew cask and Scoop manifest (auto-pushed on tag), beginner guides. npm 0.2.0+ is live (staged publishing: the owner approves each version with 2FA). v0.1.0 and v0.3.0 are immutable in the Go proxy.
+- **On hold until the owner approves:** PyPI (needs a trusted publisher) and launch posts. Approved 2026-10-21: MCP registry publish, winget PR, directory submissions (plan: `.superpowers/submissions-v0.3.0.md`, git-ignored). Donations are off (option C) until the owner says a page is live.
 - See `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands
@@ -70,6 +69,9 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Windows PowerShell 5.1 strips quotes from JSON args to native tools (`code --add-mcp`): use `--%` or edit the file.
 - Run `go test -short ./...` before every push; edit Go/Markdown with the Edit tool, not Python string replace.
 - Security-review shell installers before merge (piped-to-shell scripts).
+- GoReleaser `token:` fields accept only `{{ .Env.NAME }}` (no functions); dry runs never expand them. `go test ./tools/distcheck` checks it.
+- macOS keyring calls can block forever without an unlocked keychain; keep every keyring call behind `session.TimeoutKeyring`.
+- Installer CI must install the real built binary, not only a stand-in: cross-branch bugs (`setup --help` exit 2) hide otherwise.
 
 ## Architecture
 
