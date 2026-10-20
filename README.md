@@ -80,7 +80,7 @@ The current release is [v0.2.0](https://github.com/candidloom-hub/sourcebolt/rel
 | GitHub release binary | Available | Windows, macOS and Linux, on x64 and ARM64. See below. |
 | `go install` | Available | Needs Go 1.27 or newer. |
 | Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.2.0`. Images are tagged by version only; there is no `latest` tag. |
-| npm (`npx`) | Not published yet | |
+| npm (`npx`) | Available | `npx -y sourcebolt serve` (needs Node.js 18+). In an app's MCP config: command `npx`, args `["-y", "sourcebolt", "serve"]`. |
 | PyPI (`pipx`, `uvx`) | Not published yet | |
 
 ### Release binary

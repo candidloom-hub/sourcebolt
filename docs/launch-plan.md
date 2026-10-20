@@ -9,7 +9,7 @@ Sources for directory rules: [research/marketplaces.md](../research/marketplaces
 Use only these facts and numbers. They come from `README.md`, `CHANGELOG.md` and `bench/RESULTS.md`.
 
 - Unofficial MCP server for Google NotebookLM, written in Go. Apache-2.0, free, no paid tier.
-- One static binary for Linux, macOS and Windows (amd64 and arm64), plus Docker images. Release v0.1.0 is out; npm and PyPI packages are not published yet.
+- One static binary for Linux, macOS and Windows (amd64 and arm64), plus Docker images. Release v0.2.0 is out, on npm (`npx -y sourcebolt serve`) too; PyPI is not published yet.
 - 30 tools by default (31 with `--tools all`, 8 with `--tools minimal`): notebooks, sources, chat with citations, research, notes, sharing, labels, Studio list, deletes with preview.
 - Measured on one Windows laptop (2026-10-14; high variance, order of magnitude only): cold start to `initialize` p50 10.3 ms; 10.06 MB stripped binary; 12.4 MB idle memory. A live `notebook_list` round trip was p50 848 ms over 10 calls on one account, almost all of it Google.
 - Cookies are stored AES-256-GCM encrypted, with the key in the OS keyring. No telemetry. Talks only to the NotebookLM host ([privacy.md](privacy.md)).

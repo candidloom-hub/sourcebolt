@@ -53,9 +53,13 @@ func TestServerJSONMatchesRegistrySchema(t *testing.T) {
 		t.Fatalf("name %s", s.Name)
 	}
 	// Only packages that exist may be listed (registry ownership check).
-	// npm and PyPI are not published; add them back per docs/registry.md.
+	// PyPI is not published; add it back per docs/registry.md.
 	for _, p := range s.Packages {
 		switch p.RegistryType {
+		case "npm":
+			if p.Identifier != "sourcebolt" {
+				t.Errorf("npm identifier %s", p.Identifier)
+			}
 		case "oci":
 			if p.Identifier != "ghcr.io/candidloom-hub/sourcebolt:"+s.Version {
 				t.Errorf("oci identifier %s does not match version %s", p.Identifier, s.Version)
