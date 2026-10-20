@@ -33,13 +33,9 @@ func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp
 	if tt.OutputSchema == nil {
 		tt.OutputSchema = outSchema
 	}
-	// Validate against the advertised schemas.
-	if s, ok := tt.InputSchema.(*jsonschema.Schema); ok {
-		inSchema = s
-	}
-	if s, ok := tt.OutputSchema.(*jsonschema.Schema); ok {
-		outSchema = s
-	}
+	// Input is validated against the plain type schema even when the tool
+	// advertises a narrower one (studio_generate's enums): an unproven value
+	// reaches the handler and gets a specific error instead of a schema one.
 	// Resolving is over half of New's cost; most sessions call a few tools,
 	// so each schema is resolved on its tool's first call. A schema that
 	// does not resolve fails the call as a tool error (the server keeps
@@ -99,7 +95,8 @@ func schemaFor[T any]() *jsonschema.Schema {
 
 // resolveSchema prepares s for validation. TestAdvertisedSchemasResolve
 // resolves every tool's schemas, so a failure here is a programming error.
-func resolveSchema(s *jsonschema.Schema) (*jsonschema.Resolved, error) {
+// It is a variable so a test can make resolution fail.
+var resolveSchema = func(s *jsonschema.Schema) (*jsonschema.Resolved, error) {
 	return s.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
 }
 

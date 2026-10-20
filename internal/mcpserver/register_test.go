@@ -84,13 +84,21 @@ func (badOut) MarshalJSON() ([]byte, error) { return []byte(`{"N":"x"}`), nil }
 // Schemas are resolved on a tool's first call; one that cannot be resolved
 // must fail that call as a tool error, not panic and end the server.
 func TestUnresolvableSchemaIsToolError(t *testing.T) {
-	broken := &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
-		"n": {Type: "integer", Default: json.RawMessage(`"not a number"`)},
-	}}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "v0"}, nil)
-	srv.AddTool(typedHandler(&mcp.Tool{Name: "broken", InputSchema: broken}, func(context.Context, *mcp.CallToolRequest, struct {
+	// A schema whose default does not match its type fails to resolve.
+	type brokenIn struct {
 		N int `json:"n"`
-	}) (struct{}, error) {
+	}
+	prev := resolveSchema
+	t.Cleanup(func() { resolveSchema = prev })
+	resolveSchema = func(s *jsonschema.Schema) (*jsonschema.Resolved, error) {
+		if _, ok := s.Properties["n"]; ok {
+			s = s.CloneSchemas()
+			s.Properties["n"].Default = json.RawMessage(`"not a number"`)
+		}
+		return prev(s)
+	}
+	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "v0"}, nil)
+	srv.AddTool(typedHandler(&mcp.Tool{Name: "broken"}, func(context.Context, *mcp.CallToolRequest, brokenIn) (struct{}, error) {
 		return struct{}{}, nil
 	}))
 	srv.AddTool(typedHandler(&mcp.Tool{Name: "ok"}, func(context.Context, *mcp.CallToolRequest, struct{}) (struct{}, error) {

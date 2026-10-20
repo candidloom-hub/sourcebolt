@@ -94,7 +94,7 @@ var studioOptionObjects = map[string]nlm.StudioKind{
 // an unproven value reaches the handler and gets UNSUPPORTED_BY_TRANSPORT
 // naming the option instead of a schema error.
 func studioGenerateSchema() *jsonschema.Schema {
-	s, _ := schemaFor[StudioGenerateIn]()
+	s := schemaFor[StudioGenerateIn]()
 	for _, k := range nlm.GeneratableKinds() {
 		s.Properties["kind"].Enum = append(s.Properties["kind"].Enum, string(k))
 	}
