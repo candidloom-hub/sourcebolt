@@ -17,6 +17,7 @@ const usage = `sourcebolt - fast MCP server for Google NotebookLM
 Usage:
   sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f] [--no-browser-fallback]
   sourcebolt call   <tool> '<json args>'
+  sourcebolt login  [--timeout 10m] [--browser-path exe] [--profile p] [--host h]   (opens a browser; you sign in)
   sourcebolt login  --browser [--browser-path exe] [--timeout 300s] [--profile p] [--host h]
   sourcebolt login  --attach <cdp ws:// or http:// url> [--profile p] [--host h]
   sourcebolt login  --import <file|-> [--format netscape|json|header] [--profile p] [--host h]
