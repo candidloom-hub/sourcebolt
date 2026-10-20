@@ -27,6 +27,11 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - `source_read` reports drift instead of returning empty text when an answer has no text blocks and no HTML.
 - `source_add` lists the notebook before adding, so that a source missing from the add answer is only reported added when its row is new; a match with a source that already existed is pending.
 
+### Performance
+
+- Tool-call overhead (B3, 100 notebooks, 2-CPU CI, p50): uncached `notebook_list` 2.23 -> 0.81 ms, cached 0.98 -> 0.49 ms; decoding a 40 KB answer 492 -> 228 us with 9 instead of 93 allocations; cold start and idle memory lower (tool schemas are resolved on first use). See `bench/RESULTS.md`.
+- On Linux the server turns off transparent huge pages for its own process (`prctl`), which cut idle RSS by about 2 MB on hosts whose THP mode is "always". The fallback browser inherits the setting.
+
 ### Fixed
 
 - `chat_configure` sent no options block; the web app sends it. Two changes on one notebook at once could lose one of them; the read and the write now run one at a time per notebook.
@@ -44,7 +49,6 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - `studio_list` leaves media URLs empty: no finished video was captured, and the two slide-deck download URLs cannot be told apart (PDF or PPTX) in the sanitized capture.
 - Saving a chat answer re-encodes the answer's rich text the way both captured saves did; rich structures neither capture had (tables, images in answers) are sent as the stream had them.
 - Not capturable from the web UI: conversation-list paging (the UI keeps one thread per notebook and never pages, so only the newest 20 conversations are listed) and markdown load-source (`hizoJc` markdown mode; no UI path found, so the catalog's request is kept unverified).
-- Uncached `notebook_list` overhead: as listed for 0.1.0 (not re-measured for these changes).
 
 ## [0.1.0] - 2026-10-20
 

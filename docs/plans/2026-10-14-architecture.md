@@ -88,17 +88,17 @@ Storage: cookie jar in an AES-256-GCM file under the user config dir; 32-byte ke
 
 ## 8. Performance targets (gate for 1.0; measured by Plan 5 benchmarks)
 
-| # | Metric | Target |
-|---|---|---|
-| B1 | cold start to `initialize` | p50 < 30 ms, p95 < 60 ms |
-| B2 | idle RSS after listing 100 notebooks, RPC mode | < 25 MB |
-| B3 | tool-call overhead excluding Google (fake upstream) | p50 < 2 ms, p95 < 5 ms |
-| B4 | decode 40 KB envelope | p50 < 1 ms |
-| B5 | cache hit / 50 concurrent identical reads | < 1 µs / exactly 1 upstream call |
-| B6 | connection reuse after first call | > 95% `GotConn.Reused` |
-| B7 | binary size, stripped | < 20 MB |
-| B8 | warm browser fallback overhead | < 3 s over RPC |
-| B9 | streamed chat time-to-first-progress | ≤ Google first chunk + 50 ms |
+| # | Metric | Target | Measured (CI, 2-CPU, 2026-10-20; see bench/RESULTS.md) |
+|---|---|---|---|
+| B1 | cold start to `initialize` | p50 < 30 ms, p95 < 60 ms (program: p50 < 25 ms) | p50 7.4 ms, p95 7.9 ms |
+| B2 | idle RSS after listing 100 notebooks, RPC mode | < 25 MB (program: idle binary < 20 MB) | 21.6 MB in-process; idle binary 17.5 MB (median of 5) |
+| B3 | tool-call overhead excluding Google (fake upstream) | p50 < 2 ms, p95 < 5 ms (program: uncached < 1.5 ms, cached < 0.5 ms) | uncached p50 0.81 ms, cached p50 0.49 ms (p95 1.33 / 0.95 ms) |
+| B4 | decode 40 KB envelope | p50 < 1 ms | 228 us, 9 allocs |
+| B5 | cache hit / 50 concurrent identical reads | < 1 µs / exactly 1 upstream call | not re-measured |
+| B6 | connection reuse after first call | > 95% `GotConn.Reused` | 100% |
+| B7 | binary size, stripped | < 20 MB | 12.1 MB |
+| B8 | warm browser fallback overhead | < 3 s over RPC | not measured |
+| B9 | streamed chat time-to-first-progress | ≤ Google first chunk + 50 ms (program: + 20 ms) | + 0.33 ms p50 (`bench/ttfp`) |
 
 ## 9. Wire drift policy
 
