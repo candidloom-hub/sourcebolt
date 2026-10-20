@@ -169,13 +169,13 @@ Annotations: title: Chat job status, readOnly: true, idempotent: true, openWorld
 
 Profiles: default, all.
 
-Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Currently only kind=notebook can be deleted; other kinds return UNSUPPORTED_BY_TRANSPORT.
+Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Delete, readOnly: false, destructive: true, idempotent: true, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `ids` | null or array | yes | ids (or titles) of the items to delete |
+| `ids` | null or array | yes | ids (or exact titles) of the items to delete; for chat_history, conversation ids |
 | `kind` | string | yes | notebook, source, note, artifact, chat_history, label or collection |
 | `confirm` | boolean | no | must be true to delete; without it only a preview is returned |
 | `notebook` | string | no | notebook id, prefix or title; required for every kind except notebook |

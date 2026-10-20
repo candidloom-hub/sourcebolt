@@ -57,8 +57,47 @@ func TestDeleteNotebookContinuesAfterFailure(t *testing.T) {
 	}
 }
 
+// TestDeleteLive2 pins the three deletes done in the UI during live capture
+// #2 (2026-10-20): tGMBJ deletes a source, AH0mwd a note and J7Gthc a
+// conversation's chat history.
+func TestDeleteLive2(t *testing.T) {
+	for _, tc := range []struct {
+		kind, rpc, fixture, nb, id string
+	}{
+		{"source", "tGMBJ", "live_2026-10-20_01", fakeNB2, "00000000-0000-4000-8000-000000000006"},
+		{"note", "AH0mwd", "live_2026-10-20_01", fakeNB2, "00000000-0000-4000-8000-000000000016"},
+		{"note", "AH0mwd", "live_2026-10-20_02", "00000000-0000-4000-8000-000000000011", "00000000-0000-4000-8000-000000000015"},
+		{"chat_history", "J7Gthc", "live_2026-10-20_01", fakeNB2, "00000000-0000-4000-8000-000000000017"},
+	} {
+		fx := loadFixture(t, tc.rpc, tc.fixture)
+		ft := newFake(fx)
+		res, err := New(ft).Delete(context.Background(), tc.kind, tc.nb, []string{tc.id})
+		if err != nil || len(res) != 1 || res[0].ID != tc.id || res[0].Status != "deleted" {
+			t.Fatalf("%s/%s: res = %+v, err = %v", tc.rpc, tc.fixture, res, err)
+		}
+		if p := paramsJSON(t, ft, tc.rpc); !sameJSON(t, []byte(p), fx.Request) {
+			t.Fatalf("%s/%s params\n got  %s\n want %s", tc.rpc, tc.fixture, p, fx.Request)
+		}
+		c, _ := ft.callFor(tc.rpc)
+		if c.Idempotent || c.SourcePath != "/notebook/"+tc.nb {
+			t.Fatalf("%s: call = %+v", tc.rpc, c)
+		}
+	}
+}
+
+func TestDeleteNotebookScopedKindsNeedNotebook(t *testing.T) {
+	for _, kind := range []string{"source", "note", "chat_history"} {
+		ft := newFake()
+		_, err := New(ft).Delete(context.Background(), kind, "", []string{"x"})
+		var te *transport.Error
+		if !errors.As(err, &te) || te.Kind != transport.KindInvalidArgument || len(ft.calls) != 0 {
+			t.Fatalf("%s: err = %v, calls = %d", kind, err, len(ft.calls))
+		}
+	}
+}
+
 func TestDeleteBlockedKinds(t *testing.T) {
-	for kind, rpc := range map[string]string{"source": "tGMBJ", "artifact": "V5N4be", "chat_turn": "J7Gthc", "note": "AH0mwd"} {
+	for kind, rpc := range map[string]string{"artifact": "V5N4be"} {
 		ft := newFake()
 		_, err := New(ft).Delete(context.Background(), kind, nb1, []string{"x"})
 		var te *transport.Error

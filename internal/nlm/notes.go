@@ -87,9 +87,3 @@ func (c *Client) SaveNote(ctx context.Context, nb string, n NoteInput) (Note, er
 	}
 	return Note{ID: id, Title: n.Title, Content: n.Content}, nil
 }
-
-// DeleteNotes is blocked: AH0mwd has conflicting shapes (with or without a
-// trailing [2]) and mind-map ghost cleanup needs a cFji9 timestamp step.
-func (c *Client) DeleteNotes(ctx context.Context, nb string, ids []string) error {
-	return blocked("notes.delete", "AH0mwd (trailing [2] conflict, mind-map ghost cleanup)")
-}

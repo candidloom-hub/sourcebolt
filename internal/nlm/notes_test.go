@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -45,17 +44,5 @@ func TestSaveNoteEmptyIDFromCreate(t *testing.T) {
 	var te *transport.Error
 	if !errors.As(err, &te) || te.Kind != transport.KindDrift {
 		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestDeleteNotesBlocked(t *testing.T) {
-	ft := newFake()
-	err := New(ft).DeleteNotes(context.Background(), nb1, []string{"n1"})
-	var te *transport.Error
-	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "AH0mwd") {
-		t.Fatalf("err = %v", err)
-	}
-	if len(ft.calls) != 0 {
-		t.Fatal("blocked delete must not call")
 	}
 }
