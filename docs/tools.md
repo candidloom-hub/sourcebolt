@@ -38,7 +38,7 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`source_list`](#source_list) | default, all | List a notebook's sources with type and processing status; optionally filter by status. |
 | [`source_read`](#source_read) | minimal, default, all | Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset). |
 | [`source_update`](#source_update) | default, all | Rename a source (title) and/or check whether it is up to date (check_freshness). |
-| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. |
+| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact: audio, video, report, interactive_report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. |
 | [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table) with kind and status (pending while queued or generating, then ready or failed). |
 | [`suggest`](#suggest) | default, all | Suggested prompts for a surface: chat, report or studio_options. |
 
@@ -483,39 +483,40 @@ Annotations: title: Update source, readOnly: false, destructive: false, idempote
 
 Profiles: minimal, default, all.
 
-Generate a Studio artifact: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. Each kind takes only the option values a live capture has proven (the enums); other values the web app offers return UNSUPPORTED_BY_TRANSPORT naming the option, before any call. instructions is required for every kind except infographic, which was captured without a description and refuses one. report needs report.title and report.description plus instructions as the prompt (suggest surface report returns ready-made triples). Checks the account quota first and returns a QUOTA error when it is used up. Artifacts are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Not retried after sending.
+Generate a Studio artifact: audio, video, report, interactive_report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. Each kind takes only the option values a live capture has proven (the enums); other values the web app offers return UNSUPPORTED_BY_TRANSPORT naming the option, before any call. Omitted options take the web app's defaults. instructions is optional for audio, video, slide_deck and quiz, required for report, mind_map, flashcards and data_table, and refused by infographic and interactive_report (each as captured). video.generate_later asks for deferred generation (cinematic format only). report needs report.title and report.description plus instructions as the prompt (suggest surface report returns ready-made triples). Checks the account quota first and returns a QUOTA error when it is used up. Artifacts are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Not retried after sending.
 
 Annotations: title: Generate studio artifact, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `kind` | string (`audio`, `data_table`, `flashcards`, `infographic`, `mind_map`, `quiz`, `report`, `slide_deck`, `video`) | yes | the artifact kind |
+| `kind` | string (`audio`, `data_table`, `flashcards`, `infographic`, `interactive_report`, `mind_map`, `quiz`, `report`, `slide_deck`, `video`) | yes | the artifact kind |
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `audio` | null or object | no | options for kind audio |
-| `audio.format` | string (`critique`) | no | audio format: critique (default critique) |
-| `audio.length` | string (`short`) | no | audio length: short (default short) |
+| `audio.format` | string (`deep_dive`, `critique`) | no | audio format: deep_dive, critique (default deep_dive) |
+| `audio.length` | string (`short`, `default`) | no | audio length: short, default (default default) |
 | `flashcards` | null or object | no | options for kind flashcards |
 | `flashcards.difficulty` | string (`medium`, `hard`) | no | card difficulty: medium, hard (default medium) |
 | `flashcards.images` | string (`include`, `text_only`) | no | card images: include, text_only (default include) |
 | `flashcards.quantity` | string (`fewer`, `standard`) | no | number of cards: fewer, standard (default standard) |
 | `infographic` | null or object | no | options for kind infographic |
-| `infographic.detail` | string (`concise`) | no | level of detail: concise (default concise) |
-| `infographic.orientation` | string (`portrait`) | no | page orientation: portrait (default portrait) |
-| `infographic.style` | string (`sketch_note`) | no | visual style: sketch_note (default sketch_note) |
-| `instructions` | string | no | required free text except for infographic (which refuses it): audio and video focus, report prompt, slide deck and data table description, mind map, quiz and flashcards topic |
+| `infographic.detail` | string (`concise`, `standard`) | no | level of detail: concise, standard (default standard) |
+| `infographic.orientation` | string (`landscape`, `portrait`) | no | page orientation: landscape, portrait (default landscape) |
+| `infographic.style` | string (`auto`, `sketch_note`) | no | visual style: auto, sketch_note (default auto) |
+| `instructions` | string | no | free text: audio and video focus, slide deck description and quiz topic (optional); report prompt, data table description, mind map and flashcards topic (required); infographic and interactive_report take none |
 | `language` | string | no | output language code as the web app sends it, for example en or en_in (default en) |
 | `quiz` | null or object | no | options for kind quiz |
-| `quiz.difficulty` | string (`easy`) | no | question difficulty: easy (default easy) |
-| `quiz.quantity` | string (`more`) | no | number of questions: more (default more) |
+| `quiz.difficulty` | string (`easy`, `medium`) | no | question difficulty: easy, medium (default medium) |
+| `quiz.quantity` | string (`standard`, `more`) | no | number of questions: standard, more (default standard) |
 | `report` | null or object | no | options for kind report (required) |
 | `report.description` | string | no | report description (required), for example from suggest surface report |
 | `report.title` | string | no | report title (required), for example from suggest surface report |
 | `slide_deck` | null or object | no | options for kind slide_deck |
-| `slide_deck.format` | string (`presenter_slides`) | no | slide deck format: presenter_slides (default presenter_slides) |
-| `slide_deck.length` | string (`short`) | no | slide deck length: short (default short) |
+| `slide_deck.format` | string (`detailed_deck`, `presenter_slides`) | no | slide deck format: detailed_deck, presenter_slides (default detailed_deck) |
+| `slide_deck.length` | string (`default`, `short`) | no | slide deck length: default, short (default default) |
 | `sources` | null or array | no | source ids, id prefixes or titles; default all sources (notes cannot be used as sources) |
 | `video` | null or object | no | options for kind video |
-| `video.format` | string (`short`) | no | video format: short (default short) |
+| `video.format` | string (`cinematic`, `short`) | no | video format: cinematic, short (default cinematic) |
+| `video.generate_later` | boolean | no | the web app's Generate later (deferred generation; the artifact lists as pending until Google runs it); cinematic format only |
 
 ### `studio_list`
 

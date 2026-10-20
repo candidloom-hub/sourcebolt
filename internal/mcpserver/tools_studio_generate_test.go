@@ -83,7 +83,8 @@ func TestStudioGenerateEveryKind(t *testing.T) {
 	}{
 		{map[string]any{"kind": "audio", "instructions": "focus", "audio": map[string]any{"format": "critique", "length": "short"}}, `[null,["focus",1,null,[["s1"]],"en",null,3]]`},
 		{map[string]any{"kind": "video", "instructions": "focus", "language": "en_in", "video": map[string]any{"format": "short"}}, `[null,null,[[["s1"]],"en_in","focus",null,4]]`},
-		{map[string]any{"kind": "video"}, `[null,null,[[["s1"]],null,null,null,3]]`},
+		{map[string]any{"kind": "video"}, `[null,null,[[["s1"]],null,null,null,3]]]]`},
+		{map[string]any{"kind": "video", "video": map[string]any{"generate_later": true}}, `[null,null,[[["s1"]],null,null,null,3]]],null,null,null,[1]]`},
 		{map[string]any{"kind": "audio"}, `[null,[null,2,null,[["s1"]],"en",null,1]]`},
 		{map[string]any{"kind": "interactive_report"}, `[null,[null,"en"]]`},
 		{map[string]any{"kind": "report", "instructions": "p", "report": map[string]any{"title": "T", "description": "D"}}, `[null,["T","D",null,[["s1"]],"en","p"]]`},

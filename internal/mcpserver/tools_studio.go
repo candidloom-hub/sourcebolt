@@ -30,7 +30,7 @@ type StudioGenerateIn struct {
 	Notebook     string   `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
 	Kind         string   `json:"kind" jsonschema:"the artifact kind"`
 	Sources      []string `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources (notes cannot be used as sources)"`
-	Instructions string   `json:"instructions,omitempty" jsonschema:"required free text except for infographic (which refuses it): audio and video focus, report prompt, slide deck and data table description, mind map, quiz and flashcards topic"`
+	Instructions string   `json:"instructions,omitempty" jsonschema:"free text: audio and video focus, slide deck description and quiz topic (optional); report prompt, data table description, mind map and flashcards topic (required); infographic and interactive_report take none"`
 	Language     string   `json:"language,omitempty" jsonschema:"output language code as the web app sends it, for example en or en_in (default en)"`
 
 	Audio       *AudioOptions       `json:"audio,omitempty" jsonschema:"options for kind audio"`
@@ -51,7 +51,8 @@ type AudioOptions struct {
 }
 
 type VideoOptions struct {
-	Format string `json:"format,omitempty" jsonschema:"video format"`
+	Format        string `json:"format,omitempty" jsonschema:"video format"`
+	GenerateLater bool   `json:"generate_later,omitempty" jsonschema:"the web app's Generate later (deferred generation; the artifact lists as pending until Google runs it); cinematic format only"`
 }
 
 type ReportOptions struct {
@@ -120,9 +121,10 @@ func (s *server) registerStudio(m *mcp.Server) {
 
 	register(s, m, "core", &mcp.Tool{
 		Name: "studio_generate",
-		Description: "Generate a Studio artifact: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. " +
+		Description: "Generate a Studio artifact: audio, video, report, interactive_report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. " +
 			"Each kind takes only the option values a live capture has proven (the enums); other values the web app offers return UNSUPPORTED_BY_TRANSPORT naming the option, before any call. " +
-			"instructions is required for every kind except infographic, which was captured without a description and refuses one. " +
+			"Omitted options take the web app's defaults. instructions is optional for audio, video, slide_deck and quiz, required for report, mind_map, flashcards and data_table, and refused by infographic and interactive_report (each as captured). " +
+			"video.generate_later asks for deferred generation (cinematic format only). " +
 			"report needs report.title and report.description plus instructions as the prompt (suggest surface report returns ready-made triples). " +
 			"Checks the account quota first and returns a QUOTA error when it is used up. Artifacts are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). " +
 			"Returns the new artifact as pending; poll studio_list for its status. Not retried after sending.",
@@ -202,7 +204,7 @@ func studioRequest(in StudioGenerateIn) (nlm.StudioRequest, error) {
 	case in.Audio != nil:
 		r.Format, r.Length = in.Audio.Format, in.Audio.Length
 	case in.Video != nil:
-		r.Format = in.Video.Format
+		r.Format, r.GenerateLater = in.Video.Format, in.Video.GenerateLater
 	case in.Report != nil:
 		r.Title, r.Description = in.Report.Title, in.Report.Description
 	case in.SlideDeck != nil:
