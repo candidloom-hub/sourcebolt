@@ -5,6 +5,85 @@ Targets: `docs/plans/2026-10-14-architecture.md` section 8. Method:
 from the sanitized live `wXbhsf` capture, cloned with fresh ids
 (`bench/benchdata`). No Google traffic, no real profile.
 
+## Current: 2026-10-20, after the performance program (branch `perf/program`)
+
+CI: `bench` workflow, manual run with `cpu=2` (ubuntu-latest now has 4 vCPUs;
+`go test -cpu 2` holds the B3 targets' 2 CPUs), run 39467140553 on an AMD
+EPYC 7763 runner, the slowest runner type seen. B3/B4 are interleaved with
+`main` (10 rounds each) and compared with benchstat (every B3/B4 change is
+p = 0.000); the other rows are single CI runs. Program targets are the owner's tightened ones (2026-10-20), stricter
+than section 8 of the architecture plan.
+
+| # | Metric | Program target | before | perf/program | Result |
+|---|---|---|---|---|---|
+| B1 | cold start to `initialize`, p50 | < 25 ms | 7.5-9.0 ms (runs before round 4) | 8.2 ms (p95 10.5) | meets |
+| B2 | idle binary peak RSS (median of 5 spawns) | < 20 MB | 19.1-19.5 MB median on THP "always" runners before round 7; single spawns 15.8-21.6 MB | 16.2 MB | meets |
+| B2 | peak RSS after listing 100 notebooks, in-process | < 25 MB | 21.9 MB (run before round 4) | 19.7 MB | meets |
+| B3 | `notebook_list` uncached ("refresh"), p50 | < 1.5 ms | 2.197 ms | 0.758 ms (p95 1.19) | meets |
+| B3 | `notebook_list` cached, p50 | < 0.5 ms | 0.993 ms | 0.398 ms (p95 0.76) | meets (0.49 ms on this runner type before round 8) |
+| B3 | allocations per call, refresh / cached | | 1765 / 1370 | 1040 / 712 | |
+| B4 | decode 40 KB envelope | p50 < 1 ms | 508 us, 93 allocs, 363 KiB | 225 us, 9 allocs, 40 KiB | meets |
+| B6 | connection reuse after first request | > 95% | 100% | 100%, 1 TLS handshake, HTTP/2 | meets |
+| B7 | stripped binary size | < 20 MB | 12.1 MB | 12.1 MB | meets |
+| B9 | chat time-to-first-progress after Google's first answer chunk | <= +20 ms | not measured | p50 0.30 ms, p95 0.41 ms (`bench/ttfp`, 29 asks) | meets |
+
+Local (Windows laptop above, `-cpu 2`, interleaved with `main`, n=10):
+`notebook_list` refresh 1640 -> 713 us/op, cached 838 -> 441 us/op;
+Decode40KB 331 -> 146 us; cold start p50 20.8 -> 17.3 ms; idle RSS 17.6 ->
+16.7 MB; B9 p50 under 1 ms. Local p50/p95 metrics are not usable on Windows:
+the benchmark's per-call clock reads advance in steps of about 0.5 ms, so its
+p50 is 0, 0.5 or 1.0 ms. Use sec/op locally and CI for percentiles.
+
+### Rounds
+
+Each round was measured base vs head interleaved (`bench/interleave.sh`, local
+`-cpu 2`) and kept only with benchstat p < 0.05; commit messages carry the
+numbers.
+
+| Round | Change | Metric (local) | Before | After | p |
+|---|---|---|---|---|---|
+| 1 | `wire.Node` walks validated JSON with a byte scanner instead of a jsontext.Decoder | B3 refresh sec/op | 3.586 ms | 2.635 ms | 0.000 |
+| 2 | `parseNotebookRow` splits a row once (`Node.Head`) instead of rescanning the sources array per field | B3 refresh sec/op | 2.070 ms | 1.885 ms | 0.009 |
+| 3 | `wire.Decode` validates each segment once and walks it, no per-row copies; `numericBody` no longer copies the body; `escapeControl` jumps between quotes | B4 sec/op, allocs | 340.7 us, 93 | 164.8 us, 9 | 0.000 |
+| 4 | tool schemas resolved on first call, not at startup | cold start p50, idle RSS | 19.80 ms, 17.70 MiB | 16.40 ms, 16.70 MiB | 0.000 |
+| 5 | `notebook_list` default page 20 (was 50; behaviour change) | B3 cached / refresh sec/op | 778 / 1025 us | 419 / 683 us | 0.000 |
+| 6 | RPC bodies read into a pooled buffer (Decode results never alias it) | BenchmarkDoList40KB sec/op, B/op | 380.5 us, 149 KiB | 323.7 us, 62.7 KiB | 0.000 |
+| 7 | `prctl(PR_SET_THP_DISABLE)` at startup on Linux | CI idle RSS median, THP-always runner | 19.1-19.5 MB | 17.5 MB | single CI runs |
+| 8 | serve runs with GOGC=200 unless GOGC is set (`internal/runtimecfg`; benchmarks apply the same) | B3 cached / refresh sec/op | 407 / 676 us | 326 / 585 us | 0.000 |
+| - | B9 measurement (`bench/ttfp`), RSS median of 5 spawns, CI `cpu` input | measurement only | | | |
+
+Tried and dropped: writing JSON-RPC responses directly instead of through
+go-sdk's encoder (prototype: cached -4%, p = 0.28, not significant; refresh
+-3.5%) did not justify a custom MCP transport.
+
+### What is left in B3
+
+The cached call is now almost entirely go-sdk JSON-RPC work on both sides of
+the in-memory pipe plus garbage collection: our handler, filter and result
+marshalling are about 4% of its CPU profile. go-sdk's internal
+`json.Unmarshal` builds a new segmentio decoder with a fresh 32 KB buffer on
+every call, and a tool call runs it about a dozen times across server and
+client (about 420 of the 500 KB allocated per call); with GOGC=off the cached
+call is 16% faster. The benchmark's client decodes the structured result into
+`map[string]any` and the text copy again, so cost grows about 16 us per listed
+notebook on the slowest runner over a fixed ~160 us. Remaining levers: an
+upstream go-sdk change to reuse decoder buffers (largest, not ours to ship), a
+smaller default page (15 would give about 0.40 ms there), shorter timestamps
+(UTC, whole seconds: about 7% fewer bytes per notebook on UTC hosts), or a
+custom stdio transport (about 4%).
+
+### Idle RSS
+
+On Linux the idle binary is about 10.3 MB of resident binary pages (RssFile,
+stable) plus anonymous memory. Runners whose transparent huge page mode is
+"always" backed the first heap pages with 2 MB pages: 9.2-9.8 MB anonymous
+instead of 5.8 MB with `GODEBUG=disablethp=1` (run 39462128658). That setting
+cannot be put in go.mod or `//go:debug`, so `internal/thp` calls
+`prctl(PR_SET_THP_DISABLE)` at init; pages the runtime touched before package
+init stay huge, hence 7.6 rather than 5.8 MB.
+
+## 2026-10-14 baseline (superseded)
+
 Machine (2026-10-14): Windows 11 Home 10.0.26300, Intel Core i7-12650H
 (16 threads), 16 GB RAM, Go 1.27.0 windows/amd64, laptop on a desktop session
 with other programs running. Variance on this machine is high (coefficient of
@@ -42,7 +121,9 @@ a follow-up in `internal/wire` and `internal/nlm`.
 |---|---|
 | B1 | `go run ./bench/coldstart -bin bin/sourcebolt.exe` |
 | B2 | `go run ./bench/rss -bin bin/sourcebolt.exe` |
-| B3, B4 | `go test ./internal/mcpserver ./internal/wire -run=XXX -bench 'ToolCallNotebookList\|Decode40KB' -count=10`, summarised with benchstat |
+| B3, B4 | `go test ./internal/mcpserver ./internal/wire -run=XXX -bench 'ToolCallNotebookList\|Decode40KB' -count=10 -cpu 2`, summarised with benchstat; base vs head: `BENCH_CPU=2 BENCH_RE=... bash bench/interleave.sh <base> <head> 10 <pkgs>` |
+| B9 | `go run ./bench/ttfp [-runs 30] [-check]` |
+| RPC client | `go test ./internal/transport/rpc -run=XXX -bench DoList40KB -cpu 2` |
 | B6 | `go test ./internal/transport/rpc -run TestConnectionReuse -v` |
 | B7 | `bash bench/binsize.sh` |
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/candidloom-hub/sourcebolt/internal/app"
 	"github.com/candidloom-hub/sourcebolt/internal/mcpserver"
+	"github.com/candidloom-hub/sourcebolt/internal/runtimecfg"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,6 +31,7 @@ func cmdServe(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	defer runtimecfg.Apply()() // the server's GC setting; benchmarks apply the same
 	cfg, err := app.ConfigFromEnv()
 	if err != nil {
 		return fail(stderr, err)

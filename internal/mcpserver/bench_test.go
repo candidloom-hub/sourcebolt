@@ -9,6 +9,7 @@ import (
 	"github.com/candidloom-hub/sourcebolt/bench/benchdata"
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/runtimecfg"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -29,6 +30,8 @@ func benchSession(b *testing.B) *mcp.ClientSession {
 	prev := validateOutput
 	validateOutput = false
 	b.Cleanup(func() { validateOutput = prev })
+	// The served binary's GC setting (cmd/sourcebolt serve applies it too).
+	b.Cleanup(runtimecfg.Apply())
 	// 100 notebooks built from the live wXbhsf row structure (synthetic ids).
 	tr := benchTransport{payload: benchdata.ListPayload(100)}
 	srv := New(Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: "default", Host: "notebook.google.com"}, "default")

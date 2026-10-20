@@ -78,18 +78,24 @@ func (c *Client) ListNotebooks(ctx context.Context) ([]Notebook, error) {
 
 // row: [title, sources, id, emoji, null, meta]; meta[0] 1 mine / 2 shared,
 // meta[5] modified [s, ns], meta[8] created [s, ns].
+// The row and meta are split once each: At would rescan the sources array
+// for every field after it.
 func parseNotebookRow(r wire.Node) Notebook {
+	var rb [6]wire.Node
+	var mb [9]wire.Node
+	f := r.Head(rb[:])
 	n := Notebook{
-		Title:       r.At(0).Str(),
-		SourceCount: r.At(1).Len(),
-		ID:          r.At(2).Str(),
-		Emoji:       r.At(3).Str(),
+		Title:       wire.Get(f, 0).Str(),
+		SourceCount: wire.Get(f, 1).Len(),
+		ID:          wire.Get(f, 2).Str(),
+		Emoji:       wire.Get(f, 3).Str(),
 	}
-	if own, ok := r.At(5, 0).Int(); ok {
+	meta := wire.Get(f, 5).Head(mb[:])
+	if own, ok := wire.Get(meta, 0).Int(); ok {
 		n.Owned = own == 1
 	}
-	n.Modified = stampNode(r.At(5, 5))
-	n.Created = stampNode(r.At(5, 8))
+	n.Modified = stampNode(wire.Get(meta, 5))
+	n.Created = stampNode(wire.Get(meta, 8))
 	return n
 }
 

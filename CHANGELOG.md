@@ -21,11 +21,19 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - **Breaking:** `chat_configure` accepts mode `default`, `learning_guide` or `custom` and response_length `default`, `longer` or `shorter`, the values captures #3 and #3b saved; mode `default` with response_length `default` resets a notebook. Modes `concise` and `detailed` are removed.
 - `suggest` surface `report` no longer returns `audience`: the number has no verified meaning.
 - `suggest` surface `report` sends the live request (artifact options block and every source when none are given).
+- `notebook_list` results carry `has_more`, true when notebooks after the returned page also match; page with `offset`.
+- `notebook_list` returns 20 notebooks by default instead of 50. `total` still counts every match; pass `offset` for the next page or a larger `limit` (pages come from the 30 s cache, so paging makes no extra Google call). Each listed notebook is sent twice (structured content and its JSON text fallback) and decoded by the client, so the smaller page cuts the cached call's overhead by about half (B3, see `bench/RESULTS.md`).
 - `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
 - Notebook rename, text load-source and artifact-read requests match the live web app (options block added, full `v9rmvd` form). Markdown load-source and chat suggestions were not captured and keep their earlier requests.
 - `note_list` (and so `note_save` and the note delete) skips rows that are not notes, such as note-backed mind maps.
 - `source_read` reports drift instead of returning empty text when an answer has no text blocks and no HTML.
 - `source_add` lists the notebook before adding, so that a source missing from the add answer is only reported added when its row is new; a match with a source that already existed is pending.
+
+### Performance
+
+- Tool-call overhead (B3, 100 notebooks, 2-CPU CI, p50): uncached `notebook_list` 2.20 -> 0.76 ms, cached 0.99 -> 0.40 ms; decoding a 40 KB answer 508 -> 225 us with 9 instead of 93 allocations; cold start and idle memory lower (tool schemas are resolved on first use). See `bench/RESULTS.md`.
+- On Linux the server turns off transparent huge pages for its own process (`prctl`), which cut idle RSS by about 2 MB on hosts whose THP mode is "always". The fallback browser inherits the setting.
+- `serve` runs with GOGC=200 unless `GOGC` is set: fewer collections per tool call (cached `notebook_list` about 20% faster) at the cost of a somewhat larger heap under load.
 
 ### Fixed
 
@@ -44,7 +52,6 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - `studio_list` leaves media URLs empty: no finished video was captured, and the two slide-deck download URLs cannot be told apart (PDF or PPTX) in the sanitized capture.
 - Saving a chat answer re-encodes the answer's rich text the way both captured saves did; rich structures neither capture had (tables, images in answers) are sent as the stream had them.
 - Not capturable from the web UI: conversation-list paging (the UI keeps one thread per notebook and never pages, so only the newest 20 conversations are listed) and markdown load-source (`hizoJc` markdown mode; no UI path found, so the catalog's request is kept unverified).
-- Uncached `notebook_list` overhead: as listed for 0.1.0 (not re-measured for these changes).
 
 ## [0.1.0] - 2026-10-20
 

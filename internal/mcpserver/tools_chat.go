@@ -303,7 +303,7 @@ func (s *server) chatHistory(ctx context.Context, in ChatHistoryIn) (ChatHistory
 // chatConfigureSchema is ChatConfigureIn's schema with enums of the proven
 // settings (captures #3 and #3b).
 func chatConfigureSchema() *jsonschema.Schema {
-	s, _ := schemaFor[ChatConfigureIn]()
+	s := schemaFor[ChatConfigureIn]()
 	for _, v := range nlm.ChatGoals {
 		s.Properties["mode"].Enum = append(s.Properties["mode"].Enum, v)
 	}

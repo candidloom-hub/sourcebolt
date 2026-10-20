@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 
+	_ "github.com/candidloom-hub/sourcebolt/internal/thp" // no transparent huge pages (idle RSS)
 	"github.com/candidloom-hub/sourcebolt/internal/version"
 )
 

@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +37,9 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/mcpserver"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/runtimecfg"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
+	_ "github.com/candidloom-hub/sourcebolt/internal/thp" // as the served binary
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/time/rate"
@@ -48,18 +51,28 @@ func main() {
 	bin := flag.String("bin", "", "also measure this binary idle after initialize")
 	notebooks := flag.Int("notebooks", 100, "notebooks in the fake list")
 	check := flag.Bool("check", false, "exit 1 unless peak RSS < 25 MB")
+	idleRuns := flag.Int("idle-runs", 5, "spawns of -bin; the median is reported")
 	flag.Parse()
 	if !supported {
 		fmt.Printf("B2 skipped: RSS measurement is not implemented on %s\n", runtime.GOOS)
 		return
 	}
 	if *bin != "" {
-		b, err := idleBinary(*bin)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "idle binary:", err)
-			os.Exit(1)
+		// One spawn varies by about 3 MB on shared runners (page cache and
+		// fault-around decide how much of the binary is resident), so the
+		// idle figure is the median of several.
+		var peaks []int64
+		for range *idleRuns {
+			b, err := idleBinary(*bin)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "idle binary:", err)
+				os.Exit(1)
+			}
+			peaks = append(peaks, b)
 		}
-		fmt.Printf("binary idle (after initialize + tools/list): peak RSS %s\n", mb(b))
+		slices.Sort(peaks)
+		fmt.Printf("binary idle (after initialize + tools/list): peak RSS %s (median of %d; min %s, max %s)\n",
+			mb(peaks[len(peaks)/2]), len(peaks), mb(peaks[0]), mb(peaks[len(peaks)-1]))
 	}
 	before, after, err := listInProcess(*notebooks)
 	if err != nil {
@@ -98,6 +111,7 @@ func listInProcess(n int) (before, after int64, err error) {
 	jar.Add(session.Cookie{Name: "SID", Value: "bench", Domain: "127.0.0.1", Path: "/"})
 	p := &session.Profile{Name: "bench", Host: session.Host(srv.Listener.Addr().String()), Jar: jar}
 	tr := rpc.New(rpc.Options{Profile: p, HTTP: srv.Client(), Limiter: rate.NewLimiter(rate.Inf, 1)})
+	defer runtimecfg.Apply()() // as the served binary
 	ms := mcpserver.New(mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: "bench", Host: p.Host}, "default")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -156,6 +170,9 @@ func idleBinary(bin string) (int64, error) {
 		}
 	}
 	time.Sleep(200 * time.Millisecond) // let the background warm-up fail and settle
+	if d := rssDetail(cmd.Process.Pid); d != "" {
+		fmt.Println("binary idle detail:", d)
+	}
 	return peakRSS(cmd.Process.Pid)
 }
 

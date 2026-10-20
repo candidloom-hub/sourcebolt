@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"unicode/utf8"
 )
 
 // Frame is one RPC result row: ["wrb.fr", id, payload, null, null, status, index]
@@ -51,13 +52,20 @@ func Decode(body []byte) ([]Frame, Trailers, error) {
 	}
 	var frames []Frame
 	for _, seg := range segs {
-		rows, ok := elems(seg)
-		if !ok {
+		// Validate each segment once, then walk it structurally: no copy
+		// per row or column (B4 went from 93 allocs and 9x the body in
+		// bytes to a handful of allocations).
+		if !jsontext.Value(seg).IsValid(lenient) {
 			bad++
 			continue
 		}
-		for _, r := range rows {
-			if f, ok := parseRow(r, &tr); ok {
+		for off := 1; ; {
+			r, next, ok := nextElem(seg, off)
+			if !ok {
+				break
+			}
+			off = next
+			if f, ok := parseRow(Node{r}, &tr); ok {
 				frames = append(frames, f)
 			}
 		}
@@ -68,37 +76,55 @@ func Decode(body []byte) ([]Frame, Trailers, error) {
 	return frames, tr, nil
 }
 
-func parseRow(r jsontext.Value, tr *Trailers) (Frame, bool) {
-	cols, ok := elems(r)
-	if !ok || len(cols) == 0 {
+// parseRow reads one row of a validated segment.
+func parseRow(r Node, tr *Trailers) (Frame, bool) {
+	var cb [7]Node
+	cols := r.Head(cb[:])
+	if len(cols) == 0 || cols[0].raw[0] != '"' {
 		return Frame{}, false
 	}
-	var tag string
-	if json.Unmarshal(cols[0], &tag) != nil {
-		return Frame{}, false
-	}
-	switch tag {
+	switch strValue(cols[0]) {
 	case "wrb.fr":
-		f := Frame{ID: Str(r, 1)}
+		f := Frame{ID: strValue(Get(cols, 1))}
 		if len(cols) > 2 {
-			f.Payload = unquote(cols[2])
+			f.Payload = unquote(cols[2].raw)
 		}
 		if len(cols) > 5 {
-			f.Status = parseStatus(cols[5])
+			f.Status = parseStatus(cols[5].raw)
 		}
 		if len(cols) > 6 {
-			f.Index = Str(r, 6)
+			f.Index = strValue(cols[6])
 		}
 		return f, true
 	case "er":
-		n, _ := Int(r, 2)
-		return Frame{ID: Str(r, 1), ServerErr: true, ErrCode: int(n)}, true
+		var n int64
+		if len(cols) > 2 {
+			n, _ = Int(cols[2].raw)
+		}
+		return Frame{ID: strValue(Get(cols, 1)), ServerErr: true, ErrCode: int(n)}, true
 	case "af.httprm":
-		if s := Str(r, 2); s != "" {
+		if s := strValue(Get(cols, 2)); s != "" {
 			tr.FSID = s
 		}
 	}
 	return Frame{}, false
+}
+
+// strValue decodes a string node exactly as Str on a raw value does
+// (invalid UTF-8 becomes U+FFFD); "" for anything else.
+func strValue(n Node) string {
+	if len(n.raw) < 2 || n.raw[0] != '"' {
+		return ""
+	}
+	in := n.raw[1 : len(n.raw)-1]
+	if bytes.IndexByte(in, '\\') < 0 && utf8.Valid(in) {
+		return string(in)
+	}
+	var s string
+	if json.Unmarshal(n.raw, &s, lenient) != nil {
+		return ""
+	}
+	return s
 }
 
 // unquote unwraps JSON-in-JSON: while the value is a JSON string, decode it
@@ -108,15 +134,24 @@ func unquote(v jsontext.Value) jsontext.Value {
 		return nil
 	}
 	cur := bytes.TrimSpace(v)
+	fresh := false // cur no longer points into the caller's body
 	for i := 0; i < maxUnquote && len(cur) > 0 && cur[0] == '"'; i++ {
-		var s string
-		if json.Unmarshal(cur, &s, lenient) != nil {
-			break
+		s, err := jsontext.AppendUnquote(make([]byte, 0, len(cur)), cur)
+		if err != nil {
+			// Invalid UTF-8 (replaced, as below) or not one string.
+			var str string
+			if json.Unmarshal(cur, &str, lenient) != nil {
+				break
+			}
+			s = []byte(str)
 		}
-		cur = escapeControl(bytes.TrimSpace([]byte(s)))
+		cur, fresh = escapeControl(bytes.TrimSpace(s)), true
 	}
 	if isNull(cur) {
 		return nil
+	}
+	if !fresh {
+		cur = bytes.Clone(cur) // the body buffer may be reused (rpc pools it)
 	}
 	return jsontext.Value(cur)
 }

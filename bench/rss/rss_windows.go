@@ -51,3 +51,6 @@ func peakRSS(pid int) (int64, error) {
 
 // supported reports whether this platform can measure RSS.
 const supported = true
+
+// rssDetail is only implemented on Linux.
+func rssDetail(int) string { return "" }

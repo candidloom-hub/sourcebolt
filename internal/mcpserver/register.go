@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,16 +26,28 @@ var validateOutput bool
 // fallback.
 func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp.CallToolRequest, in In) (Out, error)) (*mcp.Tool, mcp.ToolHandler) {
 	tt := *t
-	inSchema, inResolved := schemaFor[In]()
-	outSchema, outResolved := schemaFor[Out]()
+	inSchema, outSchema := schemaFor[In](), schemaFor[Out]()
 	if tt.InputSchema == nil {
 		tt.InputSchema = inSchema
 	}
 	if tt.OutputSchema == nil {
 		tt.OutputSchema = outSchema
 	}
+	// Input is validated against the plain type schema even when the tool
+	// advertises a narrower one (studio_generate's enums): an unproven value
+	// reaches the handler and gets a specific error instead of a schema one.
+	// Resolving is over half of New's cost; most sessions call a few tools,
+	// so each schema is resolved on its tool's first call. A schema that
+	// does not resolve fails the call as a tool error (the server keeps
+	// serving); TestAdvertisedSchemasResolve keeps that out of releases.
+	inResolved := sync.OnceValues(func() (*jsonschema.Resolved, error) { return resolveSchema(inSchema) })
+	outResolved := sync.OnceValues(func() (*jsonschema.Resolved, error) { return resolveSchema(outSchema) })
 	return &tt, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		in, err := decodeArgs[In](req.Params.Arguments, inResolved)
+		ir, err := inResolved()
+		if err != nil {
+			return errorResult(fmt.Errorf("tool %s: input schema: %w", tt.Name, err)), nil
+		}
+		in, err := decodeArgs[In](req.Params.Arguments, ir)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -51,7 +64,11 @@ func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp
 			if err := json.Unmarshal(b, &v); err != nil {
 				return nil, fmt.Errorf("validating tool output: %w", err)
 			}
-			if err := outResolved.Validate(&v); err != nil {
+			or, err := outResolved()
+			if err != nil {
+				return nil, fmt.Errorf("validating tool output: output schema: %w", err)
+			}
+			if err := or.Validate(&v); err != nil {
 				return nil, fmt.Errorf("validating tool output: %w", err)
 			}
 		}
@@ -64,7 +81,7 @@ func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp
 
 // schemaFor derives a type's schema exactly as the go-sdk typed path does.
 // Tool types are fixed at build time, so a failure is a programming error.
-func schemaFor[T any]() (*jsonschema.Schema, *jsonschema.Resolved) {
+func schemaFor[T any]() *jsonschema.Schema {
 	rt := reflect.TypeFor[T]()
 	if rt.Kind() == reflect.Pointer {
 		rt = rt.Elem()
@@ -73,11 +90,14 @@ func schemaFor[T any]() (*jsonschema.Schema, *jsonschema.Resolved) {
 	if err != nil {
 		panic(fmt.Sprintf("schema for %v: %v", rt, err))
 	}
-	r, err := s.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
-	if err != nil {
-		panic(fmt.Sprintf("resolve schema for %v: %v", rt, err))
-	}
-	return s, r
+	return s
+}
+
+// resolveSchema prepares s for validation. TestAdvertisedSchemasResolve
+// resolves every tool's schemas, so a failure here is a programming error.
+// It is a variable so a test can make resolution fail.
+var resolveSchema = func(s *jsonschema.Schema) (*jsonschema.Resolved, error) {
+	return s.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
 }
 
 // decodeArgs validates raw arguments (absent means {}), applies schema
