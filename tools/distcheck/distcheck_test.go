@@ -186,4 +186,3 @@ func TestGeminiExtension(t *testing.T) {
 		read(t, g.ContextFileName)
 	}
 }
-
