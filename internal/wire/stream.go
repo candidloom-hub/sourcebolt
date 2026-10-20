@@ -25,6 +25,11 @@ type Snapshot struct {
 	ConversationID string
 	ResponseID     string
 	Status         *Status // google.rpc.Status of a rejection (null answer + status)
+	// AnswerBlock is a copy of the answer row's raw type block
+	// [rich, null, null, passages, flag]. Only the Final answer snapshot
+	// carries it (one copy per stream); saving the answer as a note
+	// (CYK0Xb) is built from it.
+	AnswerBlock []byte
 }
 
 // Citation ties a "[N]" marker to a passage of a source. Start and End are
@@ -312,6 +317,10 @@ func parseSnapshot(p []byte) (Snapshot, bool) {
 		var fin bool
 		_ = json.Unmarshal(top[4], &fin)
 		s.Final = fin
+	}
+	if s.Final && !s.Thinking && len(row) > 4 {
+		// p points into the decoder's reused buffer: copy.
+		s.AnswerBlock = bytes.Clone(row[4])
 	}
 	if len(top) > 2 {
 		if markers, ok := splitElems(top[2]); ok {

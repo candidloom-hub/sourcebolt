@@ -27,8 +27,8 @@ func listNotesParams(nb string) []any { return []any{nb, nil, nil, requestOption
 // createNoteParams is pinned by live capture #2 (2026-10-20, CYK0Xb from the
 // "Copied text" flow, which now creates a note): [nb, content,
 // [1,null×5,1], null, title, null, HDR]. A chat answer saved as a note uses
-// kind 2 instead of 1 plus the answer's rich-text and citation structures at
-// [3] and [5], which the client does not keep (see rpc-catalog).
+// kind 2 plus the answer's passages and rich block at [3] and [5]; see
+// answerNoteParams.
 func createNoteParams(nb, title, content string) []any {
 	return []any{nb, content, []any{1, nil, nil, nil, nil, nil, 1}, nil, title, nil, requestOptions()}
 }

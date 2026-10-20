@@ -92,7 +92,7 @@ Annotations: title: Sign out, readOnly: false, destructive: true, idempotent: tr
 
 Profiles: minimal, default, all.
 
-Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. wait=false returns a job_id; poll with chat_status. Not retried after sending.
+Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. save_as_note also saves the answer as a note (note_id, or note_error when it could not be saved). wait=false returns a job_id; poll with chat_status. Not retried after sending.
 
 Annotations: title: Ask a notebook, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -102,6 +102,7 @@ Annotations: title: Ask a notebook, readOnly: false, destructive: false, idempot
 | `question` | string | yes | the question to ask |
 | `conversation_id` | string | no | continue this conversation; default is the notebook's newest thread |
 | `new_conversation` | boolean | no | start a fresh conversation instead of the default thread |
+| `save_as_note` | boolean | no | also save the answer as a note, as the web app's Save to note does (the server picks the note title) |
 | `sources` | null or array | no | restrict the answer to these sources (id, id prefix or title); default all sources |
 | `wait` | null or boolean | no | wait for the answer (default true); false returns a job_id to poll with chat_status |
 

@@ -256,7 +256,7 @@ func (s *server) chatAskMany(ctx context.Context, in ChatAskManyIn) (ChatAskMany
 				return nil
 			}
 			results[i].NotebookID = id
-			a, err := s.runAsk(ctx, id, in.Question, nlm.AskOptions{}, nil)
+			a, err := s.runAsk(ctx, id, in.Question, nlm.AskOptions{}, nil, false)
 			if err != nil {
 				fillAskErr(&results[i], err)
 				return nil
