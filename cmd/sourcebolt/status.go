@@ -18,8 +18,8 @@ func cmdLogout(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("logout", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	profile := fs.String("profile", "", "profile to delete")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	cfg, err := app.ConfigFromEnv()
 	if err != nil {
@@ -47,7 +47,7 @@ func cmdStatus(stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "config dir: %s\nactive profile: %s\n", cfg.ConfigDir, cfg.Profile)
 	if len(names) == 0 {
-		fmt.Fprintln(stdout, "no profiles; run: sourcebolt login --import <cookies file>")
+		fmt.Fprintln(stdout, "no profiles; run: sourcebolt login")
 		return 0
 	}
 	for _, n := range names {
@@ -70,8 +70,8 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	domNB := fs.String("dom-check", "", "ask one question in this notebook through the browser (DOM) fallback")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	cfg, err := app.ConfigFromEnv()
 	if err != nil {
@@ -110,7 +110,7 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	check("profile "+cfg.Profile, err)
 	if err == nil {
 		if !rt.Profile.Jar.Valid() {
-			check("cookies", errors.New("no valid session; run: sourcebolt login --import <cookies file>"))
+			check("cookies", errors.New("no valid session; run: sourcebolt login"))
 		} else {
 			wctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			start := time.Now()

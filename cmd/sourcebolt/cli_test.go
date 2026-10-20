@@ -181,10 +181,10 @@ func assertNoCookieValues(t *testing.T, s string) {
 	}
 }
 
-func TestLoginNeedsExactlyOneMethod(t *testing.T) {
+func TestLoginAtMostOneMethod(t *testing.T) {
 	stubBrowser(t, nil, "", nil)
-	if code, _, _, errOut := runLogin(t); code != 2 || !strings.Contains(errOut, "--browser") {
-		t.Fatalf("no method: code=%d stderr=%q", code, errOut)
+	if code, _, _, errOut := runLogin(t, "--attach", "x", "--import", "-"); code != 2 || !strings.Contains(errOut, "--browser") {
+		t.Fatalf("two methods: code=%d stderr=%q", code, errOut)
 	}
 	if code, _, _, _ := runLogin(t, "--browser", "--attach", "http://127.0.0.1:9222"); code != 2 {
 		t.Fatalf("two methods: code=%d, want 2", code)

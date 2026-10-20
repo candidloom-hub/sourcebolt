@@ -11,7 +11,8 @@ Every command on this page runs in a terminal.
 
 | Method | Command | When to use it |
 |---|---|---|
-| **Attach** (recommended) | `sourcebolt login --attach http://127.0.0.1:9222` | Default choice. You start a normal browser with a debugging port and sign in. Google does not block it, because it is a normal browser that you started. |
+| **Plain login** (easiest, after v0.2.0) | `sourcebolt login` | sourcebolt finds Chrome, Edge or Brave and starts it as a normal program with only a local debugging port, on the folder `<config dir>/browser/<profile>`, opening NotebookLM. You sign in; when your notebooks load, sourcebolt saves the session, closes the window and prints how many notebooks it sees. It waits 10 minutes (`--timeout` changes this). Closing the window cancels and saves nothing. This is the attach method below, done for you. `sourcebolt setup` uses it too. If Google still refuses to sign you in, use attach or import. |
+| **Attach** | `sourcebolt login --attach http://127.0.0.1:9222` | You start a normal browser with a debugging port and sign in. Google does not block it, because it is a normal browser that you started. The only method in v0.2.0 that Google reliably allows. |
 | Browser window | `sourcebolt login --browser` | sourcebolt opens a browser on its own profile and waits for you to sign in (300 seconds by default; change with `--timeout`). Google may refuse with "This browser or app may not be secure", because browsers started by automation expose `navigator.webdriver`. This happened in our own test. |
 | Import | `sourcebolt login --import cookies.txt` | You already have a cookie export. Accepts a Netscape `cookies.txt`, a JSON export or a `Cookie:` header. `-` reads from standard input. `--format netscape\|json\|header` overrides the automatic detection. |
 
@@ -83,6 +84,7 @@ Expected output: `Saved profile "default" for notebook.google.com (N notebooks v
 The [browser fallback](#browser-fallback) runs a headless browser on the folder `<config dir>/browser/<profile>` (for the default profile: `browser/default`). It can only help if that browser profile is signed in to Google. Two ways:
 
 - **Attach with that folder.** In step 1 above, use `browser\default` (or `browser/default`) instead of `browser\attach` as `--user-data-dir`. Sign in, attach, then **close the browser**: the headless fallback cannot open the folder while another browser uses it. This flow was tested live on 2026-10-20: `login --attach` on that folder, then `sourcebolt doctor --dom-check <notebook>` passed.
+- **`sourcebolt login`** (after v0.2.0). This signs in exactly that folder and closes the browser when done, so the fallback can use it right away.
 - **`sourcebolt login --browser`.** This signs in the same folder, but Google may block it (see above).
 
 If you never sign in that folder, sourcebolt still works on the fast direct path; only the fallbacks are unavailable. To check the fallback, run `sourcebolt doctor --dom-check "<notebook id or title>"` ([troubleshooting.md](troubleshooting.md#check-that-the-dom-fallback-works-before-you-need-it)).

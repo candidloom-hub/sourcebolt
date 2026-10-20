@@ -4,12 +4,44 @@ sourcebolt is a local MCP server. Your AI app starts it as a background program 
 
 One-click install buttons for several apps: [install-links.md](install-links.md).
 
+## The easy way: `sourcebolt setup`
+
+From the release after v0.2.0, one command does the work on this page for you:
+
+```bash
+sourcebolt setup
+```
+
+It finds the apps below that are installed for you, asks `Connect sourcebolt to <app>? [Y/n]` for each, and adds the `sourcebolt` entry with the full path to the program, so `PATH` problems cannot happen. Then it signs you in (unless you already are) and runs `sourcebolt doctor`. Restart each app it names at the end.
+
+What it changes, per app:
+
+| App | How setup connects it | File it changes (backup next to it) |
+|---|---|---|
+| Claude Desktop | edits the file | Windows `%APPDATA%\Claude\claude_desktop_config.json`, macOS `~/Library/Application Support/Claude/claude_desktop_config.json`, Linux `~/.config/Claude/claude_desktop_config.json` |
+| Claude Code | runs `claude mcp add --scope user ...` if `claude` is on your `PATH`, otherwise edits the file | `~/.claude.json` |
+| Cursor | edits the file | `~/.cursor/mcp.json` |
+| VS Code | runs `code --add-mcp ...` if `code` is on your `PATH`, otherwise edits the file | Windows `%APPDATA%\Code\User\mcp.json`, macOS `~/Library/Application Support/Code/User/mcp.json`, Linux `~/.config/Code/User/mcp.json` |
+| Windsurf | edits the file | `%APPDATA%\devin\mcp_config.json` (Windows) or `~/.config/devin/mcp_config.json` when that folder exists, otherwise the older `~/.codeium/windsurf/mcp_config.json` |
+| Gemini CLI | edits the file | `~/.gemini/settings.json` |
+
+Before any change, setup copies the file to `<file>.sourcebolt-backup-<date>-<time>`. It adds only the `sourcebolt` entry and keeps everything else in the file as it was. It asks before it replaces an existing `sourcebolt` entry. A file with comments in it is left alone; setup tells you to add the entry by hand.
+
+- `sourcebolt setup --dry-run` shows what would change and changes nothing.
+- `sourcebolt setup --client cursor` connects only that app (repeat `--client` for more): `claude-desktop`, `claude-code`, `cursor`, `vscode`, `windsurf`, `gemini`.
+- `sourcebolt setup --yes` answers yes to every question.
+- `sourcebolt setup --undo` puts each file back from its newest backup. For `~/.claude.json`, which Claude Code keeps rewriting, it puts back only the `sourcebolt` entry and leaves the rest of the file alone.
+
+The Linux path for Claude Desktop, the VS Code `mcp.json` path and the older Windsurf path are not stated on the apps' own pages; setup prefers each app's CLI where one exists. If your app keeps its settings elsewhere, use the manual steps below.
+
+## Manual setup
+
 Before you start:
 
 1. Install sourcebolt and sign in ([getting-started.md](getting-started.md)).
 2. Run `sourcebolt doctor`. Every check should say `ok`.
 
-## If `sourcebolt` is not on your PATH
+### If `sourcebolt` is not on your PATH
 
 Apps do not always see the same `PATH` as your terminal. If the app says it cannot start the server, replace `"sourcebolt"` with the full path to the program. Find it with:
 
@@ -27,7 +59,7 @@ command -v sourcebolt
 
 In JSON files, write Windows backslashes twice, for example `"C:\\Users\\you\\AppData\\Local\\Programs\\sourcebolt\\sourcebolt.exe"`.
 
-## Fewer tools for small budgets
+### Fewer tools for small budgets
 
 Some apps limit how many tools they show the model. Add `--tools minimal` to expose only the 8 core tools (`server_info`, `notebook_list`, `notebook_open`, `source_add`, `source_read`, `chat_ask`, `studio_list`, `studio_generate`). `--tools all` adds the opt-in batch tool `chat_ask_many`. Example: `"args": ["serve", "--tools", "minimal"]`.
 

@@ -27,6 +27,7 @@ var (
 )
 
 const loginUsage = `usage:
+  sourcebolt login [--timeout 10m] [--browser-path exe] [--profile p] [--host h]
   sourcebolt login --browser [--browser-path exe] [--timeout 300s] [--profile p] [--host h]
   sourcebolt login --attach <cdp ws:// or http:// url> [--profile p] [--host h]
   sourcebolt login --import <file|-> [--format netscape|json|header] [--profile p] [--host h]`
@@ -37,13 +38,13 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	useBrowser := fs.Bool("browser", false, "open a browser window on a dedicated profile and wait for you to sign in")
 	attach := fs.String("attach", "", "read cookies from a running browser started with --remote-debugging-port (ws:// or http:// DevTools url)")
 	browserPath := fs.String("browser-path", "", "browser executable (default $"+browser.EnvBrowser+", then Brave, Chrome, Edge, Chromium)")
-	timeout := fs.Duration("timeout", 300*time.Second, "how long --browser waits for sign-in")
+	timeout := fs.Duration("timeout", 0, "how long to wait for sign-in (default 10m; 300s with --browser)")
 	importFrom := fs.String("import", "", "cookie export to import: a file path, or - for stdin")
 	format := fs.String("format", "", "netscape, json or header (auto-detected when empty)")
 	profile := fs.String("profile", "", "profile name (default $NOTEBOOKLM_PROFILE or \"default\")")
 	host := fs.String("host", "", "NotebookLM host (default notebook.google.com)")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	methods := 0
 	for _, set := range []bool{*useBrowser, *attach != "", *importFrom != ""} {
@@ -51,7 +52,7 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 			methods++
 		}
 	}
-	if methods != 1 {
+	if methods > 1 {
 		fmt.Fprintln(stderr, loginUsage)
 		return 2
 	}
@@ -67,6 +68,17 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		h = session.Host(*host)
 	} else if cfg.Host != "" {
 		h = cfg.Host
+	}
+
+	if methods == 0 {
+		t := *timeout
+		if t <= 0 {
+			t = defaultAutoTimeout
+		}
+		return autoLogin(ctx, cfg, h, *browserPath, t, stdout, stderr)
+	}
+	if *timeout <= 0 {
+		*timeout = 300 * time.Second
 	}
 
 	var jar *session.Jar
@@ -122,6 +134,25 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 // validateAndSave checks the cookies with a real call before saving, so a
 // bad login never replaces a working profile.
 func validateAndSave(ctx context.Context, cfg app.Config, h session.Host, jar *session.Jar, stdout, stderr io.Writer) int {
+	n, err := checkSession(ctx, &session.Profile{Name: cfg.Profile, Host: h, Jar: jar})
+	if err != nil {
+		return fail(stderr, fmt.Errorf("cookies did not authenticate with %s: %s", h, safety.Redact(err.Error())))
+	}
+	return saveProfile(cfg, h, jar, n, stdout, stderr)
+}
+
+// checkSession proves a jar works with one real call (list notebooks) and
+// returns the number of notebooks. Tests replace it.
+var checkSession = func(ctx context.Context, p *session.Profile) (int, error) {
+	rt := app.ForProfile(p, nil)
+	vctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	nbs, err := rt.Deps.NLM.ListNotebooks(vctx)
+	return len(nbs), err
+}
+
+// saveProfile stores a jar that already passed checkSession.
+func saveProfile(cfg app.Config, h session.Host, jar *session.Jar, notebooks int, stdout, stderr io.Writer) int {
 	store := cfg.Store()
 	p := &session.Profile{Name: cfg.Profile, Host: h, Jar: jar}
 	rev, replaced, err := prepareSave(store, cfg.Profile)
@@ -129,20 +160,13 @@ func validateAndSave(ctx context.Context, cfg app.Config, h session.Host, jar *s
 		return fail(stderr, err)
 	}
 	p.Rev = rev
-	rt := app.ForProfile(p, nil)
-	vctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	nbs, err := rt.Deps.NLM.ListNotebooks(vctx)
-	if err != nil {
-		return fail(stderr, fmt.Errorf("cookies did not authenticate with %s: %s", p.Host, safety.Redact(err.Error())))
-	}
 	if err := store.Save(p); err != nil {
 		return fail(stderr, err)
 	}
 	if replaced {
 		fmt.Fprintf(stdout, "Replaced profile %q: its encryption key was missing from the OS keyring, so the old session could not be read.\n", p.Name)
 	}
-	fmt.Fprintf(stdout, "Saved profile %q for %s (%d notebooks visible).\n", p.Name, p.Host, len(nbs))
+	fmt.Fprintf(stdout, "Saved profile %q for %s (%d notebooks visible).\n", p.Name, p.Host, notebooks)
 	return 0
 }
 

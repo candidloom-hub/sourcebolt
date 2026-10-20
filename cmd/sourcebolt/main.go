@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -15,8 +17,11 @@ import (
 const usage = `sourcebolt - fast MCP server for Google NotebookLM
 
 Usage:
+  sourcebolt setup  [--yes] [--client name]... [--dry-run] [--no-login]   (start here: connects your AI apps and signs you in)
+  sourcebolt setup  --undo [--client name]...
   sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f] [--no-browser-fallback]
   sourcebolt call   <tool> '<json args>'
+  sourcebolt login  [--timeout 10m] [--browser-path exe] [--profile p] [--host h]   (opens a browser; you sign in)
   sourcebolt login  --browser [--browser-path exe] [--timeout 300s] [--profile p] [--host h]
   sourcebolt login  --attach <cdp ws:// or http:// url> [--profile p] [--host h]
   sourcebolt login  --import <file|-> [--format netscape|json|header] [--profile p] [--host h]
@@ -26,7 +31,7 @@ Usage:
   sourcebolt --version
 
 Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
-             SOURCEBOLT_BROWSER (browser executable for login --browser),
+             SOURCEBOLT_BROWSER (browser program for login and setup),
              NOTEBOOKLM_BROWSER_FALLBACK=0 (disable the headless browser fallback)
 `
 
@@ -35,6 +40,18 @@ func main() {
 	code := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 	stop()
 	os.Exit(code)
+}
+
+// parseFlags parses a subcommand's flags. When it returns ok=false the caller exits with code:
+// 0 when the user asked for help (-h, --help), 2 for a usage error.
+func parseFlags(fs *flag.FlagSet, args []string) (code int, ok bool) {
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0, false
+		}
+		return 2, false
+	}
+	return 0, true
 }
 
 // run is the testable entry point. Exit codes: 0 ok, 1 failure, 2 usage.
@@ -57,6 +74,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return cmdCall(ctx, rest, stdout, stderr)
 	case "login":
 		return cmdLogin(ctx, rest, stdin, stdout, stderr)
+	case "setup":
+		return cmdSetup(ctx, rest, stdin, stdout, stderr)
 	case "logout":
 		return cmdLogout(rest, stdout, stderr)
 	case "status":

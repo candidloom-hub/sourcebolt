@@ -10,6 +10,21 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
 )
 
+// Sign-in guidance names the plain login first (it opens a browser), with
+// the cookie import as the alternative.
+func TestAuthGuidanceNamesPlainLogin(t *testing.T) {
+	for _, k := range []transport.Kind{transport.KindAuth, transport.KindCookieBinding} {
+		var ee *envelopeError
+		if !errors.As(toEnvelope(&transport.Error{Kind: k, Transport: "rpc"}), &ee) {
+			t.Fatalf("%s: no envelope", k)
+		}
+		g := ee.env.Guidance
+		if !strings.Contains(g, "Run: sourcebolt login") || strings.Contains(g, "Run: sourcebolt login --import") || !strings.Contains(g, "--import") {
+			t.Errorf("%s guidance = %q", k, g)
+		}
+	}
+}
+
 // A rate limit raised locally (no transport answered, e.g. the detached-job
 // cap) must not blame Google.
 func TestLocalRateLimitGuidance(t *testing.T) {

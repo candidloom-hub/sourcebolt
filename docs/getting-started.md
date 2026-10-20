@@ -51,109 +51,50 @@ Expected output:
 sourcebolt 0.2.0
 ```
 
-## Step 2: Sign in
+## Step 2: Run setup
 
-sourcebolt needs your Google session, the same one your browser uses when you open NotebookLM. You sign in yourself, in a real browser window. sourcebolt never sees your password.
+> **Version note.** `sourcebolt setup` and `sourcebolt login` without options come in the release after v0.2.0. With v0.2.0, follow [Doing it by hand](#doing-it-by-hand) and sign in with the attach method.
 
-The recommended way is **attach**: you start a browser with a "debugging port" (a local door that lets sourcebolt read that browser's cookies), sign in, and sourcebolt copies the session.
-
-**2a. Start the browser on a separate profile.** The separate folder keeps your everyday browser out of this. Chrome also refuses the debugging port on its default profile.
-
-Windows (PowerShell), Brave:
-
-```powershell
-& "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
-```
-
-Windows (PowerShell), Chrome:
-
-```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
-```
-
-macOS, Brave (for Chrome use `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`):
+One command connects sourcebolt to your AI apps and signs you in:
 
 ```bash
-"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" --remote-debugging-port=9222 --user-data-dir="$HOME/Library/Application Support/sourcebolt/browser/attach"
+sourcebolt setup
 ```
 
-Linux, Brave (for Chrome use `google-chrome`):
+Setup does four things, and asks before each change:
 
-```bash
-brave-browser --remote-debugging-port=9222 --user-data-dir="$HOME/.config/sourcebolt/browser/attach"
-```
+1. **Finds your AI apps.** It looks for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf and Gemini CLI.
+2. **Connects each app you say yes to.** For every app it asks `Connect sourcebolt to <app>? [Y/n]`. Press Enter for yes, or type `n` for no. Before it changes an app's settings file, it saves a copy next to it (the copy's name ends in `.sourcebolt-backup-` and the date and time). It only adds a `sourcebolt` entry and leaves everything else in the file as it was. If the app already has a `sourcebolt` entry, setup asks before replacing it.
+3. **Signs you in.** A browser window opens on the NotebookLM page. Sign in to your Google account there, the normal way. You type your password into Google's own page; sourcebolt never sees it. When your notebooks appear, the window closes by itself. If you are already signed in, setup skips this step.
+4. **Checks everything** (the same checks as `sourcebolt doctor`).
 
-**2b. Sign in.** In that new window, sign in to Google and open https://notebook.google.com. Wait until you see your notebooks.
-
-**2c. Save the session.** In a second terminal:
-
-```bash
-sourcebolt login --attach http://127.0.0.1:9222
-```
-
-Expected output (your number of notebooks will differ):
+At the end it tells you which apps to restart, for example:
 
 ```text
-Saved profile "default" for notebook.google.com (9 notebooks visible).
+Done. Restart Claude Desktop, Cursor and ask: 'List my NotebookLM notebooks'
 ```
 
-sourcebolt made one real call (list notebooks) to prove the session works. It saves nothing if that call fails.
+Restart those apps completely (quit, then start again).
 
-**2d. Close the debugging browser.** While it is open, any program on your computer can control it.
+Useful options:
 
-Other sign-in methods (a cookie file, a browser window that sourcebolt opens): [auth.md](auth.md).
+| Option | What it does |
+|---|---|
+| `--dry-run` | Shows what setup would change, and changes nothing. |
+| `--yes` | Answers yes to every question. |
+| `--client cursor` | Only this app. Repeat it for more apps. Names: `claude-desktop`, `claude-code`, `cursor`, `vscode`, `windsurf`, `gemini`. |
+| `--no-login` | Skips the sign-in step. |
+| `--undo` | Puts back each app's settings file from the copy setup saved. |
 
-## Step 3: Check the setup
+If the browser window says Google will not let you sign in, or setup cannot find a browser, see [troubleshooting.md](troubleshooting.md#sign-in-problems). The other ways to sign in ([auth.md](auth.md)) still work.
+
+To sign in again later (sessions expire), run only:
 
 ```bash
-sourcebolt doctor
+sourcebolt login
 ```
 
-Expected output (times and paths differ):
-
-```text
-ok    config dir writable
-ok    os keyring
-ok    profile default
-ok    token bootstrap notebook.google.com (412ms)
-profiles dir: <config dir>/profiles
-```
-
-Every check line should start with `ok`. If one starts with `FAIL`, see [troubleshooting.md](troubleshooting.md). A `FAIL` on `os keyring` alone is fine: the encryption key is then kept in a private file instead.
-
-You can also try a tool straight from the terminal, without an AI app:
-
-```bash
-sourcebolt call notebook_list '{}'
-```
-
-It prints JSON with your notebooks: id, title, number of sources and whether you own each one.
-
-## Step 4: Connect your AI app
-
-Pick your app. Each one starts `sourcebolt serve` in the background when it needs it.
-
-**Claude Code:**
-
-```bash
-claude mcp add sourcebolt -- sourcebolt serve
-```
-
-Check it with `claude mcp list`. The line for `sourcebolt` should say it is connected.
-
-**Claude Desktop, Cursor, Windsurf:** add this to the app's MCP config file, then restart the app.
-
-```json
-{
-  "mcpServers": {
-    "sourcebolt": { "command": "sourcebolt", "args": ["serve"] }
-  }
-}
-```
-
-**VS Code, Codex, Gemini CLI, ChatGPT and file locations:** [clients.md](clients.md).
-
-## Step 5: Ask your first question
+## Step 3: Ask your first question
 
 In your AI app, type:
 
@@ -167,6 +108,36 @@ What happens:
 
 The first answer usually takes a few seconds to a minute. Almost all of that time is NotebookLM thinking, not sourcebolt.
 
+You can also try a tool straight from the terminal, without an AI app:
+
+```bash
+sourcebolt call notebook_list '{}'
+```
+
+## Doing it by hand
+
+You do not need this if setup worked. It is for apps setup does not know, and for people who prefer to edit settings themselves.
+
+1. **Sign in.** Run `sourcebolt login`. If Google refuses the window it opens (or you have v0.2.0), use the attach method in [auth.md](auth.md#attach-flow-in-detail): you start the browser yourself, sign in, then run `sourcebolt login --attach http://127.0.0.1:9222`.
+2. **Check it.** Run `sourcebolt doctor`. Every check line should start with `ok`. A `FAIL` on `os keyring` alone is fine: the encryption key is then kept in a private file instead.
+3. **Connect your app.** For Claude Code:
+
+   ```bash
+   claude mcp add --scope user sourcebolt -- sourcebolt serve
+   ```
+
+   For Claude Desktop, Cursor and Windsurf, add this to the app's MCP settings file, then restart the app:
+
+   ```json
+   {
+     "mcpServers": {
+       "sourcebolt": { "command": "sourcebolt", "args": ["serve"] }
+     }
+   }
+   ```
+
+   VS Code, Codex, Gemini CLI, ChatGPT and where each file lives: [clients.md](clients.md).
+
 ## What to try next
 
 - "Add https://example.com/article to my *Test* notebook." (`source_add`)
@@ -178,5 +149,5 @@ Every tool and option: [tools.md](tools.md). How an agent should pick tools: [SK
 
 ## When something goes wrong
 
-- Any error with `AUTH_REQUIRED`: your session expired. Repeat [Step 2](#step-2-sign-in).
+- Any error with `AUTH_REQUIRED`: your session expired. Run `sourcebolt login` and sign in again.
 - Other errors: [troubleshooting.md](troubleshooting.md).
