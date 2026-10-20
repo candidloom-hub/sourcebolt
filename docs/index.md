@@ -4,6 +4,8 @@ sourcebolt lets AI apps work with your Google NotebookLM notebooks. Start with t
 
 ## Start here
 
+- [Step-by-step guides](guides/index.md) - pick your AI app and follow numbered steps. No technical knowledge needed.
+- [Let your AI install it](install-with-ai.md) - paste one prompt into your AI app and it does the setup with you.
 - [Getting started](getting-started.md) - install, sign in, connect an app and ask your first question, with the output you should see.
 - [Connect your AI app](clients.md) - setup for Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI and ChatGPT, plus Docker and HTTP mode.
 - [One-click install links](install-links.md) - install buttons and one-line commands per app.
