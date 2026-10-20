@@ -167,6 +167,14 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 		return invalidArg("notebooks.mutate", "prompt requires goal custom")
 	}
 
+	// Read and write as one step per notebook, so two partial changes made
+	// at once cannot overwrite each other with stale settings. (Other
+	// clients, such as the web app, are not covered.)
+	unlock, err := c.configLock.Lock(ctx, nb)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	cur, err := c.do(ctx, "notebooks.get", getNotebookParams(nb), callOpts{sourcePath: notebookPath(nb), idempotent: true, null: wire.NullAllowed})
 	if err != nil {
 		return err

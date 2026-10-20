@@ -24,6 +24,9 @@ type Client struct {
 	// newThread serializes, per notebook, the asks that start a thread and
 	// read its id back (see Ask).
 	newThread keyedLock
+	// configLock serializes, per notebook, Configure's read of the current
+	// chat settings and its write of the merged ones.
+	configLock keyedLock
 	// DOM, when set, answers chat and adds URL and text sources by driving
 	// the NotebookLM page after the RPC path failed with KindDrift (see Ask
 	// and AddSources). nil = off.
