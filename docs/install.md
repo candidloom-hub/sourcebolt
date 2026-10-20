@@ -6,9 +6,9 @@ sourcebolt is one small program. Pick **one** of the ways below. If you are not 
 |---|---|---|
 | [One-line installer](#one-line-installer-recommended) | Most people (Windows, macOS, Linux) | Available |
 | [npm (`npx`)](#npm-npx) | People who already have Node.js | Available |
-| [Homebrew](#homebrew-macos-and-linux) | macOS and Linux users of Homebrew | Coming soon |
-| [Scoop](#scoop-windows) | Windows users of Scoop | Coming soon |
-| [winget](#winget-windows) | Windows users of winget | Coming soon |
+| [Homebrew](#homebrew-macos-and-linux) | macOS and Linux users of Homebrew | Available |
+| [Scoop](#scoop-windows) | Windows users of Scoop | Available |
+| [winget](#winget-windows) | Windows users of winget | Submitted, in review |
 | [Docker](#docker) | Running it in a container | Available |
 | [Manual download](#manual-download) | Checking every step yourself | Available |
 | [`go install`](#go-install) | Go developers | Available |
@@ -172,7 +172,7 @@ In an AI app's MCP settings, use `npx` as the command:
 
 ## Homebrew (macOS and Linux)
 
-Coming soon: the Homebrew tap is set up, and it gets its first entry with the next release.
+Every release updates the cask in [candidloom-hub/homebrew-tap](https://github.com/candidloom-hub/homebrew-tap).
 
 ```bash
 brew install --cask candidloom-hub/tap/sourcebolt
@@ -183,7 +183,7 @@ Undo: `brew uninstall --cask sourcebolt`.
 
 ## Scoop (Windows)
 
-Coming soon: the Scoop bucket is set up, and it gets its first entry with the next release.
+Every release updates the manifest in [candidloom-hub/scoop-bucket](https://github.com/candidloom-hub/scoop-bucket).
 
 ```powershell
 scoop bucket add candidloom-hub https://github.com/candidloom-hub/scoop-bucket
@@ -195,7 +195,7 @@ Undo: `scoop uninstall sourcebolt`.
 
 ## winget (Windows)
 
-Coming soon: the package has not been submitted to the winget catalog yet.
+Submitted to the winget catalog and waiting for review; the command below works once the catalog accepts it.
 
 ```powershell
 winget install candidloom-hub.sourcebolt
