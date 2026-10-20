@@ -3,7 +3,6 @@ package browser
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"time"
 
@@ -50,24 +49,28 @@ func (d *DOM) addSource(ctx context.Context, nb, typeKey, inputKey, value string
 	if err != nil {
 		return d.wrap(ctx, rpc, false, err)
 	}
-	for _, step := range []func() error{
-		func() error { return d.press(ctx, p, typeKey) },
-		func() error { return d.fill(ctx, p, inputKey, value) },
-		func() error { return d.press(ctx, p, "sources.insert") },
-	} {
-		if err := step(); err != nil {
-			return d.wrap(ctx, rpc, false, err)
-		}
+	// Type, input and Insert resolve inside the add dialog only: the page
+	// has look-alike controls elsewhere (Studio buttons, row icons).
+	root := d.addDialog()
+	if err := d.press(ctx, p, typeKey, root); err != nil {
+		return d.wrap(ctx, rpc, false, err)
 	}
-	// Insert was clicked: from here on the source may have been added, and
-	// the caller must not add it again.
+	if err := d.fill(ctx, p, inputKey, value, root); err != nil {
+		return d.wrap(ctx, rpc, false, err)
+	}
+	// From the Insert attempt on the source may have been added, and the
+	// caller must not add it again: every error but an Insert that was not
+	// there to click (drift) reports Sent.
+	if err := d.press(ctx, p, "sources.insert", root); err != nil {
+		return d.wrap(ctx, rpc, !isDriftErr(err) || ctx.Err() != nil, err)
+	}
 	deadline := time.Now().Add(sourceWait)
 	for {
-		rows, dialogs, err := d.sourceState(ctx, p)
+		rows, open, err := d.sourceState(ctx, p)
 		if err != nil {
 			return d.wrap(ctx, rpc, true, err)
 		}
-		if rows > before && dialogs == 0 {
+		if rows > before && !open {
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -76,10 +79,21 @@ func (d *DOM) addSource(ctx context.Context, nb, typeKey, inputKey, value string
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return d.wrap(ctx, rpc, true, ctx.Err())
 		case <-time.After(sourcePoll):
 		}
 	}
+}
+
+// addDialog is the JS expression for the open add-source dialog element
+// (null when none): a sources.dialog match holding both source-type
+// buttons. Another dialog (share, confirm) is not the add dialog.
+func (d *DOM) addDialog() string {
+	arg, _ := json.Marshal(map[string]any{
+		"dialog":  d.sel["sources.dialog"],
+		"anchors": [][]string{d.sel["sources.type_link"], d.sel["sources.type_text"]},
+	})
+	return `__sbDom.addDialog(` + string(arg) + `)`
 }
 
 // openAddDialog opens the add-source dialog and returns the source row
@@ -87,16 +101,19 @@ func (d *DOM) addSource(ctx context.Context, nb, typeKey, inputKey, value string
 // notebook once with ?addSource=true, which opens the dialog (or at least
 // shows the button), before reporting drift on sources.add.
 func (d *DOM) openAddDialog(ctx context.Context, p page, nb string) (int, error) {
-	if err := d.sel.find(ctx, p, "sources.dialog", 0); err == nil {
+	add := d.addDialog()
+	if _, err := domEval(ctx, p, `__sbDom.clearAdd()`); err != nil {
+		return 0, err
+	}
+	if _, err := d.sel.poll(ctx, p, add+` ? 0 : -1`, 0, "sources.dialog"); err == nil {
 		return d.rowCount(ctx, p) // already open
 	}
 	before, err := d.rowCount(ctx, p)
 	if err != nil {
 		return 0, err
 	}
-	err = d.press(ctx, p, "sources.add")
-	var te *transport.Error
-	if errors.As(err, &te) && te.Kind == transport.KindDrift {
+	err = d.press(ctx, p, "sources.add", "")
+	if isDriftErr(err) {
 		if _, err := d.open(ctx, p, nb, "addSource=true"); err != nil {
 			return 0, err
 		}
@@ -104,22 +121,20 @@ func (d *DOM) openAddDialog(ctx context.Context, p page, nb string) (int, error)
 		if before, err = d.rowCount(ctx, p); err != nil {
 			return 0, err
 		}
-		key, ferr := d.sel.findAny(ctx, p, []string{"sources.dialog", "sources.add"}, d.wait)
-		var fe *transport.Error
+		cands, _ := json.Marshal(d.sel["sources.add"])
+		idx, ferr := d.sel.poll(ctx, p, `(`+add+` ? 0 : (__sbDom.find(`+string(cands)+`) ? 1 : -1))`, d.wait, "sources.add")
 		switch {
-		case errors.As(ferr, &fe) && fe.Kind == transport.KindDrift:
-			return 0, d.sel.drift("sources.add")
 		case ferr != nil:
 			return 0, ferr
-		case key == "sources.dialog":
+		case idx == 0:
 			return before, nil
 		}
-		err = d.press(ctx, p, "sources.add")
+		err = d.press(ctx, p, "sources.add", "")
 	}
 	if err != nil {
 		return 0, err
 	}
-	if err := d.sel.find(ctx, p, "sources.dialog", d.wait); err != nil {
+	if _, err := d.sel.poll(ctx, p, add+` ? 0 : -1`, d.wait, "sources.dialog"); err != nil {
 		return 0, err
 	}
 	return before, nil
@@ -130,19 +145,20 @@ func (d *DOM) rowCount(ctx context.Context, p page) (int, error) {
 	return rows, err
 }
 
-// sourceState counts the source rows and the visible (non-promo) dialogs.
-func (d *DOM) sourceState(ctx context.Context, p page) (rows, dialogs int, err error) {
-	arg, err := json.Marshal([][]string{d.sel["sources.row"], d.sel["sources.dialog"]})
+// sourceState counts the source rows and reports whether the add dialog
+// is open.
+func (d *DOM) sourceState(ctx context.Context, p page) (rows int, open bool, err error) {
+	arg, err := json.Marshal(d.sel["sources.row"])
 	if err != nil {
-		return 0, 0, err
+		return 0, false, err
 	}
-	raw, err := domEval(ctx, p, `((r, g) => [__sbDom.present(r).length, (__sbDom.dismissPromos(), __sbDom.all(g).length)])(...`+string(arg)+`)`)
+	raw, err := domEval(ctx, p, `[__sbDom.present(`+string(arg)+`).length, (__sbDom.dismissPromos(), `+d.addDialog()+` ? 1 : 0)]`)
 	if err != nil {
-		return 0, 0, err
+		return 0, false, err
 	}
 	var n []int
 	if err := json.Unmarshal(raw, &n); err != nil || len(n) != 2 {
-		return 0, 0, fmt.Errorf("browser: source state %s: %v", raw, err)
+		return 0, false, fmt.Errorf("browser: source state %s: %v", raw, err)
 	}
-	return n[0], n[1], nil
+	return n[0], n[1] == 1, nil
 }

@@ -94,13 +94,15 @@ func oneLine(err error) string {
 // visible element or wait passes; then it returns KindDrift naming key.
 // Promo dialogs are dismissed on every poll.
 func (s Selectors) find(ctx context.Context, p page, key string, wait time.Duration) error {
-	_, err := s.findAny(ctx, p, []string{key}, wait)
+	_, err := s.findIn(ctx, p, "", []string{key}, wait)
 	return err
 }
 
-// findAny is find for several keys at once; it returns the first key that
-// resolves. The drift error names the first key.
-func (s Selectors) findAny(ctx context.Context, p page, keys []string, wait time.Duration) (string, error) {
+// findIn is find for several keys inside root, a JS expression for the
+// element to search ("" = the whole document; an expression yielding null
+// matches nothing), evaluated again on every poll. It returns the first
+// key that resolves; the drift error names the first key.
+func (s Selectors) findIn(ctx context.Context, p page, root string, keys []string, wait time.Duration) (string, error) {
 	cands := make([][]string, len(keys))
 	for i, k := range keys {
 		if len(s[k]) == 0 {
@@ -113,7 +115,24 @@ func (s Selectors) findAny(ctx context.Context, p page, keys []string, wait time
 	if err != nil {
 		return "", &transport.Error{Kind: transport.KindInternal, Transport: domTransport, Cause: err}
 	}
-	expr := `(__sbDom.dismissPromos(), ` + string(arg) + `.findIndex((c) => !!__sbDom.find(c)))`
+	if root == "" {
+		root = "undefined"
+	}
+	idx, err := s.poll(ctx, p, `((r) => `+string(arg)+`.findIndex((c) => !!__sbDom.find(c, r)))(`+root+`)`, wait, keys[0])
+	if err != nil {
+		return "", err
+	}
+	if idx >= len(keys) {
+		return "", s.drift(keys[0])
+	}
+	return keys[idx], nil
+}
+
+// poll evaluates expr, an index (-1 = nothing yet), every findPoll until it
+// is >= 0 or wait passes; then it returns KindDrift naming key. Promo
+// dialogs are dismissed before every evaluation.
+func (s Selectors) poll(ctx context.Context, p page, expr string, wait time.Duration, key string) (int, error) {
+	expr = `(__sbDom.dismissPromos(), ` + expr + `)`
 	deadline := time.Now().Add(wait)
 	var lastErr error
 	for {
@@ -123,26 +142,26 @@ func (s Selectors) findAny(ctx context.Context, p page, keys []string, wait time
 			err = json.Unmarshal(raw, &idx)
 		}
 		if ctx.Err() != nil {
-			return "", ctx.Err()
+			return 0, ctx.Err()
 		}
 		lastErr = err
-		if err == nil && idx != nil && *idx >= 0 && *idx < len(keys) {
-			return keys[*idx], nil
+		if err == nil && idx != nil && *idx >= 0 {
+			return *idx, nil
 		}
 		if !time.Now().Before(deadline) {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return 0, ctx.Err()
 		case <-time.After(findPoll):
 		}
 	}
 	if lastErr != nil {
-		return "", &transport.Error{Kind: transport.KindTransport, Transport: domTransport,
-			Cause: fmt.Errorf("browser: resolve %q: %w", keys[0], lastErr)}
+		return 0, &transport.Error{Kind: transport.KindTransport, Transport: domTransport,
+			Cause: fmt.Errorf("browser: resolve %q: %w", key, lastErr)}
 	}
-	return "", s.drift(keys[0])
+	return 0, s.drift(key)
 }
 
 // drift is the error for a control that is not on the page.

@@ -7,9 +7,13 @@
 //   plain CSS        first visible match
 //   text:<substr>    visible button/menuitem whose text contains substr (case-insensitive)
 //   icon:<name>      visible mat-icon with that ligature text, resolved to its button
+//
+// root arguments: undefined = the whole document; null = a scope that did
+// not resolve, which matches nothing.
 (() => {
 	const PROMO = /promo|announcement|onboarding|whats-?new|welcome|tutorial|tour/i;
 	const CLICKABLE = 'button,[role="button"],[role="menuitem"]';
+	const ADD_MARK = "data-sb-add";
 
 	const visible = (el) => {
 		if (!el || !el.isConnected || el.getClientRects().length === 0) return false;
@@ -21,6 +25,7 @@
 
 	// matches returns every visible element that one candidate resolves to.
 	const matches = (root, cand) => {
+		if (root === null) return [];
 		root = root || document;
 		if (cand.startsWith("text:")) {
 			const want = cand.slice(5).trim().toLowerCase();
@@ -54,6 +59,15 @@
 
 	const find = (cands, root) => all(cands, root)[0] || null;
 
+	// union returns the matches of every candidate, in candidate order.
+	const union = (cands, root) => {
+		const out = [];
+		for (const c of cands) {
+			for (const el of matches(root, c)) if (!out.includes(el)) out.push(el);
+		}
+		return out;
+	};
+
 	// dismissPromos marks every promo dialog (host tag matches PROMO) with
 	// data-sb-promo, which the dialog selectors exclude, and clicks its close
 	// button when it has one. Returns how many were newly found.
@@ -70,9 +84,35 @@
 		return n;
 	};
 
+	// addDialog returns the open add-source dialog: a sources.dialog match
+	// that holds every anchor control (both source-type buttons; an input
+	// or textarea alone is no proof, a share dialog has those too). It is
+	// marked so later steps find the same element after its type buttons
+	// give way to an input. null when none.
+	// s = {dialog: [...], anchors: [[...], ...]}.
+	const addDialog = (s) => {
+		const marked = document.querySelector("[" + ADD_MARK + "]");
+		if (marked && visible(marked)) return marked;
+		for (const d of union(s.dialog)) {
+			if (d.hasAttribute("data-sb-promo")) continue;
+			if (s.anchors.every((c) => find(c, d))) {
+				d.setAttribute(ADD_MARK, "");
+				return d;
+			}
+		}
+		return null;
+	};
+
+	// clearAdd forgets the dialog marked by an earlier add.
+	const clearAdd = () => {
+		for (const el of document.querySelectorAll("[" + ADD_MARK + "]")) el.removeAttribute(ADD_MARK);
+		return true;
+	};
+
 	// present is all without the visibility filter for CSS candidates: answer
 	// bubbles and their action bar count while scrolled away or before hover.
 	const present = (cands, root) => {
+		if (root === null) return [];
 		for (const c of cands) {
 			let m;
 			if (c.startsWith("text:") || c.startsWith("icon:")) {
@@ -89,8 +129,8 @@
 		return [];
 	};
 
-	const click = (cands) => {
-		const el = find(cands);
+	const click = (cands, root) => {
+		const el = find(cands, root);
 		if (!el) return false;
 		el.click();
 		return true;
@@ -98,8 +138,8 @@
 
 	// setValue sets an input's value through the native setter (so framework
 	// bindings see it) and dispatches input and change. No typing delays.
-	const setValue = (cands, v) => {
-		const el = find(cands);
+	const setValue = (cands, v, root) => {
+		const el = find(cands, root);
 		if (!el) return false;
 		el.focus();
 		const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -111,21 +151,40 @@
 		return true;
 	};
 
+	// common returns the closest element containing both a and b.
+	const common = (a, b) => {
+		for (let el = a; el; el = el.parentElement) if (el.contains(b)) return el;
+		return null;
+	};
+
+	// chatPanel is the chat area: a chat.panel match, else the closest
+	// element holding both the query box and the first answer bubble, else
+	// the query box's parent. null when the query box is gone too.
+	const chatPanel = (panel, input, bubble) => {
+		const p = find(panel);
+		if (p) return p;
+		const q = present(input)[0];
+		if (!q) return null;
+		const b = present(bubble)[0];
+		return (b && common(q, b)) || q.parentElement;
+	};
+
 	// chatState reads the answer thread: bubble count, the newest bubble's
-	// text, whether it has the done marker, and any visible alert text.
-	const chatState = (bubble, text, done, alert) => {
+	// text (only from chat.bubble_text elements), whether it has the done
+	// marker, and the text of visible alerts inside the chat panel.
+	const chatState = (bubble, text, done, alert, panel, input) => {
 		const bs = present(bubble);
 		const last = bs[bs.length - 1];
 		let t = "", d = false;
 		if (last) {
-			const parts = present(text, last);
-			t = (parts.length ? parts : [last]).map((e) => e.innerText || e.textContent || "").join("\n");
+			t = present(text, last).map((e) => e.innerText || e.textContent || "").join("\n");
 			d = present(done, last).length > 0;
 		}
-		const a = all(alert).map((e) => (e.innerText || e.textContent || "").trim()).filter(Boolean).join("\n");
+		const root = chatPanel(panel, input, bubble);
+		const a = root ? all(alert, root).map((e) => (e.innerText || e.textContent || "").trim()).filter(Boolean).join("\n") : "";
 		return {count: bs.length, text: t, done: d, alert: a};
 	};
 
-	window.__sbDom = {visible, find, all, present, dismissPromos, click, setValue, chatState};
+	window.__sbDom = {visible, find, all, union, present, dismissPromos, addDialog, clearAdd, click, setValue, chatState};
 	return true;
 })()

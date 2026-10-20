@@ -223,8 +223,9 @@ func TestAskDOMBusyPageNeverSends(t *testing.T) {
 	}
 }
 
-// sourcesPage reads the fixture's source rows and whether a dialog is open.
-func sourcesPage(t *testing.T, d *DOM) (rows []string, dialog bool) {
+// sourcesPage reads the fixture's source rows, whether the add dialog is
+// open and which decoy (if any) was clicked.
+func sourcesPage(t *testing.T, d *DOM) (rows []string, dialog bool, decoy string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
@@ -234,28 +235,140 @@ func sourcesPage(t *testing.T, d *DOM) (rows []string, dialog bool) {
 	}
 	defer release()
 	raw, err := p.Eval(ctx, `({rows: Array.from(document.querySelectorAll(".single-source-container")).map((e) => e.textContent),
-		dialog: !!document.querySelector("mat-dialog-container")})`)
+		dialog: !!document.querySelector(".add-dialog"), decoy: window.__decoy || ""})`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var st struct {
 		Rows   []string `json:"rows"`
 		Dialog bool     `json:"dialog"`
+		Decoy  string   `json:"decoy"`
 	}
 	if err := json.Unmarshal(raw, &st); err != nil {
 		t.Fatal(err)
 	}
-	return st.Rows, st.Dialog
+	return st.Rows, st.Dialog, st.Decoy
 }
 
 func wantSources(t *testing.T, d *DOM, want ...string) {
 	t.Helper()
-	rows, dialog := sourcesPage(t, d)
+	rows, dialog, decoy := sourcesPage(t, d)
 	if want = append([]string{"Existing source"}, want...); !slices.Equal(rows, want) {
 		t.Errorf("rows = %q, want %q", rows, want)
 	}
 	if dialog {
-		t.Error("dialog still open")
+		t.Error("add dialog still open")
+	}
+	if decoy != "" {
+		t.Errorf("clicked decoy %q outside the add dialog", decoy)
+	}
+}
+
+// Finding 1: type, input and Insert resolve inside the add dialog, not
+// against earlier look-alike controls elsewhere on the page.
+func TestAddSourceDOMIgnoresDecoysOutsideDialog(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?decoys=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := d.AddURL(ctx, "sources", "https://example.test/d"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Website: https://example.test/d")
+}
+
+// Finding 2: an unrelated add icon is not the add-source button.
+func TestAddSourceDOMIgnoresOtherAddButtons(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?hideadd=1&decoyadd=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	if err := d.AddURL(ctx, "sources", "https://example.test/n"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Website: https://example.test/n")
+}
+
+// Finding 4: an open share dialog is not the add dialog.
+func TestAddSourceDOMIgnoresOtherDialog(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?sharedialog=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := d.AddText(ctx, "sources", "", "shared body"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Pasted text: shared body")
+}
+
+// Finding 3: once Insert was clicked, a cancel reports Sent so the caller
+// marks the source pending instead of failed (and does not add it again).
+func TestAddSourceDOMCancelAfterInsertIsSent(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?slowinsert=1")
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(1500*time.Millisecond, cancel)
+	err := d.AddURL(ctx, "sources", "https://example.test/slow")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	var te *transport.Error
+	if !errors.As(err, &te) || !te.Sent {
+		t.Fatalf("err = %#v, want a *transport.Error with Sent (Insert was clicked)", err)
+	}
+}
+
+// Finding 6: a finished answer without readable text is drift, not "".
+func TestAskDOMEmptyTextIsDrift(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/chat?emptytext=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	_, err := d.Ask(ctx, "chat", "hello", nil)
+	te := wantKind(t, err, transport.KindDrift)
+	if !strings.Contains(te.Error(), `"chat.bubble_text"`) {
+		t.Errorf("drift %q does not name chat.bubble_text", te)
+	}
+}
+
+// Finding 7: alerts outside the chat panel, and alerts that are not a
+// chat limit, do not abort the answer.
+func TestAskDOMIgnoresUnrelatedAlerts(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/chat?otheralert=1&think=1500")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	text, err := d.Ask(ctx, "chat", "with alerts", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Fixture answer to: with alerts [1]"; text != want {
+		t.Errorf("text = %q, want %q", text, want)
+	}
+}
+
+// Finding 8: a cancelled question that never got a bubble blocks the next
+// ask only for limitGrace, not until the idle limit.
+func TestAskDOMAbandonedWithoutBubbleClears(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/chat?dropfirst=1")
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(time.Second, cancel)
+	if _, err := d.Ask(ctx, "chat", "dropped", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("first Ask err = %v, want context.Canceled", err)
+	}
+	ctx2, cancel2 := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel2()
+	start := time.Now()
+	text, err := d.Ask(ctx2, "chat", "next", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Fixture answer to: next [1]"; text != want {
+		t.Errorf("text = %q, want %q", text, want)
+	}
+	if el := time.Since(start); el > limitGrace+5*time.Second {
+		t.Errorf("second Ask took %s, want about limitGrace (%s)", el, limitGrace)
 	}
 }
 

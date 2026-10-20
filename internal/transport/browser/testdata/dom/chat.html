@@ -6,12 +6,16 @@
 
   Query parameters:
     same=1     the new answer repeats the previous answer word for word
-    limit=1    submitting shows a daily-limit alert instead of an answer
+    limit=1    submitting shows a daily-limit alert in the chat panel instead of an answer
     noinput=1  the query box has no textarea
     promo=1    a promo dialog overlays the page; submit is ignored while it is open
     think=N    the answer bubble appears N ms after submit (default: at once)
     streaming=1      an earlier answer is still streaming on load (done after 2 s)
     streaming=stuck  an earlier answer is streaming on load and never completes
+    otheralert=1     submitting also shows unrelated alerts: one outside the chat
+                     panel, one in it that is not a chat limit
+    emptytext=1      the answer bubble has no message-text-content element
+    dropfirst=1      the first question is accepted but never answered
   Submit is ignored while an earlier answer is pending, as in the real app.
 -->
 <html lang="en">
@@ -24,6 +28,7 @@
 </style>
 </head>
 <body>
+<div class="studio-panel"><p>Studio</p></div>
 <div class="chat-panel">
   <div id="thread">
     <div class="from-user-container"><div class="message-text-content">Earlier question</div></div>
@@ -41,6 +46,7 @@
 (() => {
   const q = new URLSearchParams(location.search);
   const thread = document.getElementById("thread");
+  const panel = document.querySelector(".chat-panel");
   if (q.get("noinput") === "1") document.querySelector("textarea").remove();
   if (q.get("promo") === "1") {
     const d = document.createElement("accessibility-promo-dialog");
@@ -49,6 +55,12 @@
     d.querySelector("button").addEventListener("click", () => d.remove());
     document.body.appendChild(d);
   }
+  const alert = (parent, text) => {
+    const a = document.createElement("div");
+    a.setAttribute("role", "alert");
+    a.textContent = text;
+    parent.appendChild(a);
+  };
 
   // pending counts questions whose answer is not complete; like the real
   // app, submit does nothing while one is pending.
@@ -71,6 +83,7 @@
     }
   }
 
+  let submits = 0;
   document.querySelector(".submit-button button").addEventListener("click", () => {
     if (document.querySelector("accessibility-promo-dialog")) return; // the overlay eats the click
     if (pending > 0) return;
@@ -78,6 +91,7 @@
     const question = ta.value;
     if (!question) return;
     ta.value = "";
+    submits++;
     const mine = document.createElement("div");
     mine.className = "from-user-container";
     mine.innerHTML = '<div class="message-text-content"></div>';
@@ -85,18 +99,23 @@
     thread.appendChild(mine);
 
     if (q.get("limit") === "1") {
-      const a = document.createElement("div");
-      a.setAttribute("role", "alert");
-      a.textContent = "You have reached your daily limit. Try again tomorrow.";
-      document.body.appendChild(a);
+      alert(panel, "You have reached your daily limit. Try again tomorrow.");
       return;
+    }
+    if (q.get("dropfirst") === "1" && submits === 1) return;
+    if (q.get("otheralert") === "1") {
+      setTimeout(() => {
+        alert(document.querySelector(".studio-panel"), "Too many requests to Drive. Try again later.");
+        alert(panel, "Audio overview quota reached for today.");
+      }, 50);
     }
 
     const final = q.get("same") === "1" ? "Same answer." : "Fixture answer to: " + question + " [1]";
     const words = final.split(" ");
     const bubble = document.createElement("div");
     bubble.className = "to-user-container";
-    bubble.innerHTML = '<div class="message-text-content"><span></span><div><button><mat-icon>more_vert</mat-icon></button></div></div>';
+    const textClass = q.get("emptytext") === "1" ? "answer-body" : "message-text-content";
+    bubble.innerHTML = '<div class="' + textClass + '"><span></span><div><button><mat-icon>more_vert</mat-icon></button></div></div>';
     const out = bubble.querySelector("span");
     // Stream the words over ~600 ms, then add the action bar.
     let i = 0;

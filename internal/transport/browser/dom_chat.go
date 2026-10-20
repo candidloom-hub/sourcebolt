@@ -109,21 +109,26 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 	if err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
 	}
-	if err := d.fill(ctx, p, "chat.input", question); err != nil {
+	if err := d.fill(ctx, p, "chat.input", question, ""); err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
 	}
-	if err := d.press(ctx, p, "chat.submit"); err != nil {
-		return "", d.wrap(ctx, rpc, false, err)
-	}
-	// From here on the question may have been sent. If this call ends
-	// without its answer (cancelled, page error), the answer may still
-	// arrive later; the next Ask must not take it for its own.
-	answered := false
+	// From the submit click on the question may have been sent. If this
+	// call ends without its answer (cancelled, page error), the answer may
+	// still arrive later; the next Ask must not take it for its own. Only a
+	// submit button that was not there to click (drift) means not sent.
+	sent, answered := true, false
 	defer func() {
-		if !answered {
+		if sent && !answered {
 			d.setAbandoned(before.Count)
 		}
 	}()
+	if err := d.press(ctx, p, "chat.submit", ""); err != nil {
+		if isDriftErr(err) {
+			sent = false
+			return "", d.wrap(ctx, rpc, false, err)
+		}
+		return "", d.wrap(ctx, rpc, true, err)
+	}
 	sentAt := time.Now()
 	deadline := sentAt.Add(d.total)
 	var last string
@@ -145,6 +150,12 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 				}
 			case st.Done && now.Sub(changedAt) >= answerStable:
 				answered = true
+				if text == "" {
+					// Finished, but nothing readable: the text selector drifted.
+					e := d.sel.drift("chat.bubble_text")
+					e.RPC, e.Sent = rpc, true
+					return "", e
+				}
 				return text, nil
 			}
 		} else if isRateLimit(st.Alert) && (st.Alert != before.Alert || now.Sub(sentAt) >= limitGrace) {
@@ -168,16 +179,25 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 // one carries the done marker) and the answer to an abandoned question, if
 // any, has arrived; it returns the thread state to compare against. When
 // the page stays busy for d.idle it fails without sending anything.
+//
+// An abandoned question that has shown no bubble after limitGrace (the
+// count has not changed since the wait began) is taken as never answered:
+// it no longer holds up the next question.
 func (d *DOM) waitIdle(ctx context.Context, p page) (chatState, error) {
 	abandoned := d.getAbandoned()
-	deadline := time.Now().Add(d.idle)
+	start := time.Now()
+	deadline := start.Add(d.idle)
+	startCount := -1
 	for {
 		st, err := d.chat(ctx, p)
 		if err != nil {
 			return chatState{}, err
 		}
+		if startCount < 0 {
+			startCount = st.Count
+		}
 		idle := st.Count == 0 || st.Done
-		if idle && st.Count > abandoned {
+		if idle && (st.Count > abandoned || (st.Count == startCount && time.Since(start) >= limitGrace)) {
 			d.setAbandoned(-1)
 			return st, nil
 		}
@@ -213,7 +233,7 @@ func (d *DOM) setAbandoned(n int) {
 
 func (d *DOM) chat(ctx context.Context, p page) (chatState, error) {
 	s := d.sel
-	arg, err := json.Marshal([][]string{s["chat.bubble"], s["chat.bubble_text"], s["chat.done"], s["chat.alert"]})
+	arg, err := json.Marshal([][]string{s["chat.bubble"], s["chat.bubble_text"], s["chat.done"], s["chat.alert"], s["chat.panel"], s["chat.input"]})
 	if err != nil {
 		return chatState{}, err
 	}
@@ -277,30 +297,36 @@ func samePage(href, target string) bool {
 	return strings.TrimSuffix(u.String(), "/") == strings.TrimSuffix(target, "/")
 }
 
-// fill waits for control key and sets its value.
-func (d *DOM) fill(ctx context.Context, p page, key, value string) error {
-	return d.act(ctx, p, key, func(cands []byte) (string, error) {
+// fill waits for control key inside root (see Selectors.findIn; "" = the
+// document) and sets its value.
+func (d *DOM) fill(ctx context.Context, p page, key, value, root string) error {
+	return d.act(ctx, p, key, root, func(cands []byte, r string) (string, error) {
 		v, err := json.Marshal(value)
-		return `__sbDom.setValue(` + string(cands) + `, ` + string(v) + `)`, err
+		return `__sbDom.setValue(` + string(cands) + `, ` + string(v) + `, ` + r + `)`, err
 	})
 }
 
-// press waits for control key and clicks it.
-func (d *DOM) press(ctx context.Context, p page, key string) error {
-	return d.act(ctx, p, key, func(cands []byte) (string, error) {
-		return `__sbDom.click(` + string(cands) + `)`, nil
+// press waits for control key inside root and clicks it.
+func (d *DOM) press(ctx context.Context, p page, key, root string) error {
+	return d.act(ctx, p, key, root, func(cands []byte, r string) (string, error) {
+		return `__sbDom.click(` + string(cands) + `, ` + r + `)`, nil
 	})
 }
 
-func (d *DOM) act(ctx context.Context, p page, key string, script func(cands []byte) (string, error)) error {
-	if err := d.sel.find(ctx, p, key, d.wait); err != nil {
+// act finds key inside root and runs the action script on it. A KindDrift
+// from act means the control was not clicked or filled.
+func (d *DOM) act(ctx context.Context, p page, key, root string, script func(cands []byte, root string) (string, error)) error {
+	if _, err := d.sel.findIn(ctx, p, root, []string{key}, d.wait); err != nil {
 		return err
+	}
+	if root == "" {
+		root = "undefined"
 	}
 	cands, err := json.Marshal(d.sel[key])
 	if err != nil {
 		return err
 	}
-	js, err := script(cands)
+	js, err := script(cands, root)
 	if err != nil {
 		return err
 	}
@@ -315,12 +341,16 @@ func (d *DOM) act(ctx context.Context, p page, key string, script func(cands []b
 	return nil
 }
 
-// wrap returns the caller's error when ctx ended, and otherwise a
-// *transport.Error for rpc: its own kind when err already is one, else
-// KindTransport.
+// wrap returns a *transport.Error for rpc: its own kind when err already is
+// one, else KindTransport. When ctx ended it returns the caller's error,
+// still typed with Sent when the request may have gone out (errors.Is
+// keeps matching context.Canceled through Cause).
 func (d *DOM) wrap(ctx context.Context, rpc string, sent bool, err error) error {
 	if ctx.Err() != nil {
-		return ctx.Err()
+		if !sent {
+			return ctx.Err()
+		}
+		err = ctx.Err()
 	}
 	var te *transport.Error
 	if errors.As(err, &te) {
@@ -352,7 +382,16 @@ func cleanAnswer(s string) string {
 	return strings.TrimSpace(strings.Join(out, "\n"))
 }
 
-var rateLimitRE = regexp.MustCompile(`(?i)daily limit|rate limit|limit reached|reached (your|the) .*limit|too many (requests|queries|questions)|quota`)
+// rateLimitRE matches chat-limit alerts only: the daily-limit message and
+// generic rate-limit wording. Broader words (quota, "reached ... limit")
+// also appear in unrelated Studio and upload alerts.
+var rateLimitRE = regexp.MustCompile(`(?i)\bdaily limit\b|\brate limit\b|\btoo many requests\b`)
+
+// isDriftErr reports whether err is a KindDrift transport error.
+func isDriftErr(err error) bool {
+	var te *transport.Error
+	return errors.As(err, &te) && te.Kind == transport.KindDrift
+}
 
 func isRateLimit(alert string) bool { return alert != "" && rateLimitRE.MatchString(alert) }
 

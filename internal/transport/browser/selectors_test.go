@@ -117,7 +117,7 @@ func TestBadOverrideKeepsDefaults(t *testing.T) {
 func TestEmbeddedRegistryHasAllKeys(t *testing.T) {
 	s := LoadSelectors("", nil)
 	for _, k := range []string{
-		"chat.input", "chat.submit", "chat.bubble", "chat.bubble_text", "chat.done", "chat.alert",
+		"chat.input", "chat.submit", "chat.bubble", "chat.bubble_text", "chat.done", "chat.alert", "chat.panel",
 		"sources.add", "sources.dialog", "sources.type_link", "sources.type_text",
 		"sources.url_input", "sources.text_input", "sources.insert", "sources.row",
 	} {
@@ -128,6 +128,12 @@ func TestEmbeddedRegistryHasAllKeys(t *testing.T) {
 			if strings.TrimSpace(c) == "" {
 				t.Errorf("registry key %q has an empty candidate", k)
 			}
+		}
+	}
+	// Page-wide icon or text matches would hit any add control (finding 2).
+	for _, c := range s["sources.add"] {
+		if strings.HasPrefix(c, "icon:") || strings.HasPrefix(c, "text:") {
+			t.Errorf("sources.add candidate %q is not scoped to the sources panel", c)
 		}
 	}
 	// The modal anchor must never be the overlay classes (Global Constraints).
