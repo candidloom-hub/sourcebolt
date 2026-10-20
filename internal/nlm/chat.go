@@ -37,6 +37,9 @@ type Answer struct {
 	// block is the stream's raw final answer block (wire.Snapshot
 	// AnswerBlock), kept for SaveAnswerNote and never serialized.
 	block []byte
+	// transport names who answered (for example DOMTransport), so a save
+	// can say why an answer has no block. Never serialized.
+	transport string
 }
 
 // progressEvery is the minimum gap between progress callbacks.
@@ -169,7 +172,7 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 			conv = threads[0].ID
 		}
 	}
-	return Answer{Text: snap.Text, Citations: snap.Citations, ConversationID: conv, ResponseID: snap.ResponseID, block: snap.AnswerBlock}, nil
+	return Answer{Text: snap.Text, Citations: snap.Citations, ConversationID: conv, ResponseID: snap.ResponseID, block: snap.AnswerBlock, transport: transportName}, nil
 }
 
 // domAskAllowed reports whether a failed stream may be retried on the DOM

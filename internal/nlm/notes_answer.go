@@ -37,6 +37,10 @@ const answerKind = 2
 
 // answerNoteParams builds the CYK0Xb request for a streamed answer.
 func answerNoteParams(nb string, a Answer, title string) ([]any, error) {
+	if len(a.block) == 0 && a.transport == DOMTransport {
+		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: "notes.create", Transport: DOMTransport,
+			Message: "this answer cannot be saved as a note: it came from the browser fallback, which reads only the answer text from the page, not the structure a saved note needs"}
+	}
 	if len(a.block) == 0 {
 		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: "notes.create",
 			Message: "this answer cannot be saved as a note: the stream sent no final answer block (only a complete streamed answer can be saved)"}
