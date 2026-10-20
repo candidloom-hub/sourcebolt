@@ -69,7 +69,15 @@ Google rejected the cookies for this client, usually because they were copied fr
 error: missing required cookies: SID, __Secure-1PSIDTS, OSID or APISID+SAPISID. Export every google.com cookie, including the plain SID, HSID and APISID ones, not only the __Secure- ones
 ```
 
-`login --import` checks the cookie file before saving. Many browser extensions export only the `__Secure-` cookies. Without the plain `SID` and `APISID` cookies, NotebookLM returns a signed-out page.
+The message lists only the cookies that are missing; the example above is what you see when all of them are missing.
+
+`login` checks for these cookies before it saves anything:
+
+- `SID`
+- `__Secure-1PSIDTS`
+- `OSID`, or both `APISID` and `SAPISID`
+
+Many browser extensions export only the `__Secure-` cookies. Without the plain `SID` and `APISID` cookies, NotebookLM returns a signed-out page. (The message's advice also mentions `HSID`; sourcebolt does not check for it.)
 
 Fix: export **every** cookie for `google.com` (not only for `notebook.google.com`), or use `login --attach`, which reads them all for you.
 
@@ -113,22 +121,28 @@ FAIL  os keyring             <reason> (profiles fall back to a 0600 key file)
 
 No usable keyring, which is common on servers, in containers and on Linux without a desktop session. This is not fatal: profiles use a key file readable only by you. Protect the config folder accordingly.
 
-### The key is missing: `session: keyring: ...`, or an error that names a `.key` file
+### `Replaced profile "default": its encryption key was missing from the OS keyring, so the old session could not be read.`
 
-The profile file exists, but its key is gone. This happens when the keyring entry was deleted, the keyring is locked, or the config folder was copied to another machine without its keyring. sourcebolt reports this instead of creating a new key, so it never silently loses a profile.
+This is a notice, not an error. The profile existed, but its key was gone from both the keyring and the key file (for example the keyring entry was deleted, or the config folder was copied to another machine). Such a profile can never be read again, so `login` deletes it and saves your new session in its place. Nothing else to do.
 
-If the keyring is only locked, unlock it (sign in to your desktop session) and retry. Otherwise delete the broken profile and sign in again:
+Until you log in again, tools and `doctor` fail to load that profile. Fix: run `login` again.
 
 ```bash
-sourcebolt logout
 sourcebolt login --attach http://127.0.0.1:9222
 ```
 
-For a named profile, add `--profile <name>` to both commands. `logout` only deletes the local profile and key; it does not sign you out of Google.
+### `error: profile "default" exists but cannot be read (...); run: sourcebolt logout --profile default, then log in again`
 
-### `session: decrypt profile: ...`
+`login` found a profile it cannot read for another reason, for example a locked keyring (`session: keyring: ...`) or a key that does not match the file (`session: decrypt profile: ...`). sourcebolt does not delete it on its own, so a locked keyring never costs you a working profile.
 
-The key does not match the profile file (for example, the profile was copied from another machine). Same fix: `sourcebolt logout`, then `login` again.
+If the keyring is only locked, unlock it (sign in to your desktop session) and retry. Otherwise do what the message says:
+
+```bash
+sourcebolt logout --profile default
+sourcebolt login --attach http://127.0.0.1:9222
+```
+
+Use your profile name in place of `default`, and add `--profile <name>` to `login` too. `logout` only deletes the local profile and key; it does not sign you out of Google.
 
 ## Limits from Google
 
@@ -168,16 +182,16 @@ What you can do:
 
 ### Check that the DOM fallback works before you need it
 
-Newer builds (after v0.1.0) add a doctor option that asks one short question through the page:
+`doctor --dom-check` asks one short question through the page, so you know the fallback works on your machine. (It was added after v0.1.0, so the v0.1.0 binary does not have it.)
 
 ```bash
 sourcebolt doctor --dom-check "<notebook id or title>"
 ```
 
-Expected extra lines:
+Expected extra lines. This example is from one live run, not a benchmark; the length and time depend on the notebook and on NotebookLM:
 
 ```text
-      dom answer: 2 chars in 14.2s
+      dom answer: 544 chars in 5.2s
 ok    dom check
 ```
 

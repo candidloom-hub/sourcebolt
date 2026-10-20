@@ -22,7 +22,7 @@ sourcebolt is an MCP server. MCP (Model Context Protocol) is the standard way AI
 
 The assistant calls sourcebolt, sourcebolt talks to NotebookLM with your own Google session, and the answer comes back with citations from your sources.
 
-![sourcebolt answering a question from a NotebookLM notebook inside an AI assistant](docs/assets/demo.gif)
+<!-- Demo placeholder: add docs/assets/demo.gif (sourcebolt answering a question from a NotebookLM notebook inside an AI assistant) and show it here. -->
 
 ## Key numbers
 

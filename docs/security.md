@@ -38,7 +38,18 @@ PowerShell (same command on one line):
 cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json --certificate-identity "https://github.com/candidloom-hub/sourcebolt/.github/workflows/release.yml@refs/tags/v0.1.0" --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
-It prints `Verified OK` on success.
+It prints `Verified OK` on success. This exact command was run against the v0.1.0 `checksums.txt` and returned `Verified OK`.
+
+For a later release, change the tag in `--certificate-identity`, or accept any tag from this repository with the regular-expression form:
+
+```bash
+cosign verify-blob checksums.txt \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/candidloom-hub/sourcebolt/' \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+```
+
+In PowerShell, put the command on one line.
 
 **2. Check your archive against `checksums.txt`.**
 

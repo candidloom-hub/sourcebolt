@@ -20,7 +20,9 @@ All methods accept:
 - `--profile <name>` to keep several accounts apart (default: `$NOTEBOOKLM_PROFILE`, or `default`).
 - `--host <host>` for a different NotebookLM host.
 
-Before saving, `login` makes one real call (list notebooks) with the new cookies. If that fails, nothing is saved, and an existing working profile is kept.
+Before saving, `login` checks that these cookies are present: `SID`, `__Secure-1PSIDTS`, and either `OSID` or both `APISID` and `SAPISID`. Then it makes one real call (list notebooks) with the new cookies. If either step fails, nothing is saved, and an existing working profile is kept.
+
+If the existing profile's encryption key is gone (from both the keyring and the key file), that profile can never be read again; `login` replaces it and says so. Other unreadable profiles are left alone, and `login` tells you to run `sourcebolt logout --profile <name>` first.
 
 ## Attach flow in detail
 
@@ -80,10 +82,10 @@ Expected output: `Saved profile "default" for notebook.google.com (N notebooks v
 
 The [browser fallback](#browser-fallback) runs a headless browser on the folder `<config dir>/browser/<profile>` (for the default profile: `browser/default`). It can only help if that browser profile is signed in to Google. Two ways:
 
-- **Attach with that folder.** In step 1 above, use `browser\default` (or `browser/default`) instead of `browser\attach` as `--user-data-dir`. Sign in, attach, then **close the browser**: the headless fallback cannot open the folder while another browser uses it.
+- **Attach with that folder.** In step 1 above, use `browser\default` (or `browser/default`) instead of `browser\attach` as `--user-data-dir`. Sign in, attach, then **close the browser**: the headless fallback cannot open the folder while another browser uses it. This flow was tested live on 2026-10-20: `login --attach` on that folder, then `sourcebolt doctor --dom-check <notebook>` passed.
 - **`sourcebolt login --browser`.** This signs in the same folder, but Google may block it (see above).
 
-If you never sign in that folder, sourcebolt still works on the fast direct path; only the fallbacks are unavailable.
+If you never sign in that folder, sourcebolt still works on the fast direct path; only the fallbacks are unavailable. To check the fallback, run `sourcebolt doctor --dom-check "<notebook id or title>"` ([troubleshooting.md](troubleshooting.md#check-that-the-dom-fallback-works-before-you-need-it)).
 
 ## Docker
 
@@ -103,7 +105,7 @@ PowerShell:
 Get-Content cookies.txt -Raw | docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0 login --import -
 ```
 
-Export every `google.com` cookie, including the plain `SID` and `APISID` ones. Delete the cookie file afterwards.
+Export every `google.com` cookie, not only the `__Secure-` ones: `login` needs `SID`, `__Secure-1PSIDTS`, and `OSID` or `APISID` plus `SAPISID`. Delete the cookie file afterwards.
 
 ## Where data is stored
 
@@ -144,6 +146,7 @@ A candidate is a CSS selector, `text:<words>` (a visible button or menu item con
 ## Commands
 
 - `sourcebolt status` shows the config dir, the active profile and, for each saved profile, the host, last update, where the key lives and whether the required cookies are present.
+- `sourcebolt doctor --dom-check "<notebook>"` runs the checks below and also asks one short question through the page fallback.
 - `sourcebolt doctor` checks that the config dir is writable, that the OS keyring works (otherwise profiles use the key file), that the profile loads, that the cookies are complete, and does a token bootstrap against Google. It exits with code 1 if any check fails. Only the bootstrap uses the network, and only when a valid session exists.
 - `sourcebolt logout [--profile p]` deletes the encrypted profile and its key. It does **not** sign you out of Google. To end the session, sign out of Google in that browser or on your Google account's security page.
 
