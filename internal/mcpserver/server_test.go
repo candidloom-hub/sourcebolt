@@ -37,6 +37,9 @@ type stub struct {
 	block    bool
 	calls    []transport.Call
 	seenCtx  chan context.Context
+	// hook, when set, runs on every call after it is recorded (outside the
+	// lock); a non-nil error is returned as the call's result.
+	hook func(c transport.Call) error
 }
 
 func newStub() *stub {
@@ -52,8 +55,13 @@ func (s *stub) Supports(string) bool { return true }
 func (s *stub) Do(ctx context.Context, c transport.Call) (transport.Result, error) {
 	s.mu.Lock()
 	s.calls = append(s.calls, c)
-	p, err, block := s.payloads[c.ID], s.errs[c.ID], s.block
+	p, err, block, hook := s.payloads[c.ID], s.errs[c.ID], s.block, s.hook
 	s.mu.Unlock()
+	if hook != nil {
+		if herr := hook(c); herr != nil {
+			return transport.Result{}, herr
+		}
+	}
 	if block {
 		s.seenCtx <- ctx
 		<-ctx.Done()

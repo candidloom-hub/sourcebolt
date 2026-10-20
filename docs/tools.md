@@ -400,7 +400,7 @@ Annotations: title: Share status, readOnly: true, idempotent: true, openWorld: f
 
 Profiles: default, all.
 
-Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.
+Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. The link setting and the user changes are sent as two calls; if only one applies, status is partial and parts says which applied and which failed. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.
 
 Annotations: title: Update sharing, readOnly: false, destructive: true, idempotent: true, openWorld: true.
 

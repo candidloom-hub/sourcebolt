@@ -3,9 +3,12 @@ package nlm
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/candidloom-hub/sourcebolt/internal/transport"
 )
 
 // inlineFixture builds a synthetic fixture whose wrb.fr payload is payload.
@@ -61,7 +64,7 @@ func TestUpdateSharePublic(t *testing.T) {
 	fx := loadFixture(t, "QDyure", "public_link")
 	ft := newFake(fx)
 	pub := true
-	if err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &pub}); err != nil {
+	if _, err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &pub}); err != nil {
 		t.Fatal(err)
 	}
 	c, _ := ft.callFor("QDyure")
@@ -70,7 +73,7 @@ func TestUpdateSharePublic(t *testing.T) {
 	}
 	priv := false
 	ft = newFake(fx)
-	if err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &priv}); err != nil {
+	if _, err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &priv}); err != nil {
 		t.Fatal(err)
 	}
 	want := `[[["` + nb1 + `",null,[0],[0,""]]],1,null,[2]]`
@@ -82,7 +85,7 @@ func TestUpdateSharePublic(t *testing.T) {
 func TestUpdateShareUsers(t *testing.T) {
 	fx := loadFixture(t, "QDyure", "users")
 	ft := newFake(fx)
-	err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Users: []ShareChange{
+	_, err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Users: []ShareChange{
 		{Email: "a@example.com", Role: "editor"}, {Email: "b@example.com", Role: "viewer"},
 	}})
 	if err != nil {
@@ -92,7 +95,7 @@ func TestUpdateShareUsers(t *testing.T) {
 		t.Fatalf("params %s", p)
 	}
 	ft = newFake(fx)
-	err = New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Users: []ShareChange{{Email: "c@x.com", Role: "remove"}}, Notify: true, Message: "hi"})
+	_, err = New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Users: []ShareChange{{Email: "c@x.com", Role: "remove"}}, Notify: true, Message: "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +114,7 @@ func TestUpdateShareValidation(t *testing.T) {
 		{},
 	}
 	for i, u := range bad {
-		if err := c.UpdateShare(context.Background(), nb1, u); err == nil {
+		if _, err := c.UpdateShare(context.Background(), nb1, u); err == nil {
 			t.Fatalf("case %d must be rejected", i)
 		}
 	}
@@ -123,11 +126,34 @@ func TestUpdateShareValidation(t *testing.T) {
 func TestUpdateShareBothCalls(t *testing.T) {
 	ft := newFake(loadFixture(t, "QDyure", "users"))
 	pub := true
-	err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &pub, Users: []ShareChange{{Email: "a@x.com", Role: "viewer"}}})
+	_, err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &pub, Users: []ShareChange{{Email: "a@x.com", Role: "viewer"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(ft.calls) != 2 || !strings.Contains(mustJSON(ft.calls[0].Params), "[1]") {
 		t.Fatalf("calls = %d", len(ft.calls))
+	}
+}
+
+// The link call goes first; when the users call then fails, the result must
+// say the link change was applied and only the users part failed.
+func TestUpdateShareHalfApplied(t *testing.T) {
+	ft := newFake(loadFixture(t, "QDyure", "users"))
+	boom := &transport.Error{Kind: transport.KindPermission, RPC: "sharing.share"}
+	n := 0
+	ft.hook = func(_ context.Context, c transport.Call) error {
+		if n++; n == 2 {
+			return boom
+		}
+		return nil
+	}
+	pub := true
+	parts, err := New(ft).UpdateShare(context.Background(), nb1, ShareUpdate{Public: &pub, Users: []ShareChange{{Email: "a@x.com", Role: "viewer"}}})
+	if err != nil {
+		t.Fatalf("a half-applied update is not a call error: %v", err)
+	}
+	if len(parts) != 2 || parts[0].Part != "link" || parts[0].Status != "applied" || parts[0].Err != nil ||
+		parts[1].Part != "users" || parts[1].Status != "failed" || !errors.Is(parts[1].Err, boom) {
+		t.Fatalf("parts = %+v", parts)
 	}
 }

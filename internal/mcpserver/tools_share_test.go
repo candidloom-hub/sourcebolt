@@ -2,8 +2,73 @@ package mcpserver
 
 import (
 	"encoding/json/v2"
+	"strings"
+	"sync"
 	"testing"
+
+	"github.com/candidloom-hub/sourcebolt/internal/transport"
 )
+
+// failShareCall makes the nth QDyure call fail (1-based) and every other succeed.
+func failShareCall(st *stub, nth ...int) {
+	var mu sync.Mutex
+	n := 0
+	st.hook = func(c transport.Call) error {
+		if c.ID != "QDyure" {
+			return nil
+		}
+		mu.Lock()
+		n++
+		k := n
+		mu.Unlock()
+		for _, f := range nth {
+			if k == f {
+				return &transport.Error{Kind: transport.KindPermission, RPC: "sharing.share", Message: "share refused"}
+			}
+		}
+		return nil
+	}
+}
+
+// The link call applies and the users call fails: the result must name the
+// applied part and the failed one instead of hiding the partial change.
+func TestShareUpdateHalfApplied(t *testing.T) {
+	st := newStub()
+	st.payloads["QDyure"] = `[]`
+	failShareCall(st, 2)
+	cs := connect(t, st, "default")
+	res := call(t, cs, "share_update", map[string]any{"notebook": idA, "public": true,
+		"users": []map[string]any{{"email": "b@x.com", "role": "viewer"}}, "confirm": true})
+	if res.IsError {
+		t.Fatalf("half-applied update must not be an error envelope: %s", text(res))
+	}
+	var out ShareUpdateOut
+	if err := json.Unmarshal([]byte(text(res)), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != "partial" || len(out.Parts) != 2 || out.Guidance == "" {
+		t.Fatalf("out = %s", text(res))
+	}
+	link, users := out.Parts[0], out.Parts[1]
+	if link.Part != "link" || link.Status != "applied" || link.Error != "" || len(link.Changes) != 1 ||
+		users.Part != "users" || users.Status != "failed" || !strings.Contains(users.Error, "share refused") ||
+		len(users.Changes) != 1 || !strings.Contains(users.Changes[0], "b@x.com") {
+		t.Fatalf("parts = %s", text(res))
+	}
+}
+
+// When every part fails nothing changed, so the call is an error envelope.
+func TestShareUpdateAllFailed(t *testing.T) {
+	st := newStub()
+	st.payloads["QDyure"] = `[]`
+	failShareCall(st, 1, 2)
+	cs := connect(t, st, "default")
+	e := envelope(t, call(t, cs, "share_update", map[string]any{"notebook": idA, "public": true,
+		"users": []map[string]any{{"email": "b@x.com", "role": "viewer"}}, "confirm": true}))
+	if e.Code != "PERMISSION_DENIED" {
+		t.Fatalf("envelope = %+v", e)
+	}
+}
 
 const sharePayload = `[[["a@x.com",2,[],["Ann","u"]]],[true]]`
 
