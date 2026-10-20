@@ -11,7 +11,9 @@ import (
 // NewHTTPClient returns the one shared client: HTTP/2, kept-alive
 // connections and TLS session resumption, so only the first call pays for
 // DNS, TCP and TLS. Accept-Encoding is left to net/http (it decompresses
-// gzip transparently only when it set the header itself).
+// gzip transparently only when it set the header itself). There is no
+// ResponseHeaderTimeout: unary calls bound their header wait per request
+// (Options.HeaderTimeout) and the chat stream by StreamFirstChunk.
 func NewHTTPClient() *http.Client {
 	tr := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
@@ -21,7 +23,6 @@ func NewHTTPClient() *http.Client {
 		MaxIdleConnsPerHost:   16,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: time.Second,
 		TLSClientConfig:       &tls.Config{ClientSessionCache: tls.NewLRUClientSessionCache(64), MinVersion: tls.VersionTLS12},
 	}
