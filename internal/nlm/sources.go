@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
@@ -198,8 +199,11 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 // after the add RPC drifted before it was sent (an add that may have been
 // applied is never repeated). A spec the page may have added before failing
 // reports pending, one it never sent reports failed. Source ids of added
-// specs are read back from the notebook (best effort).
+// specs are read back from the notebook (best effort), only from rows that
+// were not there before: a source the notebook already had with the same
+// URL or title is not the new one. Without that snapshot ids stay empty.
 func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpec, keys []string) []AddOutcome {
+	old, snapErr := c.listRows(ctx, nb)
 	out := make([]AddOutcome, len(specs))
 	var added []int
 	for i, s := range specs {
@@ -227,7 +231,15 @@ func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpe
 	if c.OnTransport != nil {
 		c.OnTransport(DOMTransport)
 	}
+	if snapErr != nil {
+		return out
+	}
+	existed := make(map[string]bool, len(old))
+	for _, r := range old {
+		existed[r.ID] = true
+	}
 	if rows, err := c.listRows(ctx, nb); err == nil {
+		rows = slices.DeleteFunc(rows, func(r srcRow) bool { return existed[r.ID] })
 		addedKeys := make([]string, len(added))
 		for j, i := range added {
 			addedKeys[j] = keys[i]

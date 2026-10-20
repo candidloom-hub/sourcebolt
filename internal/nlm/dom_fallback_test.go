@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +24,8 @@ type fakeDOM struct {
 	n      int
 	// during runs inside Ask (tests check what is held there).
 	during func(ctx context.Context)
+	// onAdd runs inside every AddURL/AddText (tests change the listing).
+	onAdd func()
 }
 
 func (f *fakeDOM) Ask(ctx context.Context, nb, question string, progress func(string)) (string, error) {
@@ -41,6 +44,9 @@ func (f *fakeDOM) Ask(ctx context.Context, nb, question string, progress func(st
 
 func (f *fakeDOM) add(err error) error {
 	defer func() { f.n++ }()
+	if f.onAdd != nil {
+		f.onAdd()
+	}
 	if e := f.errFor[f.n]; e != nil {
 		return e
 	}
@@ -206,16 +212,33 @@ func TestAskDOMHoldsThreadLock(t *testing.T) {
 	}
 }
 
+// listing is an rLM1Ne fixture with the given source rows.
+func listing(t *testing.T, rows ...string) Fixture {
+	return synthFixture(t, "rLM1Ne", `[["T",[`+strings.Join(rows, ",")+`],"`+nb1+`"]]`)
+}
+
+// addFixtures lists one pre-existing source, sid-OLD, with the URL the
+// tests add again.
 func addFixtures(t *testing.T) *fakeTransport {
-	ft := newFake(synthFixture(t, "rLM1Ne", `[["T",[`+srcRowJSON("sid-A", "Page A", "https://example.com/a")+`,`+srcRowJSON("sid-N", "Notes", "")+`],"`+nb1+`"]]`))
-	return ft
+	return newFake(listing(t, srcRowJSON("sid-OLD", "Old page", "https://example.com/a")))
+}
+
+// growListing makes the DOM add put rows into the listing.
+func growListing(t *testing.T, ft *fakeTransport, rows ...string) func() {
+	all := append([]string{srcRowJSON("sid-OLD", "Old page", "https://example.com/a")}, rows...)
+	fx := listing(t, all...)
+	return func() {
+		ft.mu.Lock()
+		ft.fixtures["rLM1Ne"] = fx
+		ft.mu.Unlock()
+	}
 }
 
 func TestAddSourcesDOMOnDriftNotSent(t *testing.T) {
 	ft := addFixtures(t)
 	ft.errs["izAoDd"] = &transport.Error{Kind: transport.KindDrift, RPC: "sources.add"}
 	c := New(ft)
-	dom := &fakeDOM{}
+	dom := &fakeDOM{onAdd: growListing(t, ft, srcRowJSON("sid-A", "Page A", "https://example.com/a"), srcRowJSON("sid-N", "Notes", ""))}
 	c.DOM = dom
 	var names []string
 	c.OnTransport = func(n string) { names = append(names, n) }
@@ -238,6 +261,22 @@ func TestAddSourcesDOMOnDriftNotSent(t *testing.T) {
 	}
 	if !slices.Contains(names, DOMTransport) {
 		t.Fatalf("OnTransport = %q, want %q", names, DOMTransport)
+	}
+}
+
+// Finding 9: a source that existed before the add is never reported as
+// the new one; without a new row the id stays empty.
+func TestAddSourcesDOMIDsOnlyFromNewRows(t *testing.T) {
+	ft := addFixtures(t)
+	ft.errs["izAoDd"] = &transport.Error{Kind: transport.KindDrift, RPC: "sources.add"}
+	c := New(ft)
+	c.DOM = &fakeDOM{} // the listing does not change
+	out, err := c.AddSources(context.Background(), nb1, []SourceSpec{{URL: "https://example.com/a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []AddOutcome{{Index: 0, Status: AddAdded}}; !slices.Equal(out, want) {
+		t.Fatalf("out = %+v, want %+v (sid-OLD existed before)", out, want)
 	}
 }
 
