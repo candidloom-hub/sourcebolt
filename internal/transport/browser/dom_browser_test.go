@@ -4,10 +4,12 @@ package browser
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -159,4 +161,86 @@ func TestAskDOMPromoDialog(t *testing.T) {
 	if want := "Fixture answer to: past the promo [1]"; text != want {
 		t.Errorf("text = %q, want %q", text, want)
 	}
+}
+
+// sourcesPage reads the fixture's source rows and whether a dialog is open.
+func sourcesPage(t *testing.T, d *DOM) (rows []string, dialog bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	p, release, err := d.acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	raw, err := p.Eval(ctx, `({rows: Array.from(document.querySelectorAll(".single-source-container")).map((e) => e.textContent),
+		dialog: !!document.querySelector("mat-dialog-container")})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Rows   []string `json:"rows"`
+		Dialog bool     `json:"dialog"`
+	}
+	if err := json.Unmarshal(raw, &st); err != nil {
+		t.Fatal(err)
+	}
+	return st.Rows, st.Dialog
+}
+
+func wantSources(t *testing.T, d *DOM, want ...string) {
+	t.Helper()
+	rows, dialog := sourcesPage(t, d)
+	if want = append([]string{"Existing source"}, want...); !slices.Equal(rows, want) {
+		t.Errorf("rows = %q, want %q", rows, want)
+	}
+	if dialog {
+		t.Error("dialog still open")
+	}
+}
+
+func TestAddURLDOM(t *testing.T) {
+	d, _ := newFixtureDOM(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	if err := d.AddURL(ctx, "sources", "https://example.test/page"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Website: https://example.test/page")
+}
+
+func TestAddTextDOM(t *testing.T) {
+	d, _ := newFixtureDOM(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	if err := d.AddText(ctx, "sources", "My title", "pasted body"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Pasted text: pasted body")
+}
+
+func TestAddSourceMissingInsertIsDrift(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?noinsert=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	err := d.AddURL(ctx, "sources", "https://example.test/x")
+	te := wantKind(t, err, transport.KindDrift)
+	if !strings.Contains(te.Error(), `"sources.insert"`) {
+		t.Errorf("drift %q does not name sources.insert", te)
+	}
+	if te.Sent {
+		t.Error("Sent set although Insert was never clicked")
+	}
+}
+
+func TestAddSourceAddSourceParamFallback(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/sources?hideadd=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	if err := d.AddURL(ctx, "sources", "https://example.test/y"); err != nil {
+		t.Fatal(err)
+	}
+	wantSources(t, d, "Website: https://example.test/y")
 }

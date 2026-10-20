@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  Hand-written test fixture for the DOM add-source fallback. It mimics only
+  the structure the selector registry relies on (class names from the
+  research notes); it is not copied from any Google page.
+
+  Query parameters:
+    addSource=true  the add-source dialog opens on load
+    hideadd=1       the add button is hidden (unless addSource=true)
+    noinsert=1      the dialog has no Insert button
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sources fixture</title>
+<style>
+  body { font-family: sans-serif; }
+  mat-dialog-container { position: fixed; top: 20%; left: 20%; width: 60%; background: #fff; border: 1px solid #888; display: block; padding: 1em; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="source-panel">
+  <button class="add-source-button" aria-label="Add source"><mat-icon>add</mat-icon> Add</button>
+  <div id="rows">
+    <div class="single-source-container">Existing source</div>
+  </div>
+</div>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const rows = document.getElementById("rows");
+  const add = document.querySelector(".add-source-button");
+  const auto = q.get("addSource") === "true";
+  if (q.get("hideadd") === "1" && !auto) add.classList.add("hidden");
+
+  const openDialog = () => {
+    if (document.querySelector("mat-dialog-container")) return;
+    const d = document.createElement("mat-dialog-container");
+    d.setAttribute("role", "dialog");
+    d.innerHTML =
+      '<add-sources-dialog>' +
+      '<div class="types">' +
+      '<button class="type-link"><mat-icon>link</mat-icon> Website</button>' +
+      '<button class="type-text"><mat-icon>content_paste</mat-icon> Copied text</button>' +
+      '</div>' +
+      '<div class="entry"></div>' +
+      (q.get("noinsert") === "1" ? '' : '<button class="mdc-button--unelevated mat-primary">Insert</button>') +
+      '</add-sources-dialog>';
+    const entry = d.querySelector(".entry");
+    let field = null, kind = "";
+    d.querySelector(".type-link").addEventListener("click", () => {
+      entry.innerHTML = '<input type="url" placeholder="Paste URL">';
+      field = entry.firstChild;
+      kind = "url";
+    });
+    d.querySelector(".type-text").addEventListener("click", () => {
+      entry.innerHTML = '<textarea placeholder="Paste text here"></textarea>';
+      field = entry.firstChild;
+      kind = "text";
+    });
+    const insert = d.querySelector(".mat-primary");
+    if (insert) insert.addEventListener("click", () => {
+      if (!field || !field.value) return;
+      const value = field.value;
+      // Close the dialog, then show the new source row a little later.
+      setTimeout(() => d.remove(), 200);
+      setTimeout(() => {
+        const r = document.createElement("div");
+        r.className = "single-source-container";
+        r.textContent = (kind === "url" ? "Website: " : "Pasted text: ") + value;
+        rows.appendChild(r);
+      }, 500);
+    });
+    document.body.appendChild(d);
+  };
+  add.addEventListener("click", openDialog);
+  if (auto) openDialog();
+})();
+</script>
+</body>
+</html>
