@@ -9,7 +9,7 @@ Nothing has been published. Publishing is an owner step (see the end of this pag
 The registry checks that every listed package exists and belongs to this server. Today only the GHCR image does:
 
 - `ghcr.io/candidloom-hub/sourcebolt:0.2.0` carries the label `io.modelcontextprotocol.server.name=io.github.candidloom-hub/sourcebolt` (set in `.goreleaser.yaml`).
-- The npm package `sourcebolt` and the PyPI package `sourcebolt` are built by the release workflow but not published, so listing them would fail the check.
+- The npm package `sourcebolt` is published (0.2.0) and listed in `server.json`. The PyPI package is built by the release workflow but not published yet, so listing it would fail the check.
 
 The image entry passes `--mount type=volume,src=sourcebolt-config,dst=/config` so the encrypted sign-in profile survives between runs.
 
@@ -17,7 +17,7 @@ The image entry passes `--mount type=volume,src=sourcebolt-config,dst=/config` s
 
 Bump the top-level `version`, then add the blocks below to `packages`. Each block is checked by `go test ./tools/distcheck` (it is added to the current `server.json` and validated), so keep them valid when you edit them.
 
-### npm (after the npm packages are published)
+### npm (published; already in `server.json`)
 
 Ownership check: `mcpName` in `npm/launcher/package.json` must equal the server name (it does).
 

@@ -11,7 +11,7 @@ Two ways to run sourcebolt:
   docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.2.0 login --import - < cookies.txt
   ```
 
-npm (`npx sourcebolt`) and PyPI (`uvx sourcebolt`) links are not offered because those packages are not published yet.
+The npm package is published: with Node.js 18+, any app can run sourcebolt as command `npx`, args `["-y", "sourcebolt", "serve"]` instead of the binary. PyPI (`uvx sourcebolt`) is not published yet.
 
 ## Notes on the links
 
