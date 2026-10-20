@@ -33,6 +33,7 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
 	"github.com/candidloom-hub/sourcebolt/internal/mcpserver"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/runtimecfg"
 	"github.com/candidloom-hub/sourcebolt/internal/session"
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
 	"github.com/candidloom-hub/sourcebolt/internal/wire"
@@ -182,6 +183,7 @@ func measure(runs int) ([]time.Duration, error) {
 	jar.Add(session.Cookie{Name: "SID", Value: "bench", Domain: "127.0.0.1", Path: "/"})
 	p := &session.Profile{Name: "bench", Host: session.Host(srv.Listener.Addr().String()), Jar: jar}
 	tr := rpc.New(rpc.Options{Profile: p, HTTP: srv.Client(), Limiter: rate.NewLimiter(rate.Inf, 1)})
+	defer runtimecfg.Apply()() // as the served binary
 	ms := mcpserver.New(mcpserver.Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: "bench", Host: p.Host}, "default")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
