@@ -34,8 +34,8 @@ func (e *envelopeError) Error() string {
 }
 
 var guidance = map[transport.Kind]string{
-	transport.KindAuth:          "The Google session is missing or expired. Run: sourcebolt login --import <cookies file>",
-	transport.KindCookieBinding: "Google rejected the cookies for this client. Sign in again with: sourcebolt login --import <fresh cookies file>",
+	transport.KindAuth:          "The Google session is missing or expired. Run: sourcebolt login (it opens a browser to sign in), or import cookies with: sourcebolt login --import <cookies file>",
+	transport.KindCookieBinding: "Google rejected the cookies for this client. Run: sourcebolt login to sign in again, or import fresh cookies with: sourcebolt login --import <cookies file>",
 	transport.KindDrift:         "NotebookLM changed its web API. Update sourcebolt, or override RPC ids with NOTEBOOKLM_RPC_IDS.",
 	transport.KindTransport:     "Network or Google server error. Retry shortly.",
 	transport.KindRateLimited:   "Google is rate limiting this account. Wait before retrying.",

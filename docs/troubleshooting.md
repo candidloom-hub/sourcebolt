@@ -34,7 +34,7 @@ Every failed tool call returns a JSON error like this:
   "error": "AUTH_REQUIRED: wXbhsf: session: signed out (signed-out page)",
   "code": "AUTH_REQUIRED",
   "retriable": false,
-  "guidance": "The Google session is missing or expired. Run: sourcebolt login --import <cookies file>",
+  "guidance": "The Google session is missing or expired. Run: sourcebolt login (it opens a browser to sign in), or import cookies with: sourcebolt login --import <cookies file>",
   "transport": "rpc"
 }
 ```
@@ -54,14 +54,16 @@ Google no longer accepts the saved session. Google rotates and expires sessions,
 Fix: sign in again with `sourcebolt login` ([auth.md](auth.md)), then retry.
 
 ```bash
-sourcebolt login --attach http://127.0.0.1:9222
+sourcebolt login
 ```
+
+If that window will not let you sign in, use `sourcebolt login --attach http://127.0.0.1:9222` or `sourcebolt login --import <cookies file>` ([auth.md](auth.md)).
 
 You also see this code when NotebookLM redirects to a Google sign-in page, or when the browser fallback lands on a sign-in page.
 
 ### `COOKIE_BINDING`
 
-Google rejected the cookies for this client, usually because they were copied from a different browser session than the one they are tied to. Sign in again with fresh cookies, preferably with `login --attach`.
+Google rejected the cookies for this client, usually because they were copied from a different browser session than the one they are tied to. Sign in again with `sourcebolt login`, or import fresh cookies with `sourcebolt login --import <cookies file>`.
 
 ### `error: missing required cookies: ...` (cookie import)
 
