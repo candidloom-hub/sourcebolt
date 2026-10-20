@@ -7,6 +7,29 @@
 
 **Let your AI assistant use your Google NotebookLM notebooks: one small, fast program, nothing else to install.**
 
+## Install in 2 minutes
+
+| You want to... | Go here |
+|---|---|
+| Run one command that installs and connects everything | The two commands below |
+| Follow pictures for your AI app (Claude, Cursor, VS Code, Windsurf, Gemini CLI, ChatGPT) | [Step-by-step guides](docs/guides/index.md) |
+| Let your AI app install it for you | [Let your AI install it](docs/install-with-ai.md) |
+| Use npm, Docker or a manual setup (developers) | [Install](#install) and [Connect your AI app](docs/clients.md) |
+
+**Windows** (open PowerShell, paste, press Enter):
+
+```powershell
+irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1 | iex
+```
+
+**macOS and Linux** (open Terminal, paste, press Enter):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh
+```
+
+The installer checks the download, installs sourcebolt for your user only, and then offers `sourcebolt setup`. Setup finds your AI apps, connects the ones you pick (keeping a backup of their settings), and opens a browser window so you can sign in to Google. Your password goes only to Google.
+
 [Quick start](#quick-start) · [Install](#install) · [Connect your app](#connect-your-ai-app) · [Tools](#what-your-assistant-can-do) · [FAQ](#faq) · [Docs](docs/index.md)
 
 > **Independent project.** sourcebolt is not made by, endorsed by or sponsored by Google. "NotebookLM" is a trademark of Google LLC. NotebookLM has no public API for personal accounts, so sourcebolt uses the same internal web calls the NotebookLM website makes. Read [Limits and risk](#limits-and-risk) before you rely on it.
@@ -203,6 +226,7 @@ More answers: [docs/faq.md](docs/faq.md). Something broken? [docs/troubleshootin
 
 Start at [docs/index.md](docs/index.md). Highlights:
 
+- [Step-by-step guides per app](docs/guides/index.md) · [Let your AI install it](docs/install-with-ai.md)
 - [Getting started](docs/getting-started.md) · [Connect your AI app](docs/clients.md) · [Troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
 - [Tool reference](docs/tools.md) · [Sign-in and storage](docs/auth.md) · [Security](docs/security.md) · [Privacy](docs/privacy.md) · [Performance](docs/performance.md)
 - [One-click install links](docs/install-links.md) · [Registries and directories](docs/registry.md)
