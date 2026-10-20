@@ -51,9 +51,11 @@ jobs:
         with:
           go-version-file: go.mod
       - name: allow the Chrome sandbox
-        # Ubuntu 24.04 restricts unprivileged user namespaces, which the
-        # Chrome sandbox needs; this runner is throwaway.
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+        # For GitHub-hosted ephemeral runners only: Ubuntu 24.04 restricts
+        # unprivileged user namespaces, which the Chrome sandbox needs, and
+        # the VM is discarded after the job. Do not copy this to a
+        # self-hosted runner. A failure here fails the job visibly.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: DOM fallback tests
         env:
           NOTEBOOKLM_BROWSER_FALLBACK: "0"
