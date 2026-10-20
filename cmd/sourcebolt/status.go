@@ -66,7 +66,13 @@ func cmdStatus(stdout, stderr io.Writer) int {
 	return 0
 }
 
-func cmdDoctor(ctx context.Context, stdout, stderr io.Writer) int {
+func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	domNB := fs.String("dom-check", "", "ask one question in this notebook through the browser (DOM) fallback")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 	cfg, err := app.ConfigFromEnv()
 	if err != nil {
 		return fail(stderr, err)
@@ -113,9 +119,33 @@ func cmdDoctor(ctx context.Context, stdout, stderr io.Writer) int {
 			check(fmt.Sprintf("token bootstrap %s (%v)", rt.Profile.Host, time.Since(start).Round(time.Millisecond)), err)
 		}
 	}
+	if *domNB != "" {
+		check("dom check", domCheck(ctx, rt, *domNB, stdout))
+	}
+	if rt != nil {
+		rt.Close()
+	}
 	fmt.Fprintf(stdout, "profiles dir: %s\n", filepath.Join(cfg.ConfigDir, "profiles"))
 	if failed {
 		return 1
 	}
 	return 0
+}
+
+// domCheck asks one short question in nb by driving the signed-in page
+// (the DOM fallback that normally runs only after an RPC drift), so a user
+// can confirm the fallback works on this machine before they need it.
+func domCheck(ctx context.Context, rt *app.Runtime, nb string, stdout io.Writer) error {
+	if rt == nil || rt.Deps.NLM == nil || rt.Deps.NLM.DOM == nil {
+		return errors.New("the browser fallback is disabled (NOTEBOOKLM_BROWSER_FALLBACK=0 or --no-browser-fallback)")
+	}
+	dctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+	defer cancel()
+	start := time.Now()
+	answer, err := rt.Deps.NLM.DOM.Ask(dctx, nb, "Reply with the single word OK.", nil)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "      dom answer: %d chars in %v\n", len(answer), time.Since(start).Round(time.Millisecond))
+	return nil
 }
