@@ -25,11 +25,20 @@ type StudioListOut struct {
 }
 
 type StudioGenerateIn struct {
-	Notebook     string   `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
-	Kind         string   `json:"kind" jsonschema:"audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report"`
-	Sources      []string `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources"`
-	Instructions string   `json:"instructions,omitempty" jsonschema:"focus or style instructions"`
-	Language     string   `json:"language,omitempty" jsonschema:"output language code"`
+	Notebook     string             `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
+	Kind         string             `json:"kind" jsonschema:"audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report"`
+	Sources      []string           `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources"`
+	Instructions string             `json:"instructions,omitempty" jsonschema:"focus or style instructions; for flashcards the topic (required)"`
+	Language     string             `json:"language,omitempty" jsonschema:"output language code (default en)"`
+	Flashcards   *FlashcardsOptions `json:"flashcards,omitempty" jsonschema:"options for kind flashcards"`
+}
+
+// FlashcardsOptions are the flashcards choices of the Studio dialog. Only
+// the values pinned by live capture are accepted; the others return
+// UNSUPPORTED_BY_TRANSPORT.
+type FlashcardsOptions struct {
+	Quantity   string `json:"quantity,omitempty" jsonschema:"number of cards: fewer (default; standard and more are not available yet)"`
+	Difficulty string `json:"difficulty,omitempty" jsonschema:"hard (default; easy and medium are not available yet)"`
 }
 
 var studioKinds = map[string]nlm.StudioKind{
@@ -48,7 +57,7 @@ func (s *server) registerStudio(m *mcp.Server) {
 
 	register(s, m, "core", &mcp.Tool{
 		Name:        "studio_generate",
-		Description: "Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Generation itself is not available yet (the request payload still needs a live capture) and currently returns UNSUPPORTED_BY_TRANSPORT after the quota check.",
+		Description: "Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.",
 		Annotations: writeAnn("Generate studio artifact", false, false, false),
 	}, s.studioGenerate)
 }
@@ -117,6 +126,9 @@ func (s *server) studioGenerate(ctx context.Context, in StudioGenerateIn) (nlm.A
 		slices.Sort(keys)
 		return nlm.Artifact{}, badInput("kind must be one of %v, got %q", keys, in.Kind)
 	}
+	if in.Flashcards != nil && kind != nlm.StudioFlashcards {
+		return nlm.Artifact{}, badInput("flashcards options apply to kind flashcards only, got kind %q", in.Kind)
+	}
 	nb, err := s.resolveNotebook(ctx, in.Notebook)
 	if err != nil {
 		return nlm.Artifact{}, err
@@ -138,7 +150,11 @@ func (s *server) studioGenerate(ctx context.Context, in StudioGenerateIn) (nlm.A
 	if err != nil {
 		return nlm.Artifact{}, err
 	}
-	a, err := s.NLM.Generate(ctx, nb, nlm.StudioRequest{Kind: kind, SourceIDs: ids, Instructions: in.Instructions, Language: in.Language})
+	req := nlm.StudioRequest{Kind: kind, SourceIDs: ids, Instructions: in.Instructions, Language: in.Language}
+	if in.Flashcards != nil {
+		req.Quantity, req.Difficulty = in.Flashcards.Quantity, in.Flashcards.Difficulty
+	}
+	a, err := s.NLM.Generate(ctx, nb, req)
 	s.invalidateNotebook(nb)
 	return a, err
 }
