@@ -2,7 +2,7 @@
 
 Status: draft for the owner. **Nothing in this plan has been posted, submitted or published.** Every step that puts something in public, on a third-party site, or under the owner's name is marked **[owner approval]** and waits for an explicit go.
 
-Sources for directory rules: `research/marketplaces.md` (branch `docs/marketplaces-research`, checked 2026-10-20) and the pages linked below. Subreddit rules could not be read: Reddit blocks unauthenticated access, so each Reddit row says "read the rules first" instead of quoting them.
+Sources for directory rules: [research/marketplaces.md](../research/marketplaces.md) (checked 2026-10-20) and the pages linked below. Subreddit rules could not be read: Reddit blocks unauthenticated access, so each Reddit row says "read the rules first" instead of quoting them.
 
 ## What we can honestly say
 

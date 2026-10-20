@@ -74,4 +74,4 @@ mcp-publisher login github     # as the candidloom-hub account
 mcp-publisher publish          # from the repository root
 ```
 
-The registry is in preview and says data may be reset before general availability. Downstream directories (the GitHub MCP registry and VS Code's `@mcp` gallery, later PulseMCP) read from it; see `research/marketplaces.md` on the `docs/marketplaces-research` branch.
+The registry is in preview and says data may be reset before general availability. Downstream directories (the GitHub MCP registry and VS Code's `@mcp` gallery, later PulseMCP) read from it; see [research/marketplaces.md](../research/marketplaces.md).
