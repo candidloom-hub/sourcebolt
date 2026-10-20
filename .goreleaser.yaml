@@ -169,9 +169,11 @@ scoops:
       branch: main
       token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
 
-# winget: opens a PR from the candidloom-hub/winget-pkgs fork to microsoft/winget-pkgs. Off until
-# WINGET_PKGS_TOKEN exists (a PAT that can push to the fork and open PRs); the owner approves
-# winget submissions. The hand-written v0.2.0 manifests live in packaging/winget/.
+# winget: would open a PR from the candidloom-hub/winget-pkgs fork to microsoft/winget-pkgs.
+# Upload is OFF (skip_upload: true) even when WINGET_PKGS_TOKEN is set: a PR to a public
+# Microsoft repo is a submission, and the owner approves each winget submission by hand. The
+# manifests are still generated into dist/ for review. The hand-written v0.2.0 manifests live
+# in packaging/winget/.
 winget:
   - name: sourcebolt
     ids: [default]
@@ -191,7 +193,7 @@ winget:
     tags: [mcp, notebooklm, cli, ai]
     path: "manifests/c/candidloom-hub/sourcebolt/{{ .Version }}"
     commit_msg_template: "New version: {{ .PackageIdentifier }} {{ .Version }}"
-    skip_upload: '{{ if isEnvSet "WINGET_PKGS_TOKEN" }}auto{{ else }}true{{ end }}'
+    skip_upload: true
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

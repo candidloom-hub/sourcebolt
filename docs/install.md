@@ -30,7 +30,7 @@ You should see something like:
 ```text
 Installing sourcebolt v0.2.0 for windows/amd64
   - downloading sourcebolt_0.2.0_windows_amd64.zip
-  - cosign not installed: signature check skipped (the SHA-256 check below still runs)
+  - cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.
   - SHA-256 checksum verified
   - installed C:\Users\you\AppData\Local\Programs\sourcebolt\sourcebolt.exe
 
@@ -63,7 +63,7 @@ You should see something like this (macOS with zsh):
 ```text
 Installing sourcebolt v0.2.0 for darwin/arm64
   - downloading sourcebolt_0.2.0_darwin_arm64.tar.gz
-  - cosign not installed: signature check skipped (the SHA-256 check below still runs)
+  - cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.
   - SHA-256 checksum verified
   - installed /Users/you/.local/bin/sourcebolt
 

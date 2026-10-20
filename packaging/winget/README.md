@@ -34,6 +34,6 @@ wingetcreate submit --prtitle "New package: candidloom-hub.sourcebolt version 0.
 
 ## Later versions
 
-`.goreleaser.yaml` has a `winget` section that writes the same three files for every release into `dist/winget/`. It opens a draft pull request from the `candidloom-hub/winget-pkgs` fork automatically only when the release workflow has a `WINGET_PKGS_TOKEN` secret (a token that can push to that fork and open pull requests on microsoft/winget-pkgs). Without that secret the upload is skipped and the release still succeeds. After the first version is merged, `wingetcreate update candidloom-hub.sourcebolt --version <new> --urls <x64 zip> <arm64 zip> --submit` is the manual alternative.
+`.goreleaser.yaml` has a `winget` section that writes the same three files for every release into `dist/winget/`. Its upload is off (`skip_upload: true`), so a release never opens a pull request on microsoft/winget-pkgs, even when a `WINGET_PKGS_TOKEN` secret exists. Each winget submission is made by hand after the owner approves it: open a pull request with the generated files, or, after the first version is merged, run `wingetcreate update candidloom-hub.sourcebolt --version <new> --urls <x64 zip> <arm64 zip> --submit`.
 
 The GitHub release is created as a draft. Submit or let the bot open the pull request only after the draft is published, because winget's validation downloads the zip from the release URL.

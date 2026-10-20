@@ -65,21 +65,21 @@ jobs:
 
       # Tag push: full release.
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: anchore/sbom-action/download-syft@v0
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - if: steps.mode.outputs.is_tag == 'true' && github.event_name == 'push'
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -96,14 +96,14 @@ jobs:
       # workflow_dispatch from a tag: real version in the binaries, but nothing is published
       # or signed here (npm/PyPI jobs below publish only if their input is true).
       - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag == 'true'
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean --skip=publish,sign,docker,sbom
       # workflow_dispatch from a branch: snapshot build, nothing published or signed.
       - if: github.event_name == 'workflow_dispatch' && steps.mode.outputs.is_tag != 'true'
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -194,6 +194,6 @@ jobs:
           python -m twine check dist/wheels/*.whl
       - name: Publish to PyPI (trusted publishing)
         if: inputs.publish_pypi && startsWith(github.ref, 'refs/tags/v')
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist/wheels

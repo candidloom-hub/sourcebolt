@@ -117,7 +117,7 @@ jobs:
         run: sh scripts/test-installers.sh
       - name: install cosign (exercises the signature check)
         if: runner.os == 'Linux'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
       - name: install the published v0.2.0 into a temp prefix
         run: |
           sh install.sh --version v0.2.0 --dir "$RUNNER_TEMP/sb" --no-setup --no-modify-path | tee "$RUNNER_TEMP/out.txt"
