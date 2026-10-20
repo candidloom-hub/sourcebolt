@@ -53,14 +53,14 @@ Batch tools (`chat_ask_many`) appear only when the server runs with `--tools all
 
 ## Safety rules
 
-- `delete` previews unless `confirm: true`. Show the preview to the user and get a clear yes before confirming. Only notebooks can be deleted today.
+- `delete` previews unless `confirm: true`. Show the preview to the user and get a clear yes before confirming. Notebooks, sources, notes and chat history can be deleted today.
 - `share_update` previews when it widens access or removes people. Same rule.
 - Never put cookies, tokens or file contents with secrets into `source_add` text.
 - Quota or rate-limit errors come from Google. Report them; do not loop retrying.
 
 ## Not available yet
 
-`studio_generate` (returns `UNSUPPORTED_BY_TRANSPORT` after a quota check), Drive and file sources, deleting anything except notebooks, source refresh and guide, `suggest` followups, label create and auto-label, research `discover` mode. Say so instead of retrying.
+`studio_generate` for anything but flashcards with quantity fewer and difficulty hard (returns `UNSUPPORTED_BY_TRANSPORT` after a quota check), Drive and file sources, deleting artifacts, labels and collections, source refresh, saving a chat turn as a note, `suggest` followups, label create and auto-label, research `discover` mode. Say so instead of retrying.
 
 ## Errors
 
