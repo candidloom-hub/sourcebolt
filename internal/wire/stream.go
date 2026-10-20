@@ -347,7 +347,10 @@ func citations(markers, passages [][]byte) []Citation {
 			idxs = idxs[:maxCitationRange]
 		}
 		for _, raw := range idxs {
-			idx := rawInt(raw) // 0 for a non-number
+			idx, ok := passageIndex(raw)
+			if !ok {
+				continue
+			}
 			c := Citation{N: idx + 1, Start: start, End: end}
 			if idx < len(passages) {
 				c.SourceID = Str(passages[idx], 1, 5, 0, 0, 0)
@@ -357,6 +360,22 @@ func citations(markers, passages [][]byte) []Citation {
 		}
 	}
 	return out
+}
+
+// passageIndex parses one marker index: a whole number from 0 to 2^31.
+// Anything else (negative, fractional, not a number) is rejected so that it
+// is skipped, not read as passage 0. JSON null would unmarshal to 0, so
+// only a number literal is accepted.
+func passageIndex(v []byte) (int, bool) {
+	v = bytes.TrimSpace(v)
+	if len(v) == 0 || (v[0] != '-' && (v[0] < '0' || v[0] > '9')) {
+		return 0, false
+	}
+	var f float64
+	if json.Unmarshal(v, &f) != nil || f < 0 || f > 1<<31 || f != float64(int(f)) {
+		return 0, false
+	}
+	return int(f), true
 }
 
 func rawString(v []byte) string {

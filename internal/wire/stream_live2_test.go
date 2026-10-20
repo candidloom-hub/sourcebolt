@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+// Review item 3: an index that is negative, fractional or not a number is
+// skipped, never read as passage 0.
+func TestCitationsSkipBadIndices(t *testing.T) {
+	marker := []byte(`[[null,1,2],[-1,"x",null,1.5,true,[0],2]]`)
+	got := citations([][]byte{marker}, nil)
+	if len(got) != 1 || got[0].N != 3 {
+		t.Fatalf("citations = %+v, want only N=3", got)
+	}
+}
+
 // A hostile marker cannot expand into more than maxCitationRange citations.
 func TestCitationsIndexCap(t *testing.T) {
 	idx := make([]int, 3000)
