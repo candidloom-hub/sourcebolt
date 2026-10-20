@@ -279,13 +279,13 @@ Annotations: title: Create notebook, readOnly: false, destructive: false, idempo
 
 Profiles: minimal, default, all.
 
-List NotebookLM notebooks with id, title, source count and ownership. Filter by title and scope. Cached 30 s.
+List NotebookLM notebooks with id, title, source count and ownership. Filter by title and scope. Returns 20 by default; has_more says whether to page with offset. Cached 30 s.
 
 Annotations: title: List notebooks, readOnly: true, idempotent: true, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `limit` | integer | no | max notebooks to return (default 20) |
+| `limit` | integer | no | max notebooks to return (default 20; page with offset) |
 | `offset` | integer | no | skip this many notebooks |
 | `query` | string | no | case-insensitive filter on notebook titles |
 | `refresh` | boolean | no | bypass the 30 s cache |

@@ -18,7 +18,7 @@ const (
 type NotebookListIn struct {
 	Query   string `json:"query,omitempty" jsonschema:"case-insensitive filter on notebook titles"`
 	Scope   string `json:"scope,omitempty" jsonschema:"mine, shared or all (default all)"`
-	Limit   int    `json:"limit,omitempty" jsonschema:"max notebooks to return (default 20)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"max notebooks to return (default 20; page with offset)"`
 	Offset  int    `json:"offset,omitempty" jsonschema:"skip this many notebooks"`
 	Refresh bool   `json:"refresh,omitempty" jsonschema:"bypass the 30 s cache"`
 }
@@ -26,6 +26,8 @@ type NotebookListIn struct {
 type NotebookListOut struct {
 	Notebooks []nlm.Notebook `json:"notebooks"`
 	Total     int            `json:"total"`
+	// HasMore is set when notebooks after this page match too.
+	HasMore bool `json:"has_more"`
 }
 
 type NotebookOpenIn struct {
@@ -35,7 +37,7 @@ type NotebookOpenIn struct {
 func (s *server) registerNotebooks(m *mcp.Server) {
 	register(s, m, "core", &mcp.Tool{
 		Name:        "notebook_list",
-		Description: "List NotebookLM notebooks with id, title, source count and ownership. Filter by title and scope. Cached 30 s.",
+		Description: "List NotebookLM notebooks with id, title, source count and ownership. Filter by title and scope. Returns 20 by default; has_more says whether to page with offset. Cached 30 s.",
 		Annotations: readOnly("List notebooks"),
 	}, s.notebookList)
 
@@ -87,7 +89,7 @@ func (s *server) notebookList(ctx context.Context, in NotebookListIn) (NotebookL
 	}
 	start := min(max(in.Offset, 0), len(matched))
 	end := min(start+limit, len(matched))
-	return NotebookListOut{Notebooks: matched[start:end], Total: len(matched)}, nil
+	return NotebookListOut{Notebooks: matched[start:end], Total: len(matched), HasMore: end < len(matched)}, nil
 }
 
 // resolveNotebook turns an id, prefix or title into a notebook id using

@@ -21,15 +21,19 @@ func TestNotebookListDefaultPage(t *testing.T) {
 		}
 	}
 	page(nil)
-	if len(out.Notebooks) != 20 || out.Total != 30 {
-		t.Fatalf("default page: %d notebooks, total %d; want 20 of 30", len(out.Notebooks), out.Total)
+	if len(out.Notebooks) != 20 || out.Total != 30 || !out.HasMore {
+		t.Fatalf("default page: %d notebooks, total %d, has_more %v; want 20 of 30, more", len(out.Notebooks), out.Total, out.HasMore)
 	}
 	page(map[string]any{"offset": 20})
-	if len(out.Notebooks) != 10 || out.Total != 30 || out.Notebooks[0].ID != "00000000-0000-4000-8000-000000000021" {
-		t.Fatalf("second page: %d notebooks, total %d, first %+v", len(out.Notebooks), out.Total, out.Notebooks)
+	if len(out.Notebooks) != 10 || out.Total != 30 || out.HasMore || out.Notebooks[0].ID != "00000000-0000-4000-8000-000000000021" {
+		t.Fatalf("second page: %d notebooks, total %d, has_more %v, first %+v", len(out.Notebooks), out.Total, out.HasMore, out.Notebooks)
 	}
 	page(map[string]any{"limit": 50})
-	if len(out.Notebooks) != 30 {
-		t.Fatalf("limit 50: %d notebooks, want 30", len(out.Notebooks))
+	if len(out.Notebooks) != 30 || out.HasMore {
+		t.Fatalf("limit 50: %d notebooks, has_more %v; want 30, none more", len(out.Notebooks), out.HasMore)
+	}
+	page(map[string]any{"offset": 40})
+	if len(out.Notebooks) != 0 || out.HasMore {
+		t.Fatalf("past the end: %d notebooks, has_more %v", len(out.Notebooks), out.HasMore)
 	}
 }
