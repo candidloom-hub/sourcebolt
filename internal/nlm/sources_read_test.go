@@ -3,6 +3,7 @@ package nlm
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -22,7 +23,7 @@ func TestSourceTextShapes(t *testing.T) {
 		want     string
 	}{
 		{"text", "synthetic_text", false, `[["` + readSID + `"],[2],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`, "text-1\ntext-2"},
-		{"markdown", "synthetic_markdown", true, `[["` + readSID + `"],[3],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`, "# text-1"},
+		{"markdown", "synthetic_markdown", true, `[["` + readSID + `"],[3],[3]]`, "# text-1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,11 +57,25 @@ func TestSourceTextFallsBackToHTML(t *testing.T) {
 	}
 }
 
-func TestSourceTextEmpty(t *testing.T) {
-	ft := newFake(synthFixture(t, "hizoJc", `[[["`+readSID+`"],"title-1"]]`))
-	got, err := New(ft).SourceText(context.Background(), readNB, readSID, false)
-	if err != nil || got != "" {
-		t.Fatalf("got %q, %v", got, err)
+// Review item 6: no text blocks (and no HTML) is drift naming hizoJc and
+// the mode, never an empty text.
+func TestSourceTextEmptyIsDrift(t *testing.T) {
+	for _, payload := range []string{
+		`[[["` + readSID + `"],"title-1"]]`,
+		`[[["` + readSID + `"],"title-1"],null,null,[[]]]`,
+	} {
+		for _, md := range []bool{false, true} {
+			ft := newFake(synthFixture(t, "hizoJc", payload))
+			got, err := New(ft).SourceText(context.Background(), readNB, readSID, md)
+			var te *transport.Error
+			mode := "2"
+			if md {
+				mode = "3"
+			}
+			if !errors.As(err, &te) || te.Kind != transport.KindDrift || !strings.Contains(te.Message, "hizoJc") || !strings.Contains(te.Message, "mode "+mode) || got != "" {
+				t.Fatalf("%s markdown=%v: got %q, %v", payload, md, got, err)
+			}
+		}
 	}
 }
 

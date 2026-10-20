@@ -3,6 +3,7 @@ package nlm
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -12,13 +13,13 @@ import (
 // SourceText returns a source's full extracted text (markdown selects the
 // markdown variant). Paging is the caller's concern.
 //
-// Request [[sid],[mode],HDR]: mode 2 (text) is pinned by live capture #2
-// (2026-10-20, hizoJc); mode 3 (markdown) is catalog-only, and the catalog's
-// third element [mode] was the HDR block. Response: [0]=[[sid],title,meta],
+// Request: see sourceLoadParams (mode 2 pinned by live capture #2
+// (2026-10-20, hizoJc); mode 3 catalog-only).
+// Response: [0]=[[sid],title,meta],
 // text blocks at [3][0][0] (live #2; the catalog said [3][0]), HTML at
 // [4][1] (catalog only). Each block's leaf strings are
 // joined, blocks are separated by a newline; when there are no blocks the
-// HTML string is returned instead.
+// HTML string is returned instead; neither is KindDrift.
 func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) (string, error) {
 	if err := needSID(sid, "sources.load"); err != nil {
 		return "", err
@@ -42,15 +43,25 @@ func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) 
 	if len(blocks) > 0 {
 		return strings.Join(blocks, "\n"), nil
 	}
-	return root.At(4, 1).Str(), nil
-}
-
-func sourceLoadParams(sid string, markdown bool) []any {
+	if html := root.At(4, 1).Str(); html != "" {
+		return html, nil
+	}
 	mode := 2
 	if markdown {
 		mode = 3
 	}
-	return []any{[]any{sid}, []any{mode}, requestOptions()}
+	return "", &transport.Error{Kind: transport.KindDrift, RPC: "sources.load",
+		Message: fmt.Sprintf("hizoJc mode %d answered no text blocks at [3][0][0] and no HTML", mode)}
+}
+
+// sourceLoadParams: mode 2 (text) is [[sid],[2],HDR], pinned by live
+// capture #2. Mode 3 (markdown) was not captured and keeps the catalog
+// shape [[sid],[3],[3]].
+func sourceLoadParams(sid string, markdown bool) []any {
+	if markdown {
+		return []any{[]any{sid}, []any{3}, []any{3}}
+	}
+	return []any{[]any{sid}, []any{2}, requestOptions()}
 }
 
 // leafText concatenates every string leaf under n, depth first.
