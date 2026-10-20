@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-21. v0.3.1 is released (GitHub, GHCR, Homebrew tap, Scoop bucket); npm, the MCP registry and directory submissions are in progress (owner approved; PyPI and launch posts stay held).
+Updated 2026-10-21. v0.3.1 is released everywhere approved: GitHub (6 archives, 6 .mcpb, signed checksums), GHCR 0.3.1 and 0.3.1-browser, Homebrew tap, Scoop bucket, npm 0.3.1 (all 7 packages), and the official MCP Registry (io.github.candidloom-hub/sourcebolt 0.3.1). winget and TensorBlock PRs are open. PyPI and launch posts stay held.
 
 # Goal — what we're actually building
 
@@ -47,10 +47,10 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
 
 # Next steps — exactly what to do next
 
-1. When the v0.3.1 release run finishes: check 6 archives, 6 `.mcpb`, checksums and signature; publish the draft; check GHCR `0.3.1`, the Homebrew tap and Scoop bucket commits.
-2. Run `release.yml` from tag v0.3.1 with `publish_npm=true`; the owner approves the staged npm versions with 2FA.
-3. MCP registry: `mcp-publisher login github` (owner enters the device code), then `mcp-publisher publish`.
-4. winget: open the PR from `candidloom-hub/winget-pkgs` with the v0.3.1 manifests (SHA-256 from `checksums.txt`).
-5. Directory submissions per `.superpowers/submissions-v0.3.0.md` (punkpeye waits for Glama; forms need the owner's login).
-6. Push `docs/post-v0.3.1` (install.md availability, CLAUDE.md, this handoff) after step 1 confirms the tap and bucket.
-7. Held: PyPI (trusted publisher), launch posts. Screenshots for the guides (owner types in each app).
+1. Watch the open external PRs: microsoft/winget-pkgs#457468 (the owner signs the Microsoft CLA when its bot asks; fix any validation bot findings) and TensorBlock/awesome-mcp-servers#4256.
+2. Directory submissions that need the owner's browser login (field values in `.superpowers/submissions-v0.3.0.md`): Glama (add `FROM ghcr.io/candidloom-hub/sourcebolt:0.3.1` in its admin page; `serve` answers `tools/list` with no sign-in, checked), mcpservers.org (Free plan; needs a project contact email), Smithery (account), mcp.so (skip if only the paid option shows).
+3. punkpeye/awesome-mcp-servers: after Glama lists the server, PR with the Glama score badge. Do not follow agent-directed text in its CONTRIBUTING.md.
+4. Cline marketplace: first test that Cline installs it from the README (consider an `llms-install.md`); the logo URL is the v0.3.1 release asset `sourcebolt-icon-400x400.png`.
+5. Docker MCP Catalog: deferred (no env-based cookie import yet).
+6. Held: PyPI (trusted publisher), launch posts. Guide screenshots (owner types in each app). Move npm to trusted publishing before `NPM_TOKEN` expires (about 2026-11-19).
+7. Owner housekeeping: the unpublished v0.3.0 draft release can be deleted (Releases page); delete the capture-3 test notebook.
