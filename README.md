@@ -37,15 +37,15 @@ Other behavior: pasted/URL sources are checked against private-network addresses
 
 ## Install
 
-No release exists yet. Every channel below becomes available after the first release; the only way to get sourcebolt today is to build from source.
+The latest release is [v0.1.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0).
 
 | Channel | Command | Availability |
 |---|---|---|
-| GitHub release binary | download the archive for your OS/arch from the Releases page, check `checksums.txt` | available after first release |
-| Go | `go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest` | needs the repo to be public; works from a local checkout today with `go build ./cmd/sourcebolt` |
-| Docker | `docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt` (browser fallback image: tag `<version>-browser`) | available after first release |
-| npm | `npx sourcebolt serve` | available after first release |
-| PyPI | `pipx run sourcebolt serve` or `uvx sourcebolt serve` | available after first release |
+| GitHub release binary | download the archive for your OS/arch from the [Releases page](https://github.com/candidloom-hub/sourcebolt/releases), check `checksums.txt` (signed with cosign; see the release notes) | available |
+| Go | `go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest` | available |
+| Docker | `docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0` (browser fallback image: tag `0.1.0-browser`; images are tagged by version, there is no `latest`) | available |
+| npm | `npx sourcebolt serve` | not published yet |
+| PyPI | `pipx run sourcebolt serve` or `uvx sourcebolt serve` | not published yet |
 
 Build from source (Go 1.27):
 
