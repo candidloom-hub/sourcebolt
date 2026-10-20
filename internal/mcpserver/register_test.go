@@ -20,6 +20,9 @@ func TestToolCallAllocBudget(t *testing.T) {
 	if testing.Short() {
 		t.Skip("alloc budget measured in full runs")
 	}
+	if raceEnabled {
+		t.Skip("the race detector inflates allocation counts")
+	}
 	prev := validateOutput
 	validateOutput = false
 	t.Cleanup(func() { validateOutput = prev })
