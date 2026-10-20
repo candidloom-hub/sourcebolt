@@ -141,4 +141,4 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
    - Release dry run, tag, verify, publish the draft promptly (casks and scoop point at it).
    - Then the npm publish run, and tell the owner to approve the staged versions.
 5. **Held items, each only on an explicit owner go**: PyPI (trusted publisher), MCP registry (`mcp-publisher publish`), the winget PR, directory submissions (`research/marketplaces.md`), launch posts (`docs/launch-plan.md`), and moving npm to trusted publishing before `NPM_TOKEN` expires.
-6. **Owner checks**: delete the notebook "sourcebolt capture 3 (safe to delete)"; decide whether to keep the VS Code and Cursor sourcebolt entries added for screenshots.
+6. **Owner checks**: delete the capture-3 test notebook; decide whether to keep the VS Code and Cursor sourcebolt entries added for screenshots.
