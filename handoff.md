@@ -99,7 +99,7 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
 2. **Screenshots** (after v0.3.0 is out, so the real installer and `setup` output exist):
    - Terminal: render from real command output, with exact text and no personal data.
    - App UI: the owner types one question per app while you capture. Blur notebook titles, email and name; crop to the app window.
-3. **v0.3.0**** (owner go):
+3. **v0.3.0** (owner go):
    - CHANGELOG section and version bumps (`server.json`, the plugin, `gemini-extension.json`, install links via `tools/installlinks`, README).
    - Release dry run, tag, verify, publish the draft promptly (casks and scoop point at it).
    - Then the npm publish run, and tell the owner to approve the staged versions.
