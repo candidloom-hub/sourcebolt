@@ -51,7 +51,7 @@ Every failed tool call returns a JSON error like this:
 
 Google no longer accepts the saved session. Google rotates and expires sessions, and signing out of Google in the browser you used also ends it.
 
-Fix: sign in again ([getting-started.md, Step 2](getting-started.md#step-2-sign-in)), then retry.
+Fix: sign in again with `sourcebolt login` ([auth.md](auth.md)), then retry.
 
 ```bash
 sourcebolt login --attach http://127.0.0.1:9222
@@ -89,13 +89,32 @@ The browser was not fully signed in when sourcebolt read it. Open https://notebo
 
 The cookies were complete but Google did not accept them (for example they were already expired). sourcebolt saved nothing and kept any working profile. Sign in again in the browser and repeat `login`.
 
+### `error: sign-in timed out after 10m0s; nothing saved.`
+
+`sourcebolt login` (and the sign-in step of `sourcebolt setup`) waits up to 10 minutes for you to finish signing in. Nothing was saved and the browser window was closed. Run `sourcebolt login` again. If you need more time, add `--timeout 20m`.
+
+If the message also says `last problem: the cookies did not work yet`, you were signed in to Google but NotebookLM did not accept the session. Make sure https://notebook.google.com shows your notebooks in that window, or try the attach method below.
+
+### `error: sign-in cancelled: the browser window was closed; nothing saved.`
+
+The browser window was closed before sign-in finished. Run `sourcebolt login` again and leave the window open; it closes by itself when you are done.
+
+If the window closes right after it opens, another sourcebolt may be using the same browser folder (for example the browser fallback of a running AI app). Quit your AI apps and run `sourcebolt login` again.
+
 ### Google shows "This browser or app may not be secure"
 
-This happens with `login --browser`. Browsers started by automation expose a flag (`navigator.webdriver`) that Google's sign-in checks. Use `login --attach` instead: you start a normal browser yourself, so Google does not block it. See [auth.md](auth.md#attach-flow-in-detail).
+Google blocks sign-in in browsers that look automated. `sourcebolt login` (no options) starts your browser as a normal program, with only a local debugging port, which is what the attach method does by hand, so Google normally allows it. `login --browser` starts the browser through automation and Google often blocks it.
 
-### `error: no Chromium-based browser found; install Brave, Chrome or Edge, or pass --browser-path <exe> or set SOURCEBOLT_BROWSER`
+If Google still refuses, use one of the other ways ([auth.md](auth.md)):
 
-`login --browser` and the browser fallback need Brave, Chrome, Edge or Chromium. Install one, or point sourcebolt at it:
+- **Attach:** you start the browser yourself, sign in, then run `sourcebolt login --attach http://127.0.0.1:9222`. See [auth.md](auth.md#attach-flow-in-detail).
+- **Import:** export your cookies from a browser where you are signed in, then run `sourcebolt login --import cookies.txt`.
+
+### `error: no Chrome, Edge or Brave browser was found on this computer`
+
+`login --browser` and the browser fallback say it this way: `error: no Chromium-based browser found; install Brave, Chrome or Edge, or pass --browser-path <exe> or set SOURCEBOLT_BROWSER`.
+
+Signing in (`sourcebolt login`, `sourcebolt setup`, `login --browser`) and the browser fallback need Brave, Chrome, Edge or Chromium. Install one, or tell sourcebolt where yours is with `sourcebolt login --browser-path "<path to the browser program>"`, or set it once:
 
 PowerShell:
 
@@ -220,6 +239,26 @@ A parameter is wrong or missing, or Google refused the input. Read the `error` t
 ### `TRANSPORT`
 
 A network error or a temporary Google server error. It is marked `retriable`; try again in a moment.
+
+## Setup problems
+
+### Setup did not find my app
+
+`sourcebolt setup` looks for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf and Gemini CLI in their usual places for your user. If your app is not listed, or keeps its settings somewhere else, connect it by hand: [clients.md](clients.md#manual-setup).
+
+### `Could not connect <app>: ... the file is not plain JSON (it may contain comments)`
+
+The app's settings file has comments or another format setup cannot change safely, so setup left it alone. Add the `sourcebolt` entry by hand ([clients.md](clients.md#manual-setup)). Setup prints the file's path.
+
+### I want to undo setup
+
+```bash
+sourcebolt setup --undo
+```
+
+This puts each app's settings file back from the newest copy setup saved (`<file>.sourcebolt-backup-<date>-<time>`), then restart the app. Run it again to go one more step back. Only one app: add `--client cursor` (or another name). Changes you made to that file after setup are undone too, except in Claude Code's `~/.claude.json`, where only the `sourcebolt` entry is put back.
+
+`--undo` does not sign you out. To delete the saved session as well, run `sourcebolt logout`.
 
 ## Connection problems
 

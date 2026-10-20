@@ -46,7 +46,7 @@ Measured on the GitHub Actions runner (2 CPUs, AMD EPYC 7763), v0.2.0, medians. 
    sourcebolt login --attach http://127.0.0.1:9222
    ```
 
-   You should see `Saved profile "default" for notebook.google.com (N notebooks visible).` The browser commands for each system are in [docs/getting-started.md](docs/getting-started.md#step-2-sign-in).
+   You should see `Saved profile "default" for notebook.google.com (N notebooks visible).` The browser commands for each system are in [docs/auth.md](docs/auth.md#attach-flow-in-detail). From the release after v0.2.0, `sourcebolt setup` does steps 2 to 4 for you ([docs/getting-started.md](docs/getting-started.md#step-2-run-setup)).
 3. **Check it.**
 
    ```bash
