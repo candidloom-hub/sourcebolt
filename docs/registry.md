@@ -34,6 +34,40 @@ Ownership check: `mcpName` in `npm/launcher/package.json` must equal the server 
 }
 ```
 
+#### How npm publishing authenticates (owner setup)
+
+The `npm` job in `.github/workflows/release.yml` runs `npm stage publish` with npm CLI 11.21.0. npm tries trusted publishing (OIDC) first for each package. When a package has no trusted publisher that matches, npm uses the `NPM_TOKEN` secret instead. Each version is staged either way, so you still approve it with 2FA on npmjs.com before it goes public.
+
+Until you finish the steps below, publishing uses `NPM_TOKEN` as before. That token expires around 2026-11-19.
+
+1. Add a trusted publisher to each of the 7 packages:
+   - `sourcebolt`
+   - `@candidloom-hub/sourcebolt-linux-x64`
+   - `@candidloom-hub/sourcebolt-linux-arm64`
+   - `@candidloom-hub/sourcebolt-darwin-x64`
+   - `@candidloom-hub/sourcebolt-darwin-arm64`
+   - `@candidloom-hub/sourcebolt-win32-x64`
+   - `@candidloom-hub/sourcebolt-win32-arm64`
+
+   For each one, sign in at npmjs.com and open the package page (for example `https://www.npmjs.com/package/sourcebolt`). Click **Settings**. In the **Trusted Publisher** section, under **Select your publisher**, click **GitHub Actions**, then fill in:
+
+   | Field | Value |
+   | --- | --- |
+   | Organization or user | `candidloom-hub` |
+   | Repository | `sourcebolt` |
+   | Workflow filename | `release.yml` (the file name only, not `.github/workflows/...`) |
+   | Environment name | `npm` |
+   | Allowed actions | only `npm stage publish` (recommended), not `npm publish` |
+
+   Click **Set up connection** (or **Save**) and confirm with 2FA.
+
+2. Publish the next release with `publish_npm=true`. In the "Stage npm packages" step log, check that npm reports trusted publishing or OIDC, then approve the 7 staged versions on npmjs.com (platform packages first, `sourcebolt` last). Each version should show a provenance badge.
+3. After one release has staged through OIDC, delete the token and lock the packages:
+   - Run `gh secret delete NPM_TOKEN -R candidloom-hub/sourcebolt` (it is a repository secret). Then revoke the token on npmjs.com under **Access Tokens**.
+   - For each package, open **Settings > Publishing access** and select **Require two-factor authentication and disallow tokens**. Trusted publishing keeps working after this, because the setting only applies to tokens.
+
+If a step fails with `E404` or `ENEEDAUTH` after you delete the token, one package's trusted-publisher fields do not match. The usual causes are a typo in the workflow file name or a missing `npm` environment name.
+
 ### PyPI (after the wheels are published)
 
 Ownership check: the PyPI README must contain `mcp-name: io.github.candidloom-hub/sourcebolt` (the repository README has it in an HTML comment).

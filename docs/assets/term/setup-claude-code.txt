@@ -1,0 +1,9 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt setup
+Looking for AI apps on this computer...
+  found Claude Code
+
+Connect sourcebolt to Claude Code? [Y/n] y
+
+Connected Claude Code (C:\Users\you\.claude.json).
+  Backup: C:\Users\you\.claude.json.sourcebolt-backup-20261021-051212

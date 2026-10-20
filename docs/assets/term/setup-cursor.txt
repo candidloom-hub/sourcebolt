@@ -1,0 +1,9 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt setup
+Looking for AI apps on this computer...
+  found Cursor
+
+Connect sourcebolt to Cursor? [Y/n] y
+
+Connected Cursor (C:\Users\you\.cursor\mcp.json).
+  Backup: C:\Users\you\.cursor\mcp.json.sourcebolt-backup-20261021-051214

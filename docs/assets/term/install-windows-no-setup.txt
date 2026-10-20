@@ -1,0 +1,14 @@
+title: Windows PowerShell
+PS C:\Users\you> irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1 | iex
+Installing sourcebolt v0.3.1 for windows/amd64
+  - downloading sourcebolt_0.3.1_windows_amd64.zip
+  - cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.
+  - SHA-256 checksum verified
+  - installed C:\Users\you\AppData\Local\Programs\sourcebolt\sourcebolt.exe
+
+Installed: sourcebolt 0.3.1
+  - added C:\Users\you\AppData\Local\Programs\sourcebolt to your user PATH (open a new terminal to use 'sourcebolt')
+
+Run 'sourcebolt setup' now to sign in and connect your AI apps? [Y/n]: n
+Next step: run 'sourcebolt setup' to sign in and connect your AI apps.
+To uninstall later: & ([scriptblock]::Create((irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1))) -Uninstall

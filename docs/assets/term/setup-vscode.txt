@@ -1,0 +1,9 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt setup
+Looking for AI apps on this computer...
+  found VS Code
+
+Connect sourcebolt to VS Code? [Y/n] y
+
+Connected VS Code (C:\Users\you\AppData\Roaming\Code\User\mcp.json).
+  Backup: C:\Users\you\AppData\Roaming\Code\User\mcp.json.sourcebolt-backup-20261021-051217

@@ -4,6 +4,8 @@ You can ask the AI app you already use to install sourcebolt for you. Copy the p
 
 Prefer to do it yourself? Pick your app in the [step-by-step guides](guides/index.md).
 
+Using Cline, or another agent that reads install instructions on its own? Give it [llms-install.md](../llms-install.md). Cline's MCP marketplace reads a file with that name to install a server. You still run `sourcebolt login` and sign in to Google yourself.
+
 ## What the AI will do, and what you do
 
 | Step | The AI does | You do |
