@@ -70,6 +70,62 @@
 		return n;
 	};
 
-	window.__sbDom = {visible, find, all, dismissPromos};
+	// present is all without the visibility filter for CSS candidates: answer
+	// bubbles and their action bar count while scrolled away or before hover.
+	const present = (cands, root) => {
+		for (const c of cands) {
+			let m;
+			if (c.startsWith("text:") || c.startsWith("icon:")) {
+				m = matches(root, c);
+			} else {
+				try {
+					m = Array.from((root || document).querySelectorAll(c));
+				} catch (e) {
+					m = [];
+				}
+			}
+			if (m.length) return m;
+		}
+		return [];
+	};
+
+	const click = (cands) => {
+		const el = find(cands);
+		if (!el) return false;
+		el.click();
+		return true;
+	};
+
+	// setValue sets an input's value through the native setter (so framework
+	// bindings see it) and dispatches input and change. No typing delays.
+	const setValue = (cands, v) => {
+		const el = find(cands);
+		if (!el) return false;
+		el.focus();
+		const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+		const desc = Object.getOwnPropertyDescriptor(proto, "value");
+		if (desc && desc.set) desc.set.call(el, v);
+		else el.value = v;
+		el.dispatchEvent(new Event("input", {bubbles: true}));
+		el.dispatchEvent(new Event("change", {bubbles: true}));
+		return true;
+	};
+
+	// chatState reads the answer thread: bubble count, the newest bubble's
+	// text, whether it has the done marker, and any visible alert text.
+	const chatState = (bubble, text, done, alert) => {
+		const bs = present(bubble);
+		const last = bs[bs.length - 1];
+		let t = "", d = false;
+		if (last) {
+			const parts = present(text, last);
+			t = (parts.length ? parts : [last]).map((e) => e.innerText || e.textContent || "").join("\n");
+			d = present(done, last).length > 0;
+		}
+		const a = all(alert).map((e) => (e.innerText || e.textContent || "").trim()).filter(Boolean).join("\n");
+		return {count: bs.length, text: t, done: d, alert: a};
+	};
+
+	window.__sbDom = {visible, find, all, present, dismissPromos, click, setValue, chatState};
 	return true;
 })()
