@@ -4,21 +4,22 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-Shapes pinned by live captures #2 and #3 (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
+Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
 
 ### Added
 
-- `studio_generate` generates every Studio type: `audio`, `video`, `report`, `slide_deck`, `mind_map`, `quiz`, `flashcards`, `infographic` and `data_table`. Each kind has its own option object whose schema enums list only the values a live capture sent; a value the web app offers but no capture sent returns `UNSUPPORTED_BY_TRANSPORT` naming the option, before the quota check. Proven values (defaults first where there are two): audio format `critique`, length `short`; video format `short`; slide deck format `presenter_slides`, length `short`; quiz quantity `more`, difficulty `easy`; flashcards quantity `standard` or `fewer`, difficulty `medium` or `hard`, images `include` or `text_only`; infographic orientation `portrait`, detail `concise`, style `sketch_note`. `instructions` is required for every kind except `infographic`, which refuses it (captured without a description). `report` needs `report.title` and `report.description` plus `instructions` as the prompt; `suggest` surface `report` returns such triples. Language defaults to `en` (the web app sends codes such as `en_in`), sources to every source of the notebook.
+- `studio_generate` generates every Studio type: `audio`, `video`, `report`, `interactive_report`, `slide_deck`, `mind_map`, `quiz`, `flashcards`, `infographic` and `data_table`. Each kind has its own option object whose schema enums list only the values a live capture sent; an omitted option takes the web app's default. A value the web app offers but no capture sent returns `UNSUPPORTED_BY_TRANSPORT` naming the option, before the quota check. Proven values (default first): audio format `deep_dive`, `critique`, length `default`, `short`; video format `cinematic`, `short`; slide deck format `detailed_deck`, `presenter_slides`, length `default`, `short`; quiz quantity `standard`, `more`, difficulty `medium`, `easy`; flashcards quantity `standard`, `fewer`, difficulty `medium`, `hard`, images `include`, `text_only`; infographic orientation `landscape`, `portrait`, detail `standard`, `concise`, style `auto`, `sketch_note`. `instructions` is optional for audio, video, slide deck and quiz, required for report, mind map, flashcards and data table, and refused by infographic and interactive report (each as captured). `report` needs `report.title` and `report.description` plus `instructions` as the prompt; `suggest` surface `report` returns such triples. `language` accepts only the captured codes `en` (default) and `en_in`; cinematic video takes none. `video.generate_later` asks for deferred generation (the web app's "Generate later"; cinematic only; the artifact lists as pending). Sources default to every source of the notebook.
 - `chat_ask` option `save_as_note`: saves the answer as a note the way the web app's "Save to note" does (the answer's passages and rich text go along; the server picks the title). Returns `note_id` and `note_title`, or `note_error` with the answer kept.
 - `delete` kinds `source`, `note` and `chat_history` (a conversation's whole history; ids are conversation ids). Same preview and `confirm:true` gate as notebooks; refs are matched strictly against a fresh list of the notebook's items. The `chat_history` preview shows each conversation's created and updated times and, when its whole history can be read, the first question; only the newest 20 conversations are reachable (an older id gets `UNSUPPORTED_BY_TRANSPORT`, not `NOT_FOUND`).
 - `source_read` mode `guide`: the source guide's summary as `text` plus `keywords`.
-- `studio_list` reports flashcards, quiz and mind map artifacts as kinds `flashcards`, `quiz` and `mind_map` instead of `interactive`, and rows of every Studio type with their status (`pending` while queued or generating).
+- `studio_list` decodes rows of every Studio type with their status (`pending` while queued, generating or deferred).
 
 ### Changed
 
+- **Breaking:** `studio_list` reports flashcards, quiz and mind map artifacts as kinds `flashcards`, `quiz` and `mind_map` (all were `interactive`), and slide decks as `slide_deck` (was `slides`), the names `studio_generate` uses. Filters on the old names match nothing.
 - **Breaking:** `studio_generate` flashcards default to the web app's defaults (standard, medium, with images), which capture #3 sent, instead of fewer, hard, text only (still available as options).
-- **Breaking:** `chat_configure` accepts mode `learning_guide` or `custom` and response_length `longer` or `shorter`, the values capture #3 saved. `default` (mode or length) returns `UNSUPPORTED_BY_TRANSPORT`, as does a change that would resend a default setting the notebook already has (pass both fields then). Modes `concise` and `detailed`, which meant the default mode, are removed.
-- `studio_list` lists slide decks as kind `slide_deck` (was `slides`), the name `studio_generate` uses.
+- **Breaking:** `chat_configure` accepts mode `default`, `learning_guide` or `custom` and response_length `default`, `longer` or `shorter`, the values captures #3 and #3b saved; mode `default` with response_length `default` resets a notebook. Modes `concise` and `detailed` are removed.
+- `suggest` surface `report` no longer returns `audience`: the number has no verified meaning.
 - `suggest` surface `report` sends the live request (artifact options block and every source when none are given).
 - `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
 - Notebook rename, text load-source and artifact-read requests match the live web app (options block added, full `v9rmvd` form). Markdown load-source and chat suggestions were not captured and keep their earlier requests.
@@ -28,7 +29,8 @@ Shapes pinned by live captures #2 and #3 (2026-10-20); see `research/rpc-catalog
 
 ### Fixed
 
-- `chat_configure` sent no options block; the web app sends it.
+- `chat_configure` sent no options block; the web app sends it. Two changes on one notebook at once could lose one of them; the read and the write now run one at a time per notebook.
+- `chat_ask` streams copy the answer's rich block only when `save_as_note` is set.
 - `studio_list` with kind `slide_deck` matched nothing.
 - `source_read` returned a source's text as one run-on line: text blocks sit one level deeper than the research catalog said.
 - Chat citations: a marker lists passage indices, not a range (checked against both live captures). Answers citing a single passage had no citations, and answers whose markers cite several passages lost some. Exact duplicates are dropped and malformed indices skipped.
@@ -36,7 +38,9 @@ Shapes pinned by live captures #2 and #3 (2026-10-20); see `research/rpc-catalog
 
 ### Known limitations
 
-- Replaces the 0.1.0 list. Not available yet: Studio option values no capture sent (other audio, video and slide formats, other lengths, orientations, detail levels and visual styles, other quiz and flashcards values), Studio generation without instructions (or an infographic with a description), report templates by name (their texts live in the web app), interactive reports, and notes as Studio sources; chat `default` mode and length; artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`.
+- Replaces the 0.1.0 list. Not available yet: Studio option values no capture sent (audio formats brief and debate, long audio, video formats explainer and brief and their visual styles, quiz fewer and hard, flashcards more and easy, square infographics, detailed infographics, other infographic styles), languages other than `en` and `en_in`, deferred generation for anything but cinematic video, free text where a kind was captured without it (infographic, interactive report) or required where only captured with it (report, mind map, flashcards, data table), report templates by name (their texts live in the web app), and notes as Studio sources; artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`.
+- Combinations are assumed independent: options proven in different captures (for example a cinematic video without "Generate later", or a quiz topic with the default quantity) are sent together although no capture sent that exact mix.
+- `chat_configure` serializes its own changes per notebook; a change made at the same moment in the web app can still be overwritten.
 - `studio_list` leaves media URLs empty: no finished video was captured, and the two slide-deck download URLs cannot be told apart (PDF or PPTX) in the sanitized capture.
 - Saving a chat answer re-encodes the answer's rich text the way both captured saves did; rich structures neither capture had (tables, images in answers) are sent as the stream had them.
 - Not capturable from the web UI: conversation-list paging (the UI keeps one thread per notebook and never pages, so only the newest 20 conversations are listed) and markdown load-source (`hizoJc` markdown mode; no UI path found, so the catalog's request is kept unverified).
