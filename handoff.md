@@ -8,9 +8,9 @@ Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache
 # Current state
 - Repo candidloom-hub/sourcebolt is **public**; private vulnerability reporting is on. History was rewritten with git filter-repo before going public; old private repo: candidloom-hub/sourcebolt-archive (local remote `archive`).
 - **main** has P1 to P5, the backlog fixes (PR #8), the design-call fixes (PR #13) and the Dependabot bumps (#7, #9, #10, #11). CI green.
-- In flight:
-  - PR #12, B3 perf: tools register through the raw go-sdk handler; output validated only in tests; allocs/call 6220 → 1775.
-  - Branch `feat/dom-fallback`, P4 Task 5 (plan `docs/superpowers/plans/2026-10-14-p4-task5-dom-fallback.md`). Tasks 1-3 are done. The fix for a stale answer bubble and Task 4 are in progress. Owner decision D-T5-1 = yes.
+- Merged 2026-10-20:
+  - PR #12, B3 perf: CI p50 2.26 ms uncached, 1.00 ms cached; allocations −72%.
+  - PR #14, DOM fallback (P4 Task 5): reviewed, and all 10 review findings fixed.
 - Release: tag v0.1.0 and the GitHub release are approved (2026-10-20). **On hold until the owner approves:** npm, PyPI and the MCP registry listing.
 - Capture #2 (approved 2026-10-20): the in-page hook is installed in a fresh Claude in Chrome tab ("Gemini Notebook"). The owner follows `capture2-checklist.md` (git-excluded) and says "done". The old capture tab from 2026-10-14 was lost.
 - Live verified (2026-10-14): `login --attach`, read tools on 9 notebooks (RTT p50 848 ms), notebook_create → source_add → chat_ask with citation (18.4 s).
@@ -60,8 +60,8 @@ Do NOT retry these.
 - **Base-then-head bench runs**: they drift. Use interleave.sh.
 
 # Next steps
-1. Merge PR #12 once CI is green.
-2. DOM fallback: review the branch (fresh reviewer), mutation-check it, open a PR and merge it.
+1. Optional, owner-gated: check the DOM fallback against the live NotebookLM page (force drift with NOTEBOOKLM_RPC_IDS).
+2. B3: the uncached path is still above 2 ms on CI; a smaller default page is the remaining lever.
 3. **Capture #2**: when the owner says "done", export `window.__sbcap` in slices with javascript_tool, not the clipboard. Write it with the Write tool, convert it with `go run ./tools/capture`, leak-scan it, then pin the shapes: R7cb6c configs, deletes, tr032e, hizoJc, CYK0Xb chat-save, cYAfTb, mixed izAoDd, EylDcb. Ask the owner to delete the capture notebook.
 4. Release: in CHANGELOG.md, turn [Unreleased] into [0.1.0], tag v0.1.0 on main, check the draft GitHub release, then publish it. npm, PyPI and the registry stay on hold.
 5. Owner-only: the `NPM_TOKEN` secret and the PyPI trusted publisher (when npm and PyPI are approved); delete the capture notebook after capture #2.

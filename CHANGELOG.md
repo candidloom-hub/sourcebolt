@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-Nothing has been released yet. This section summarizes the work on `main` and the release branch so far (P1 core, P2 to P4 tools and transports, P5 packaging and docs).
+## [0.1.0] - 2026-10-20
+
+First public release: GitHub release binaries and GHCR images. npm, PyPI and MCP registry packages are not published yet.
 
 ### Added
 
@@ -53,3 +55,6 @@ Nothing has been released yet. This section summarizes the work on `main` and th
 
 - Studio generation, deletes other than notebooks, Drive and file sources, source guide and refresh, followup suggestions, label create and auto-label, research `discover`, and saving a chat turn as a note are not available yet.
 - Uncached `notebook_list` (100 notebooks) measures about 2.3 ms p50 on the 2-CPU CI runner, above the 2 ms overhead target. Most of the remaining time is MCP JSON-RPC encoding and decoding, and the benchmark counts the client's share too (see `bench/RESULTS.md`).
+
+[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0
