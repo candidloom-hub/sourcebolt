@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- `sourcebolt status --help` prints usage and exits 0, and `status` with any argument is a usage error (exit 2); before, it ignored its arguments and printed the full status.
 - Release workflow: npm packages are staged with `npm stage publish`, run with a pinned npm CLI 11.21.0. Every version still waits for the owner's 2FA approval on npmjs.com. See `docs/registry.md`.
 
 ### Security
