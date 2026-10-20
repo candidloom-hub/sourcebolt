@@ -22,13 +22,13 @@ const (
 	StudioFlashcards        StudioKind = "flashcards"         // type code 4 (shared)
 	StudioMindMap           StudioKind = "mind_map"           // type code 4 (shared, interactive)
 	StudioInfographic       StudioKind = "infographic"        // type code 7
-	StudioSlides            StudioKind = "slides"             // type code 8
+	StudioSlides            StudioKind = "slide_deck"         // type code 8
 	StudioDataTable         StudioKind = "data_table"         // type code 9
 	StudioInteractiveReport StudioKind = "interactive_report" // type code 11
 
-	// StudioInteractive is what a listing row of type code 4 decodes to:
-	// quiz, flashcards and the interactive mind map share the code, and
-	// telling them apart needs a live-capture position (rpc-catalog §10 item 29).
+	// StudioInteractive is what a listing row of type code 4 decodes to
+	// when its variant ([9][1][0]) is not one of the live-verified ones:
+	// 1 flashcards, 2 quiz, 4 mind map (live captures #2 and #3).
 	StudioInteractive StudioKind = "interactive"
 	// StudioUnknown is an unmapped type code.
 	StudioUnknown StudioKind = "unknown"
@@ -134,15 +134,21 @@ func (c *Client) ListArtifacts(ctx context.Context, nb string) ([]Artifact, erro
 }
 
 // rowKind reads an artifact row's kind: the type code at [2], refined for
-// the shared code 4 by the variant at [9][1][0]. Only variant 1
-// (flashcards) is live-verified (capture #2: gArtLc, v9rmvd, R7cb6c);
-// other variants stay StudioInteractive.
+// the shared code 4 by the variant at [9][1][0]. Variants 1 flashcards
+// (capture #2 and #3), 2 quiz and 4 mind map (capture #3) are
+// live-verified; any other variant stays StudioInteractive.
 func rowKind(r []byte) StudioKind {
 	typ, _ := wire.Int(r, 2)
 	k := KindFromTypeCode(typ)
 	if k == StudioInteractive {
-		if v, _ := wire.Int(r, 9, 1, 0); v == flashcardsVariant {
+		v, _ := wire.Int(r, 9, 1, 0)
+		switch v {
+		case flashcardsVariant:
 			return StudioFlashcards
+		case quizVariant:
+			return StudioQuiz
+		case mindMapVariant:
+			return StudioMindMap
 		}
 	}
 	return k
@@ -205,7 +211,11 @@ type StudioRequest struct {
 // Flashcards options pinned by live capture #2 (2026-10-20): the UI choices
 // "Fewer cards" and "Hard" sent 1 and 3. Other values (standard/more cards,
 // easy/medium) have no live capture and are refused.
-const flashcardsVariant = 1
+const (
+	flashcardsVariant = 1
+	quizVariant       = 2 // live capture #3
+	mindMapVariant    = 4 // live capture #3
+)
 
 var (
 	flashcardQuantities   = map[string]int{"fewer": 1}
