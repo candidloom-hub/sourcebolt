@@ -4,10 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
+## [0.2.0] - 2026-10-20
+
+Every Studio type, chat settings, saving answers as notes, deletes for sources, notes and chat history, a large performance pass, new user docs, and new distribution channels. Shapes are pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
 
 ### Added
 
+- `sourcebolt doctor --dom-check <notebook>` asks one question through the browser (DOM) fallback, so you can confirm it works on your machine before you need it.
+- Distribution: a Claude Code plugin marketplace in the repo (`/plugin install sourcebolt --marketplace candidloom-hub/sourcebolt`), MCP Bundles (`sourcebolt-mcp-<os>-<arch>.mcpb`) attached to releases, VS Code and Cursor one-click install links (`docs/install-links.md`), `glama.json`, `gemini-extension.json`, and a registry-ready `server.json` (GHCR image only until npm and PyPI are published).
+- User docs rewritten: getting started, per-client setup, troubleshooting by error message, FAQ, performance, "Why sourcebolt" and a sourced comparison page; plus a privacy page.
 - `studio_generate` generates every Studio type: `audio`, `video`, `report`, `interactive_report`, `slide_deck`, `mind_map`, `quiz`, `flashcards`, `infographic` and `data_table`. Each kind has its own option object whose schema enums list only the values a live capture sent; an omitted option takes the web app's default. A value the web app offers but no capture sent returns `UNSUPPORTED_BY_TRANSPORT` naming the option, before the quota check. Proven values (default first): audio format `deep_dive`, `critique`, length `default`, `short`; video format `cinematic`, `short`; slide deck format `detailed_deck`, `presenter_slides`, length `default`, `short`; quiz quantity `standard`, `more`, difficulty `medium`, `easy`; flashcards quantity `standard`, `fewer`, difficulty `medium`, `hard`, images `include`, `text_only`; infographic orientation `landscape`, `portrait`, detail `standard`, `concise`, style `auto`, `sketch_note`. `instructions` is optional for audio, video, slide deck and quiz, required for report, mind map, flashcards and data table, and refused by infographic and interactive report (each as captured). `report` needs `report.title` and `report.description` plus `instructions` as the prompt; `suggest` surface `report` returns such triples. `language` accepts only the captured codes `en` (default) and `en_in`; cinematic video takes none. `video.generate_later` asks for deferred generation (the web app's "Generate later"; cinematic only; the artifact lists as pending). Sources default to every source of the notebook.
 - `chat_ask` option `save_as_note`: saves the answer as a note the way the web app's "Save to note" does (the answer's passages and rich text go along; the server picks the title). Returns `note_id` and `note_title`, or `note_error` with the answer kept.
 - `delete` kinds `source`, `note` and `chat_history` (a conversation's whole history; ids are conversation ids). Same preview and `confirm:true` gate as notebooks; refs are matched strictly against a fresh list of the notebook's items. The `chat_history` preview shows each conversation's created and updated times and, when its whole history can be read, the first question; only the newest 20 conversations are reachable (an older id gets `UNSUPPORTED_BY_TRANSPORT`, not `NOT_FOUND`).
@@ -36,6 +41,9 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - `serve` runs with GOGC=200 unless `GOGC` is set: fewer collections per tool call (cached `notebook_list` about 20% faster) at the cost of a somewhat larger heap under load.
 
 ### Fixed
+
+- `login` replaces a profile whose encryption key is gone from the OS keyring (it could never be read again) instead of failing with a file-not-found error; other unreadable profiles get a `logout` hint.
+- The cookie-import error names exactly the cookies sourcebolt checks (`SID`, `__Secure-1PSIDTS`, and `OSID` or `APISID`+`SAPISID`).
 
 - `chat_configure` sent no options block; the web app sends it. Two changes on one notebook at once could lose one of them; the read and the write now run one at a time per notebook.
 - `chat_ask` streams copy the answer's rich block only when `save_as_note` is set.
@@ -105,5 +113,6 @@ First public release: GitHub release binaries and GHCR images. npm, PyPI and MCP
 - Studio generation, deletes other than notebooks, Drive and file sources, source guide and refresh, followup suggestions, label create and auto-label, research `discover`, and saving a chat turn as a note are not available yet.
 - Uncached `notebook_list` (100 notebooks) measures about 2.3 ms p50 on the 2-CPU CI runner, above the 2 ms overhead target. Most of the remaining time is MCP JSON-RPC encoding and decoding, and the benchmark counts the client's share too (see `bench/RESULTS.md`).
 
-[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0
