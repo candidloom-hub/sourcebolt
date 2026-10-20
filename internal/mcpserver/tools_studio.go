@@ -27,7 +27,7 @@ type StudioListOut struct {
 type StudioGenerateIn struct {
 	Notebook     string             `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
 	Kind         string             `json:"kind" jsonschema:"audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report"`
-	Sources      []string           `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources"`
+	Sources      []string           `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources (notes cannot be used as sources)"`
 	Instructions string             `json:"instructions,omitempty" jsonschema:"focus or style instructions; for flashcards the topic (required)"`
 	Language     string             `json:"language,omitempty" jsonschema:"output language code (default en)"`
 	Flashcards   *FlashcardsOptions `json:"flashcards,omitempty" jsonschema:"options for kind flashcards"`
@@ -57,7 +57,7 @@ func (s *server) registerStudio(m *mcp.Server) {
 
 	register(s, m, "core", &mcp.Tool{
 		Name:        "studio_generate",
-		Description: "Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.",
+		Description: "Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Flashcards are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.",
 		Annotations: writeAnn("Generate studio artifact", false, false, false),
 	}, s.studioGenerate)
 }

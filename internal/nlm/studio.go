@@ -232,7 +232,8 @@ const (
 //
 // Type 4 with variant 1 is flashcards; the config sits at slot 9. The
 // trailing [1] is the "Text only" choice, the only one captured. The web
-// app also listed notes as sources ([null×6,[note_id,2]]); only sources are
+// app also listed notes as sources ([null×6,[note_id,2]]); that is not
+// proven for this client, so only sources are
 // sent here.
 func flashcardsParams(nb string, sources []string, topic, lang string, quantity, difficulty int) []any {
 	srcs := make([]any, len(sources))

@@ -35,6 +35,25 @@ func TestStudioGenerateFlashcards(t *testing.T) {
 	}
 }
 
+// Review item 8: the web app also passed notes as flashcards sources; that
+// is not proven for sourcebolt, which sends sources only, and says so.
+func TestStudioGenerateDescribesSourcesOnly(t *testing.T) {
+	cs := connect(t, newStub(), "default")
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name == "studio_generate" {
+			if !strings.Contains(tool.Description, "sources only, not notes") {
+				t.Fatalf("description = %q", tool.Description)
+			}
+			return
+		}
+	}
+	t.Fatal("studio_generate not listed")
+}
+
 func TestStudioGenerateFlashcardsLimits(t *testing.T) {
 	st := newStub()
 	st.payloads["EylDcb"] = quotaPayload

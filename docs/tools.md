@@ -482,7 +482,7 @@ Annotations: title: Update source, readOnly: false, destructive: false, idempote
 
 Profiles: minimal, default, all.
 
-Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.
+Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Flashcards are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.
 
 Annotations: title: Generate studio artifact, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -493,7 +493,7 @@ Annotations: title: Generate studio artifact, readOnly: false, destructive: fals
 | `flashcards` | null or object | no | options for kind flashcards |
 | `instructions` | string | no | focus or style instructions; for flashcards the topic (required) |
 | `language` | string | no | output language code (default en) |
-| `sources` | null or array | no | source ids, id prefixes or titles; default all sources |
+| `sources` | null or array | no | source ids, id prefixes or titles; default all sources (notes cannot be used as sources) |
 
 ### `studio_list`
 
