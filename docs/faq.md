@@ -12,7 +12,7 @@ No. sourcebolt is an independent open-source project. It is not affiliated with,
 
 ### Is it free?
 
-Yes. It is open source under the Apache-2.0 license, with no paid tier. You can support it through [GitHub Sponsors](https://github.com/sponsors/candidloom-hub).
+Yes. It is open source under the Apache-2.0 license, with no paid tier. Donations are not open yet. Starring the repository and sharing it helps.
 
 ### Google renamed NotebookLM. Does sourcebolt still work?
 

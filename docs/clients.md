@@ -2,6 +2,8 @@
 
 sourcebolt is a local MCP server. Your AI app starts it as a background program with the command `sourcebolt serve` and talks to it over standard input and output ("stdio"). Nothing listens on the network unless you turn on [HTTP mode](#http-mode).
 
+One-click install buttons for several apps: [install-links.md](install-links.md).
+
 Before you start:
 
 1. Install sourcebolt and sign in ([getting-started.md](getting-started.md)).
@@ -57,6 +59,14 @@ claude mcp add --scope user sourcebolt -- sourcebolt serve
 ```
 
 Check it with `claude mcp list`.
+
+**Plugin (after v0.2.0).** Inside Claude Code, the sourcebolt plugin adds the MCP server and the sourcebolt skill in one step. It needs Claude Code 2.1.275 or later, and the `sourcebolt` program must still be on your `PATH`:
+
+```text
+/plugin install sourcebolt --marketplace candidloom-hub/sourcebolt
+```
+
+Or add the marketplace first, then install: `/plugin marketplace add candidloom-hub/sourcebolt`, then `/plugin install sourcebolt@sourcebolt`. The plugin and marketplace pass `claude plugin validate --strict`; the install itself has not been run yet.
 
 ## Claude Desktop
 

@@ -59,7 +59,13 @@ Measured on a Windows laptop (Intel Core i7-12650H, 16 GB RAM). Method and raw d
    claude mcp add sourcebolt -- sourcebolt serve
    ```
 
-   Other apps: [Connect your AI app](#connect-your-ai-app).
+   After v0.2.0 you can instead install the Claude Code plugin, which adds the server and the sourcebolt skill (the program must still be on your `PATH`):
+
+   ```text
+   /plugin install sourcebolt --marketplace candidloom-hub/sourcebolt
+   ```
+
+   Other apps: [Connect your AI app](#connect-your-ai-app). One-click install links: [docs/install-links.md](docs/install-links.md).
 5. **Ask a question.** In your app, type: *"Use sourcebolt to list my NotebookLM notebooks, then ask the first one for a one-paragraph summary with citations."*
 
 The full walkthrough with expected output is in [docs/getting-started.md](docs/getting-started.md).
@@ -122,7 +128,7 @@ Sign in first. All apps start the same command: `sourcebolt serve`. If `sourcebo
 
 | App | Works locally? | Setup |
 |---|---|---|
-| Claude Code | Yes | `claude mcp add sourcebolt -- sourcebolt serve` |
+| Claude Code | Yes | `claude mcp add sourcebolt -- sourcebolt serve`, or after v0.2.0 the plugin: `/plugin install sourcebolt --marketplace candidloom-hub/sourcebolt` |
 | Claude Desktop | Yes | Add to `claude_desktop_config.json` (below) |
 | Cursor | Yes | Add to `~/.cursor/mcp.json` (below) |
 | VS Code (Copilot agent mode) | Yes | `code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"sourcebolt","args":["serve"]}'` |
@@ -197,12 +203,9 @@ More answers: [docs/faq.md](docs/faq.md). Something broken? [docs/troubleshootin
 Start at [docs/index.md](docs/index.md). Highlights:
 
 - [Getting started](docs/getting-started.md) · [Connect your AI app](docs/clients.md) · [Troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
-- [Tool reference](docs/tools.md) · [Sign-in and storage](docs/auth.md) · [Security](docs/security.md) · [Performance](docs/performance.md)
+- [Tool reference](docs/tools.md) · [Sign-in and storage](docs/auth.md) · [Security](docs/security.md) · [Privacy](docs/privacy.md) · [Performance](docs/performance.md)
+- [One-click install links](docs/install-links.md) · [Registries and directories](docs/registry.md)
 - [Why sourcebolt](docs/why-sourcebolt.md) · [Comparison with other NotebookLM servers](docs/comparison.md) · [Changelog](CHANGELOG.md)
-
-## Sponsor
-
-sourcebolt is free. If it saves you time, you can support its upkeep through [GitHub Sponsors](https://github.com/sponsors/candidloom-hub).
 
 ## Contributing
 

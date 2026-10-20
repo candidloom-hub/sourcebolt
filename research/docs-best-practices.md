@@ -28,7 +28,7 @@ Date: 2026-10-20. Sources were read with a web fetch on that date. This file lis
 10. **Troubleshooting keyed by the exact error text.** (REA's "update first, then report") Each entry quotes the real error code or message from the code and gives the fix.
 11. **Plain English.** (Astro) Short sentences, active voice, imperative steps, acronyms spelled out on first use (MCP, RPC, DOM, SSRF), no "we/let's" inside steps.
 12. **Credits and acknowledgements.** (uv, Awesome footnotes) Upstream projects are credited with their licenses; NOTICE obligations are kept.
-13. **Sponsor section with one link.** (fzf) GitHub Sponsors only.
+13. **Support section deferred.** (fzf has a Sponsors section.) Donations are not open yet (owner decision, 2026-10-20), so the README has no Sponsor section; `docs/sponsor.md` is linked only from the docs home as "not open yet".
 14. **Contributing and License near the end.** (Awesome, gum) Short sections that link to the files.
 15. **A docs home page.** (REA documentation index) `docs/index.md` lists every page with one line each.
 16. **Cite competitor facts with links and a check date.** (Awesome: rationale per entry) `docs/comparison.md` links every fact to the repo and says when it was checked; uncertain facts are marked.
