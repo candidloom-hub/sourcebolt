@@ -19,7 +19,7 @@ Download the program from the [latest release](https://github.com/candidloom-hub
 ```powershell
 $dir = "$env:LOCALAPPDATA\Programs\sourcebolt"
 New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
+Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.3.0/sourcebolt_0.3.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
 Expand-Archive "$env:TEMP\sourcebolt.zip" -DestinationPath $dir -Force
 [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
 ```
@@ -30,8 +30,8 @@ Close the terminal and open a new one, so it picks up the new `PATH`.
 
 ```bash
 OS=linux ARCH=amd64
-curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz"
-tar -xzf "sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz" sourcebolt
+curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.3.0/sourcebolt_0.3.0_${OS}_${ARCH}.tar.gz"
+tar -xzf "sourcebolt_0.3.0_${OS}_${ARCH}.tar.gz" sourcebolt
 mkdir -p ~/.local/bin && mv sourcebolt ~/.local/bin/
 ```
 
@@ -48,7 +48,7 @@ sourcebolt --version
 Expected output:
 
 ```text
-sourcebolt 0.2.0
+sourcebolt 0.3.0
 ```
 
 ## Step 2: Run setup

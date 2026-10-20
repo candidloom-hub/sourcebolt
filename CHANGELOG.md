@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
+Installing for people who never used a terminal: one command, a guided setup that connects your AI apps, and sign-in in a normal browser window.
+
+### Added
+
+- One-line installers: `irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1 | iex` (Windows) and `curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh` (macOS, Linux). They check the SHA-256 of the download (and the cosign signature when cosign is installed), install per user with no admin rights, add the folder to PATH, offer to run `sourcebolt setup`, upgrade in place and roll back a broken upgrade. `--uninstall` / `-Uninstall` removes exactly what they added; `--purge` / `-Purge` also deletes your data after asking. See `docs/install.md`.
+- `sourcebolt setup`: finds Claude Desktop, Claude Code, Cursor, VS Code, Windsurf and Gemini CLI, backs up each config, adds one `sourcebolt` entry, signs you in and runs the doctor checks. `--client <id>`, `--dry-run`, `--undo`, `--yes`, `--no-login`. The command it writes is always a stable path: run from an npx cache or a temp folder, it uses the installed copy, else `npx -y sourcebolt serve`, else it refuses.
+- `sourcebolt login` with no flags opens a plain browser window (only a debugging port, no automation flags) and you sign in yourself, so Google does not block it.
+- Homebrew cask (`candidloom-hub/homebrew-tap`) and Scoop manifest (`candidloom-hub/scoop-bucket`) published with each release. winget manifests are generated but submitted by hand.
+- Beginner guides: install by asking your AI (`docs/install-with-ai.md`), step-by-step guides for 7 apps (`docs/guides/`), and an "Install in 2 minutes" block in the README.
+
+### Changed
+
+- `--help` on any subcommand exits 0 (it exited 2, a usage error).
+- AUTH_REQUIRED guidance names `sourcebolt login` first.
+
+### Fixed
+
+- A call cancelled while its answer was being read reported AUTH_REQUIRED (an empty, cut-short body) instead of the cancel, which told the user to sign in again.
+- `setup` never sends a value containing `%` through a `.cmd`/`.bat` CLI (`code.cmd`, an npm `claude.cmd`): cmd.exe expanded it, and the VS Code entry failed. It edits the config file instead.
+
+### Security
+
+- Release workflows pin third-party actions to commit SHAs.
+
 ## [0.2.0] - 2026-10-20
 
 Every Studio type, chat settings, saving answers as notes, deletes for sources, notes and chat history, a large performance pass, new user docs, and new distribution channels. Shapes are pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
@@ -113,6 +139,7 @@ First public release: GitHub release binaries and GHCR images. npm, PyPI and MCP
 - Studio generation, deletes other than notebooks, Drive and file sources, source guide and refresh, followup suggestions, label create and auto-label, research `discover`, and saving a chat turn as a note are not available yet.
 - Uncached `notebook_list` (100 notebooks) measures about 2.3 ms p50 on the 2-CPU CI runner, above the 2 ms overhead target. Most of the remaining time is MCP JSON-RPC encoding and decoding, and the benchmark counts the client's share too (see `bench/RESULTS.md`).
 
-[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0

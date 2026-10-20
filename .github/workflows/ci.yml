@@ -94,7 +94,7 @@ jobs:
           else
             base="$(git merge-base origin/main HEAD)"
           fi
-          if git diff --name-only "$base" HEAD | grep -Eq '^(install\.(sh|ps1)|scripts/test-installers\.(sh|ps1)|\.github/workflows/ci\.yml)$'; then
+          if git diff --name-only "$base" HEAD | grep -Eq '^(install\.(sh|ps1)|scripts/test-installers\.(sh|ps1)|\.github/workflows/ci\.yml|cmd/sourcebolt/.*|internal/setup/.*)$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -115,6 +115,32 @@ jobs:
         run: shellcheck --shell=sh install.sh scripts/test-installers.sh
       - name: offline tests (tampered checksums, PATH blocks, uninstall)
         run: sh scripts/test-installers.sh
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # The offline tests use a stand-in binary. This step installs this commit's real binary,
+      # so a CLI change that breaks the installer (for example `setup --help` not exiting 0)
+      # fails here. HOME is a temp folder: no real app config is touched.
+      - name: this commit's binary through install.sh, then setup writes the installed path
+        run: |
+          os="$(uname -s | tr 'A-Z' 'a-z')"
+          case "$(uname -m)" in x86_64) arch=amd64 ;; *) arch=arm64 ;; esac
+          a="sourcebolt_9.9.9_${os}_${arch}.tar.gz"
+          rel="$RUNNER_TEMP/rel/v9.9.9"; mkdir -p "$rel" "$RUNNER_TEMP/pkg"
+          CGO_ENABLED=0 go build -trimpath -ldflags "-X github.com/candidloom-hub/sourcebolt/internal/version.Version=9.9.9" -o "$RUNNER_TEMP/pkg/sourcebolt" ./cmd/sourcebolt
+          tar -czf "$rel/$a" -C "$RUNNER_TEMP/pkg" sourcebolt
+          (cd "$rel" && shasum -a 256 "$a" >checksums.txt)
+          h="$RUNNER_TEMP/e2e-home"; mkdir -p "$h/.cursor"
+          export HOME="$h" XDG_CONFIG_HOME="$h/.config" NOTEBOOKLM_CONFIG_DIR="$h/sbdata" NOTEBOOKLM_BROWSER_FALLBACK=0
+          SOURCEBOLT_DOWNLOAD_BASE="file://$RUNNER_TEMP/rel" sh install.sh --version v9.9.9 --dir "$h/bin" --no-setup --no-modify-path | tee "$RUNNER_TEMP/e2e.txt"
+          grep -qx 'Installed: sourcebolt 9.9.9' "$RUNNER_TEMP/e2e.txt"
+          grep -q "Next step: run 'sourcebolt setup'" "$RUNNER_TEMP/e2e.txt"
+          # Exit 1 is expected: --no-login leaves no session, so the closing checks report it.
+          code=0; "$h/bin/sourcebolt" setup --no-login --yes --client cursor || code=$?
+          test "$code" -le 1
+          grep -qF "\"$h/bin/sourcebolt\"" "$h/.cursor/mcp.json"
+          "$h/bin/sourcebolt" setup --undo --client cursor
+          test ! -e "$h/.cursor/mcp.json"
       - name: install cosign (exercises the signature check)
         if: runner.os == 'Linux'
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
@@ -151,6 +177,39 @@ jobs:
       - name: offline tests, PowerShell 7
         shell: pwsh
         run: .\scripts\test-installers.ps1 -Shell pwsh
+      # Same check as installer-unix: this commit's real binary, a fake home, setup for Cursor.
+      - name: this commit's binary through install.ps1, then setup writes the installed path
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rel = "$env:RUNNER_TEMP\rel\v9.9.9"; $pkg = "$env:RUNNER_TEMP\pkg"
+          New-Item -ItemType Directory -Force -Path $rel, $pkg | Out-Null
+          $env:CGO_ENABLED = '0'
+          go build -trimpath -ldflags "-X github.com/candidloom-hub/sourcebolt/internal/version.Version=9.9.9" -o "$pkg\sourcebolt.exe" ./cmd/sourcebolt
+          if ($LASTEXITCODE -ne 0) { throw 'build failed' }
+          $zip = "$rel\sourcebolt_9.9.9_windows_amd64.zip"
+          Compress-Archive -Path "$pkg\sourcebolt.exe" -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText("$rel\checksums.txt", "$hash  sourcebolt_9.9.9_windows_amd64.zip`n")
+          $h = "$env:RUNNER_TEMP\e2e-home"
+          New-Item -ItemType Directory -Force -Path "$h\.cursor", "$h\AppData\Roaming", "$h\AppData\Local" | Out-Null
+          $env:USERPROFILE = $h; $env:HOME = $h; $env:APPDATA = "$h\AppData\Roaming"; $env:LOCALAPPDATA = "$h\AppData\Local"
+          $env:NOTEBOOKLM_CONFIG_DIR = "$h\sbdata"; $env:NOTEBOOKLM_BROWSER_FALLBACK = '0'
+          $env:SOURCEBOLT_DOWNLOAD_BASE = 'file:///' + ("$env:RUNNER_TEMP\rel" -replace '\\', '/')
+          $out = powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v9.9.9 -InstallDir "$h\bin" -NoSetup -NoModifyPath
+          $out | Write-Host
+          if (-not ($out -contains 'Installed: sourcebolt 9.9.9')) { throw 'success line missing' }
+          if (-not ($out -match "Next step: run 'sourcebolt setup'")) { throw 'installer did not detect setup' }
+          & "$h\bin\sourcebolt.exe" setup --no-login --yes --client cursor
+          if ($LASTEXITCODE -gt 1) { throw "setup failed: $LASTEXITCODE" }
+          $cmd = (Get-Content -Raw "$h\.cursor\mcp.json" | ConvertFrom-Json).mcpServers.sourcebolt.command
+          # setup writes the resolved path (long names, not 8.3), so compare the file, not the spelling.
+          $want = "$h\bin\sourcebolt.exe"
+          if (-not ($cmd -like '*\e2e-home\bin\sourcebolt.exe' -and (Test-Path -LiteralPath $cmd) -and
+                  (Get-FileHash -LiteralPath $cmd).Hash -eq (Get-FileHash -LiteralPath $want).Hash)) { throw "setup wrote '$cmd'" }
+          & "$h\bin\sourcebolt.exe" setup --undo --client cursor
+          if (Test-Path "$h\.cursor\mcp.json") { throw 'undo left mcp.json' }
+          $global:LASTEXITCODE = 0
       - name: install the published v0.2.0 into a temp prefix (5.1, -File)
         shell: powershell
         run: |

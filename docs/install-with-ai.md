@@ -72,7 +72,7 @@ Step-by-step guide without AI: [Claude Code](guides/claude-code.md).
 
 The Claude Desktop chat cannot run commands on your computer. So this prompt asks Claude to walk you through it, one small step at a time. There are two ways:
 
-- **One double-click.** Download the `.mcpb` file for your computer from the [v0.2.0 release](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0) and double-click it. You still run two commands once, to sign in.
+- **One double-click.** Download the `.mcpb` file for your computer from the [v0.2.0 release](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.3.0) and double-click it. You still run two commands once, to sign in.
 - **Two commands.** Run the installer, then `sourcebolt setup --client claude-desktop`, which also signs you in.
 
 Paste this into a new Claude Desktop chat:
