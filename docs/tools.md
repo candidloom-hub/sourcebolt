@@ -15,7 +15,7 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`auth_logout`](#auth_logout) | default, all | Not available through MCP: the credential store is only reachable from the CLI. |
 | [`chat_ask`](#chat_ask) | minimal, default, all | Ask a question about a notebook's sources. |
 | [`chat_ask_many`](#chat_ask_many) | batch, all | Ask the same question in several notebooks (their default conversation thread), at most max_parallel at a time (default 3). |
-| [`chat_configure`](#chat_configure) | default, all | Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. |
+| [`chat_configure`](#chat_configure) | default, all | Change a notebook's chat settings: mode (default, learning_guide, or custom with custom_prompt) and response_length (default, longer or shorter). |
 | [`chat_history`](#chat_history) | default, all | Read a notebook conversation (oldest turn first within a page), with cursor paging. |
 | [`chat_status`](#chat_status) | default, all | Status and result of a detached chat_ask (wait=false): running, done, failed or cancelled. |
 | [`delete`](#delete) | default, all | Delete notebooks, sources, notes, artifacts, chat history, labels or collections. |
@@ -38,8 +38,8 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`source_list`](#source_list) | default, all | List a notebook's sources with type and processing status; optionally filter by status. |
 | [`source_read`](#source_read) | minimal, default, all | Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset). |
 | [`source_update`](#source_update) | default, all | Rename a source (title) and/or check whether it is up to date (check_freshness). |
-| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact. |
-| [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. |
+| [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact: audio, video, report, interactive_report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. |
+| [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table) with kind and status (pending while queued or generating, then ready or failed). |
 | [`suggest`](#suggest) | default, all | Suggested prompts for a surface: chat, report or studio_options. |
 
 ## account
@@ -92,7 +92,7 @@ Annotations: title: Sign out, readOnly: false, destructive: true, idempotent: tr
 
 Profiles: minimal, default, all.
 
-Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. wait=false returns a job_id; poll with chat_status. Not retried after sending.
+Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. save_as_note also saves the answer as a note (note_id, or note_error when it could not be saved). wait=false returns a job_id; poll with chat_status. Not retried after sending.
 
 Annotations: title: Ask a notebook, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -102,6 +102,7 @@ Annotations: title: Ask a notebook, readOnly: false, destructive: false, idempot
 | `question` | string | yes | the question to ask |
 | `conversation_id` | string | no | continue this conversation; default is the notebook's newest thread |
 | `new_conversation` | boolean | no | start a fresh conversation instead of the default thread |
+| `save_as_note` | boolean | no | also save the answer as a note, as the web app's Save to note does (the server picks the note title) |
 | `sources` | null or array | no | restrict the answer to these sources (id, id prefix or title); default all sources |
 | `wait` | null or boolean | no | wait for the answer (default true); false returns a job_id to poll with chat_status |
 
@@ -124,7 +125,7 @@ Annotations: title: Ask many notebooks, readOnly: false, destructive: false, ide
 
 Profiles: default, all.
 
-Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. Unset fields keep their value. concise and detailed set response_length shorter and longer.
+Change a notebook's chat settings: mode (default, learning_guide, or custom with custom_prompt) and response_length (default, longer or shorter). Unset fields keep their value. mode default with response_length default resets the notebook to the web app's defaults.
 
 Annotations: title: Configure chat, readOnly: false, destructive: false, idempotent: true, openWorld: false.
 
@@ -132,8 +133,8 @@ Annotations: title: Configure chat, readOnly: false, destructive: false, idempot
 |---|---|---|---|
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `custom_prompt` | string | no | instructions for mode custom, up to 10000 characters |
-| `mode` | string | no | default, learning_guide, concise, detailed or custom (custom needs custom_prompt) |
-| `response_length` | string | no | default, longer or shorter |
+| `mode` | string (`default`, `learning_guide`, `custom`) | no | conversational goal; custom needs custom_prompt |
+| `response_length` | string (`default`, `longer`, `shorter`) | no | response length |
 
 ### `chat_history`
 
@@ -482,24 +483,46 @@ Annotations: title: Update source, readOnly: false, destructive: false, idempote
 
 Profiles: minimal, default, all.
 
-Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Flashcards are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.
+Generate a Studio artifact: audio, video, report, interactive_report, slide_deck, mind_map, quiz, flashcards, infographic or data_table. Each kind takes only the option values a live capture has proven (the enums); other values the web app offers return UNSUPPORTED_BY_TRANSPORT naming the option, before any call. Omitted options take the web app's defaults. instructions is optional for audio, video, slide_deck and quiz, required for report, mind_map, flashcards and data_table, and refused by infographic and interactive_report (each as captured). video.generate_later asks for deferred generation (cinematic format only). report needs report.title and report.description plus instructions as the prompt (suggest surface report returns ready-made triples). Checks the account quota first and returns a QUOTA error when it is used up. Artifacts are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Not retried after sending.
 
 Annotations: title: Generate studio artifact, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `kind` | string | yes | audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report |
+| `kind` | string (`audio`, `data_table`, `flashcards`, `infographic`, `interactive_report`, `mind_map`, `quiz`, `report`, `slide_deck`, `video`) | yes | the artifact kind |
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
+| `audio` | null or object | no | options for kind audio |
+| `audio.format` | string (`deep_dive`, `critique`) | no | audio format: deep_dive, critique (default deep_dive) |
+| `audio.length` | string (`short`, `default`) | no | audio length: short, default (default default) |
 | `flashcards` | null or object | no | options for kind flashcards |
-| `instructions` | string | no | focus or style instructions; for flashcards the topic (required) |
-| `language` | string | no | output language code (default en) |
+| `flashcards.difficulty` | string (`medium`, `hard`) | no | card difficulty: medium, hard (default medium) |
+| `flashcards.images` | string (`include`, `text_only`) | no | card images: include, text_only (default include) |
+| `flashcards.quantity` | string (`fewer`, `standard`) | no | number of cards: fewer, standard (default standard) |
+| `infographic` | null or object | no | options for kind infographic |
+| `infographic.detail` | string (`concise`, `standard`) | no | level of detail: concise, standard (default standard) |
+| `infographic.orientation` | string (`landscape`, `portrait`) | no | page orientation: landscape, portrait (default landscape) |
+| `infographic.style` | string (`auto`, `sketch_note`) | no | visual style: auto, sketch_note (default auto) |
+| `instructions` | string | no | free text: audio and video focus, slide deck description and quiz topic (optional); report prompt, data table description, mind map and flashcards topic (required); infographic and interactive_report take none |
+| `language` | string (`en`, `en_in`) | no | output language code as the web app sends it (default en; cinematic video takes none) |
+| `quiz` | null or object | no | options for kind quiz |
+| `quiz.difficulty` | string (`easy`, `medium`) | no | question difficulty: easy, medium (default medium) |
+| `quiz.quantity` | string (`standard`, `more`) | no | number of questions: standard, more (default standard) |
+| `report` | null or object | no | options for kind report (required) |
+| `report.description` | string | no | report description (required), for example from suggest surface report |
+| `report.title` | string | no | report title (required), for example from suggest surface report |
+| `slide_deck` | null or object | no | options for kind slide_deck |
+| `slide_deck.format` | string (`detailed_deck`, `presenter_slides`) | no | slide deck format: detailed_deck, presenter_slides (default detailed_deck) |
+| `slide_deck.length` | string (`default`, `short`) | no | slide deck length: default, short (default default) |
 | `sources` | null or array | no | source ids, id prefixes or titles; default all sources (notes cannot be used as sources) |
+| `video` | null or object | no | options for kind video |
+| `video.format` | string (`cinematic`, `short`) | no | video format: cinematic, short (default cinematic) |
+| `video.generate_later` | boolean | no | the web app's Generate later (deferred generation; the artifact lists as pending until Google runs it); cinematic format only |
 
 ### `studio_list`
 
 Profiles: minimal, default, all.
 
-List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. Pass artifact to read one with its interactive content (HTML or mind-map tree) when Google has any.
+List a notebook's Studio artifacts (audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table) with kind and status (pending while queued or generating, then ready or failed). Pass artifact to read one with its interactive content (HTML or mind-map tree) when Google has any.
 
 Annotations: title: List studio artifacts, readOnly: true, idempotent: true, openWorld: false.
 
@@ -507,8 +530,8 @@ Annotations: title: List studio artifacts, readOnly: true, idempotent: true, ope
 |---|---|---|---|
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `artifact` | string | no | one artifact id or title; returns it with its interactive content when available |
-| `kind` | string | no | filter by kind, for example audio, report, video |
-| `status` | string | no | filter by status: pending, ready or failed |
+| `kind` | string | no | filter by kind: audio, video, report, slide_deck, mind_map, quiz, flashcards, infographic, data_table (interactive and unknown for unrecognized rows) |
+| `status` | string | no | filter by status: pending (queued or generating), ready or failed |
 
 ## suggest
 

@@ -10,7 +10,9 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/jobs"
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
+	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -21,6 +23,7 @@ type ChatAskIn struct {
 	ConversationID  string   `json:"conversation_id,omitempty" jsonschema:"continue this conversation; default is the notebook's newest thread"`
 	NewConversation bool     `json:"new_conversation,omitempty" jsonschema:"start a fresh conversation instead of the default thread"`
 	Wait            *bool    `json:"wait,omitempty" jsonschema:"wait for the answer (default true); false returns a job_id to poll with chat_status"`
+	SaveAsNote      bool     `json:"save_as_note,omitempty" jsonschema:"also save the answer as a note, as the web app's Save to note does (the server picks the note title)"`
 }
 
 // CitationOut is one cited passage. Start and End are UTF-16 code unit
@@ -41,6 +44,11 @@ type ChatAskOut struct {
 	ResponseID     string        `json:"response_id,omitempty"`
 	JobID          string        `json:"job_id,omitempty"`
 	Status         string        `json:"status,omitempty"`
+	// NoteID and NoteTitle name the note save_as_note created; NoteError
+	// says why it was not created (the answer is returned either way).
+	NoteID    string `json:"note_id,omitempty"`
+	NoteTitle string `json:"note_title,omitempty"`
+	NoteError string `json:"note_error,omitempty"`
 }
 
 type ChatHistoryIn struct {
@@ -60,9 +68,9 @@ type ChatHistoryOut struct {
 
 type ChatConfigureIn struct {
 	Notebook       string `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
-	Mode           string `json:"mode,omitempty" jsonschema:"default, learning_guide, concise, detailed or custom (custom needs custom_prompt)"`
+	Mode           string `json:"mode,omitempty" jsonschema:"conversational goal; custom needs custom_prompt"`
 	CustomPrompt   string `json:"custom_prompt,omitempty" jsonschema:"instructions for mode custom, up to 10000 characters"`
-	ResponseLength string `json:"response_length,omitempty" jsonschema:"default, longer or shorter"`
+	ResponseLength string `json:"response_length,omitempty" jsonschema:"response length"`
 }
 
 type ChatConfigureOut struct {
@@ -87,7 +95,7 @@ func (s *server) registerChat(m *mcp.Server) {
 	f := false
 	register(s, m, "chat", &mcp.Tool{
 		Name:        "chat_ask",
-		Description: "Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. wait=false returns a job_id; poll with chat_status. Not retried after sending.",
+		Description: "Ask a question about a notebook's sources. Streams partial text as progress notifications. Returns the answer, citations (source, cited text, UTF-16 offsets) and the conversation id. save_as_note also saves the answer as a note (note_id, or note_error when it could not be saved). wait=false returns a job_id; poll with chat_status. Not retried after sending.",
 		Annotations: &mcp.ToolAnnotations{Title: "Ask a notebook", ReadOnlyHint: false, DestructiveHint: &f, IdempotentHint: false, OpenWorldHint: &f},
 	}, s.chatAsk)
 
@@ -99,8 +107,9 @@ func (s *server) registerChat(m *mcp.Server) {
 
 	register(s, m, "chat", &mcp.Tool{
 		Name:        "chat_configure",
-		Description: "Change a notebook's chat settings: mode (default, learning_guide, concise, detailed, custom with custom_prompt) and response_length. Unset fields keep their value. concise and detailed set response_length shorter and longer.",
+		Description: "Change a notebook's chat settings: mode (default, learning_guide, or custom with custom_prompt) and response_length (default, longer or shorter). Unset fields keep their value. mode default with response_length default resets the notebook to the web app's defaults.",
 		Annotations: &mcp.ToolAnnotations{Title: "Configure chat", ReadOnlyHint: false, DestructiveHint: &f, IdempotentHint: true, OpenWorldHint: &f},
+		InputSchema: chatConfigureSchema(),
 	}, s.chatConfigure)
 
 	register(s, m, "chat", &mcp.Tool{
@@ -171,7 +180,7 @@ func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) 
 		// The job context derives from the table's lifetime, not from this
 		// request: it ends on job_cancel or when the server closes the table.
 		id, err := s.Jobs.Submit("chat_ask", func(jctx context.Context) (any, error) {
-			return s.runAsk(jctx, nb, in.Question, opts, nil)
+			return s.runAsk(jctx, nb, in.Question, opts, nil, in.SaveAsNote)
 		}, jopts...)
 		switch {
 		case errors.Is(err, jobs.ErrBusy):
@@ -183,7 +192,7 @@ func (s *server) chatAsk(ctx context.Context, in ChatAskIn) (ChatAskOut, error) 
 		return ChatAskOut{JobID: id, Status: "running"}, nil
 	}
 
-	return s.runAsk(ctx, nb, in.Question, opts, askProgress(progressFrom(ctx)))
+	return s.runAsk(ctx, nb, in.Question, opts, askProgress(progressFrom(ctx)), in.SaveAsNote)
 }
 
 // progressTail is how many trailing characters of the partial answer a
@@ -217,12 +226,25 @@ func askProgress(prog Progress) func(string) {
 	}
 }
 
-func (s *server) runAsk(ctx context.Context, nb, q string, o nlm.AskOptions, progress func(string)) (ChatAskOut, error) {
+// runAsk asks and, with saveNote, saves the answer as a note titled with
+// the question (the server replaces the title). A failed save does not
+// lose the answer: it is reported in NoteError.
+func (s *server) runAsk(ctx context.Context, nb, q string, o nlm.AskOptions, progress func(string), saveNote bool) (ChatAskOut, error) {
+	o.KeepAnswerBlock = saveNote
 	a, err := s.NLM.Ask(ctx, nb, q, o, progress)
 	if err != nil {
 		return ChatAskOut{}, err
 	}
 	out := ChatAskOut{Answer: a.Text, ConversationID: a.ConversationID, ResponseID: a.ResponseID}
+	if saveNote {
+		n, err := s.NLM.SaveAnswerNote(ctx, nb, a, q)
+		if err != nil {
+			out.NoteError = safety.Redact(err.Error())
+		} else {
+			out.NoteID, out.NoteTitle = n.ID, n.Title
+			s.invalidateNotebook(nb)
+		}
+	}
 	titles := map[string]string{}
 	if len(a.Citations) > 0 {
 		// Best effort: a failed lookup leaves titles empty.
@@ -278,6 +300,19 @@ func (s *server) chatHistory(ctx context.Context, in ChatHistoryIn) (ChatHistory
 	return out, nil
 }
 
+// chatConfigureSchema is ChatConfigureIn's schema with enums of the proven
+// settings (captures #3 and #3b).
+func chatConfigureSchema() *jsonschema.Schema {
+	s, _ := schemaFor[ChatConfigureIn]()
+	for _, v := range nlm.ChatGoals {
+		s.Properties["mode"].Enum = append(s.Properties["mode"].Enum, v)
+	}
+	for _, v := range nlm.ChatLengths {
+		s.Properties["response_length"].Enum = append(s.Properties["response_length"].Enum, v)
+	}
+	return s
+}
+
 func (s *server) chatConfigure(ctx context.Context, in ChatConfigureIn) (ChatConfigureOut, error) {
 	cfg := nlm.ChatConfig{Prompt: in.CustomPrompt, Length: in.ResponseLength}
 	switch in.Mode {
@@ -287,17 +322,8 @@ func (s *server) chatConfigure(ctx context.Context, in ChatConfigureIn) (ChatCon
 		}
 	case "default", "learning_guide", "custom":
 		cfg.Goal = in.Mode
-	case "concise", "detailed":
-		want := map[string]string{"concise": "shorter", "detailed": "longer"}[in.Mode]
-		if in.ResponseLength != "" && in.ResponseLength != want {
-			return ChatConfigureOut{}, badInput("mode %s conflicts with response_length %s", in.Mode, in.ResponseLength)
-		}
-		if in.CustomPrompt != "" {
-			return ChatConfigureOut{}, badInput("custom_prompt needs mode custom")
-		}
-		cfg.Goal, cfg.Length = "default", want
 	default:
-		return ChatConfigureOut{}, badInput("mode must be default, learning_guide, concise, detailed or custom, got %q", in.Mode)
+		return ChatConfigureOut{}, badInput("mode must be default, learning_guide or custom, got %q", in.Mode)
 	}
 	if cfg.Goal == "" && cfg.Length == "" {
 		return ChatConfigureOut{}, badInput("give mode, custom_prompt or response_length")

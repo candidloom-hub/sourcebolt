@@ -36,10 +36,37 @@ type ChatConfig struct {
 
 const maxChatPrompt = 10000
 
+// Chat-settings wire values pinned by live captures #3 (s0tc2d
+// live3_02..04: goal learning_guide 3, custom 2 with its prompt; length
+// shorter 5, longer 4) and #3b (live3b_01, _02: goal default 1, length
+// default sent as an empty list).
 var (
-	chatGoals   = map[string]int{"default": 1, "custom": 2, "learning_guide": 3}
-	chatLengths = map[string]int{"default": 1, "longer": 4, "shorter": 5}
+	chatGoals   = map[string]int{"default": chatDefault, "custom": 2, "learning_guide": 3}
+	chatLengths = map[string]int{"default": chatDefault, "longer": 4, "shorter": 5}
+	// ChatGoals and ChatLengths list the proven values, for tool schemas.
+	ChatGoals   = []string{"default", "learning_guide", "custom"}
+	ChatLengths = []string{"default", "longer", "shorter"}
 )
+
+// chatDefault stands for the default goal and length. The goal is sent as
+// [1]; the length as [] (capture #3b). A missing or zero value in the
+// current settings is read as default.
+const chatDefault = 1
+
+// configureParams is pinned by live capture #3 (s0tc2d): [nb, [[null×7,
+// [[goal(, prompt)], [length]]]], HDR]. The catalog's form without HDR
+// was what sourcebolt sent before.
+func configureParams(nb string, goal int, prompt string, length int) []any {
+	goalSlot := []any{goal}
+	if goal == 2 {
+		goalSlot = []any{2, prompt}
+	}
+	lengthSlot := []any{length}
+	if length == chatDefault {
+		lengthSlot = []any{}
+	}
+	return []any{nb, []any{[]any{nil, nil, nil, nil, nil, nil, nil, []any{goalSlot, lengthSlot}}}, requestOptions()}
+}
 
 // Payload shapes pinned by live capture (2026-10-13): hPTbtc [HDR,null,nb,limit],
 // khqZz [HDR,null,null,conv,limit].
@@ -111,10 +138,9 @@ func invalidArg(rpc, msg string) error {
 }
 
 // Configure changes chat settings (s0tc2d slot 7). It reads the current
-// settings from rLM1Ne row [7] first and merges the partial change.
-//
-// shape: catalog consensus, not live-verified. Slot 7 is
-// [[goal(,prompt)],[length]]; custom goal is [2,prompt].
+// settings from rLM1Ne row [7] first (the s0tc2d answer echoes them at the
+// same project-row slot) and merges the partial change; both the goal and
+// the length are always sent, as the web app does.
 func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error {
 	if cfg.Goal == "" && cfg.Prompt == "" && cfg.Length == "" {
 		return invalidArg("notebooks.mutate", "no chat setting to change")
@@ -141,6 +167,14 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 		return invalidArg("notebooks.mutate", "prompt requires goal custom")
 	}
 
+	// Read and write as one step per notebook, so two partial changes made
+	// at once cannot overwrite each other with stale settings. (Other
+	// clients, such as the web app, are not covered.)
+	unlock, err := c.configLock.Lock(ctx, nb)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	cur, err := c.do(ctx, "notebooks.get", getNotebookParams(nb), callOpts{sourcePath: notebookPath(nb), idempotent: true, null: wire.NullAllowed})
 	if err != nil {
 		return err
@@ -149,10 +183,10 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 	curLen, _ := wire.Int(cur, 0, 7, 1, 0)
 	curPrompt := wire.Str(cur, 0, 7, 0, 1)
 	if curGoal == 0 {
-		curGoal = 1
+		curGoal = chatDefault
 	}
 	if curLen == 0 {
-		curLen = 1
+		curLen = chatDefault
 	}
 
 	g, prompt, l := int(curGoal), curPrompt, int(curLen)
@@ -174,12 +208,6 @@ func (c *Client) Configure(ctx context.Context, nb string, cfg ChatConfig) error
 	if g == 2 && prompt == "" {
 		return invalidArg("notebooks.mutate", "goal custom needs a prompt")
 	}
-
-	goalSlot := []any{g}
-	if g == 2 {
-		goalSlot = []any{2, prompt}
-	}
-	params := []any{nb, []any{[]any{nil, nil, nil, nil, nil, nil, nil, []any{goalSlot, []any{l}}}}}
-	_, err = c.do(ctx, "notebooks.mutate", params, callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed})
+	_, err = c.do(ctx, "notebooks.mutate", configureParams(nb, g, prompt, l), callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed})
 	return err
 }

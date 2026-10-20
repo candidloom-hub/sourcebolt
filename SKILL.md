@@ -21,8 +21,9 @@ Tool details and parameters are in docs/tools.md. Most tools take `notebook` as 
 | Add URLs, YouTube links or pasted text | `source_add` |
 | See what is in the notebook and whether it finished processing | `source_list` (filter by status), `source_read` |
 | Find new sources on the web | `research_start`, `research_status`, `research_import` |
-| Keep a note | `note_save`, `note_list` |
+| Keep a note | `note_save`, `note_list`; `chat_ask` with `save_as_note` keeps an answer |
 | Check Studio artifacts (audio, reports, ...) | `studio_list` |
+| Make an audio or video overview, report, slide deck, mind map, quiz, flashcards, infographic or data table (omitted options take the web app's defaults) | `studio_generate` (only the option values in its schema), then `studio_list` until ready |
 | Quota or settings | `account_settings` |
 | Sharing | `share_status` first, then `share_update` |
 
@@ -60,7 +61,7 @@ Batch tools (`chat_ask_many`) appear only when the server runs with `--tools all
 
 ## Not available yet
 
-`studio_generate` for anything but flashcards with quantity fewer and difficulty hard (returns `UNSUPPORTED_BY_TRANSPORT` after a quota check), Drive and file sources, deleting artifacts, labels and collections, source refresh, saving a chat turn as a note, `suggest` followups, label create and auto-label, research `discover` mode. Say so instead of retrying.
+`studio_generate` option values or languages outside its schema enums, and `instructions` where a kind refuses or requires it (see the tool description); Drive and file sources, deleting artifacts, labels and collections, source refresh, `suggest` followups, label create and auto-label, research `discover` mode. Say so instead of retrying.
 
 ## Errors
 

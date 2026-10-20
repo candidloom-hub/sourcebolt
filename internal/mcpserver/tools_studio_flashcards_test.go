@@ -14,7 +14,7 @@ func TestStudioGenerateFlashcards(t *testing.T) {
 	st.payloads["R7cb6c"] = `[["art-9","Q3 plan",4,[],2,null,null,null,null,[null,[1]]]]`
 	cs := connect(t, st, "default")
 	args := map[string]any{"notebook": idA, "kind": "flashcards", "sources": []string{"Doc"}, "instructions": "topic one",
-		"flashcards": map[string]any{"quantity": "fewer", "difficulty": "hard"}}
+		"flashcards": map[string]any{"quantity": "fewer", "difficulty": "hard", "images": "text_only"}}
 	var a nlm.Artifact
 	res := call(t, cs, "studio_generate", args)
 	if err := json.Unmarshal([]byte(text(res)), &a); err != nil || a.ID != "art-9" || a.Kind != nlm.StudioFlashcards || a.Status != nlm.ArtifactPending {
@@ -63,8 +63,8 @@ func TestStudioGenerateFlashcardsLimits(t *testing.T) {
 		args map[string]any
 		code string
 	}{
-		{map[string]any{"notebook": idA, "kind": "flashcards", "instructions": "t", "flashcards": map[string]any{"quantity": "standard"}}, "UNSUPPORTED_BY_TRANSPORT"},
-		{map[string]any{"notebook": idA, "kind": "flashcards", "instructions": "t", "flashcards": map[string]any{"difficulty": "medium"}}, "UNSUPPORTED_BY_TRANSPORT"},
+		{map[string]any{"notebook": idA, "kind": "flashcards", "instructions": "t", "flashcards": map[string]any{"quantity": "more"}}, "UNSUPPORTED_BY_TRANSPORT"},
+		{map[string]any{"notebook": idA, "kind": "flashcards", "instructions": "t", "flashcards": map[string]any{"difficulty": "easy"}}, "UNSUPPORTED_BY_TRANSPORT"},
 		{map[string]any{"notebook": idA, "kind": "flashcards"}, "UNSUPPORTED_BY_TRANSPORT"},
 		{map[string]any{"notebook": idA, "kind": "flashcards", "instructions": "t", "flashcards": map[string]any{"quantity": "heaps"}}, "INVALID_ARGUMENT"},
 		{map[string]any{"notebook": idA, "kind": "quiz", "instructions": "t", "flashcards": map[string]any{"quantity": "fewer"}}, "INVALID_ARGUMENT"},

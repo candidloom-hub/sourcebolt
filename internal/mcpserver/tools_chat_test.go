@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json/v2"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -22,9 +23,14 @@ type streamStub struct {
 	snaps []wire.Snapshot
 	delay time.Duration // pause before each snapshot
 	block bool          // wait for ctx cancellation instead of answering
+	// wanted records wire.AnswerBlockWanted for each stream.
+	wanted []bool
 }
 
 func (s *streamStub) Stream(ctx context.Context, _ string, _ any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+	s.mu.Lock()
+	s.wanted = append(s.wanted, wire.AnswerBlockWanted(ctx))
+	s.mu.Unlock()
 	if s.block {
 		<-ctx.Done()
 		return wire.Snapshot{}, ctx.Err()
@@ -189,24 +195,63 @@ func TestChatHistory(t *testing.T) {
 func TestChatConfigure(t *testing.T) {
 	tr := newChatStub()
 	cs := connectChat(t, tr, nil, nil)
-	res := call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "concise"})
+	res := call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "learning_guide", "response_length": "shorter"})
 	var out ChatConfigureOut
-	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Length != "shorter" {
+	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Mode != "learning_guide" || out.Length != "shorter" {
 		t.Fatalf("configure = %q %v", text(res), err)
 	}
 	if tr.count("s0tc2d") != 1 {
 		t.Fatalf("mutate calls = %d", tr.count("s0tc2d"))
 	}
-	for _, args := range []map[string]any{
-		{"notebook": idA, "mode": "wild"},
-		{"notebook": idA},
-		{"notebook": idA, "mode": "detailed", "response_length": "shorter"},
-		{"notebook": idA, "mode": "custom"}, // custom without prompt: rejected by the domain layer
+	for _, tc := range []struct {
+		args map[string]any
+		code string
+	}{
+		{map[string]any{"notebook": idA, "mode": "wild"}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA, "mode": "concise"}, "INVALID_ARGUMENT"},
+		{map[string]any{"notebook": idA, "mode": "custom", "response_length": "longer"}, "INVALID_ARGUMENT"}, // custom without prompt: rejected by the domain layer
 	} {
-		if e := envelope(t, call(t, cs, "chat_configure", args)); e.Code != "INVALID_ARGUMENT" {
-			t.Fatalf("%v: %+v", args, e)
+		if e := envelope(t, call(t, cs, "chat_configure", tc.args)); e.Code != tc.code {
+			t.Fatalf("%v: %+v", tc.args, e)
 		}
 	}
+	if tr.count("s0tc2d") != 1 {
+		t.Fatalf("refused changes wrote settings: %d mutate calls", tr.count("s0tc2d"))
+	}
+	// Reset to the defaults (capture #3b).
+	res = call(t, cs, "chat_configure", map[string]any{"notebook": idA, "mode": "default", "response_length": "default"})
+	out = ChatConfigureOut{}
+	if err := json.Unmarshal([]byte(text(res)), &out); err != nil || !out.Updated || out.Mode != "default" || out.Length != "default" {
+		t.Fatalf("reset = %q %v", text(res), err)
+	}
+}
+
+// The schema offers only the proven settings.
+func TestChatConfigureSchemaEnums(t *testing.T) {
+	cs := connectChat(t, newChatStub(), nil, nil)
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name != "chat_configure" {
+			continue
+		}
+		b, _ := json.Marshal(tool.InputSchema)
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		if got := enumOf(t, m, "mode"); !slices.Equal(got, []string{"default", "learning_guide", "custom"}) {
+			t.Errorf("mode enum = %v", got)
+		}
+		if got := enumOf(t, m, "response_length"); !slices.Equal(got, []string{"default", "longer", "shorter"}) {
+			t.Errorf("response_length enum = %v", got)
+		}
+		return
+	}
+	t.Fatal("chat_configure not listed")
 }
 
 func TestSuggest(t *testing.T) {
@@ -221,6 +266,19 @@ func TestSuggest(t *testing.T) {
 	}
 	if e := envelope(t, call(t, cs, "suggest", map[string]any{"surface": "chat"})); e.Code != "INVALID_ARGUMENT" {
 		t.Fatalf("missing notebook: %+v", e)
+	}
+}
+
+// Report suggestions return title, description and prompt; the row's
+// last number (the catalog's "audience") has no verified meaning and is
+// not part of the tool output.
+func TestSuggestReportHasNoAudience(t *testing.T) {
+	tr := newChatStub()
+	tr.payloads["ciyUvf"] = `[[["T","D",null,[["s1"]],"P",2]]]`
+	cs := connectChat(t, tr, nil, nil)
+	res := call(t, cs, "suggest", map[string]any{"notebook": idA, "surface": "report", "sources": []string{"Doc"}})
+	if res.IsError || !strings.Contains(text(res), `"prompt":"P"`) || strings.Contains(text(res), "audience") {
+		t.Fatalf("suggest = %s", text(res))
 	}
 }
 

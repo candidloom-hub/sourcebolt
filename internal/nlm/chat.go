@@ -26,6 +26,10 @@ type AskOptions struct {
 	SourceIDs       []string
 	ConversationID  string
 	NewConversation bool
+	// KeepAnswerBlock keeps the stream's final answer block on the Answer,
+	// which SaveAnswerNote needs. Off for plain asks: the copy is the size
+	// of the rich answer.
+	KeepAnswerBlock bool
 }
 
 // Answer is the final state of a streamed answer.
@@ -34,6 +38,12 @@ type Answer struct {
 	Citations      []wire.Citation `json:"citations,omitempty"`
 	ConversationID string          `json:"conversation_id,omitempty"`
 	ResponseID     string          `json:"response_id,omitempty"`
+	// block is the stream's raw final answer block (wire.Snapshot
+	// AnswerBlock), kept for SaveAnswerNote and never serialized.
+	block []byte
+	// transport names who answered (for example DOMTransport), so a save
+	// can say why an answer has no block. Never serialized.
+	transport string
 }
 
 // progressEvery is the minimum gap between progress callbacks.
@@ -142,7 +152,11 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 		last = now
 		progress(s.Text)
 	}
-	snap, err := st.Stream(ctx, nb, askParams(sources, question, conv, nb, 1), onSnap)
+	sctx := ctx
+	if o.KeepAnswerBlock {
+		sctx = wire.WithAnswerBlock(ctx)
+	}
+	snap, err := st.Stream(sctx, nb, askParams(sources, question, conv, nb, 1), onSnap)
 	transportName := c.t.Name()
 	if err != nil {
 		if !c.domAskAllowed(ctx, nb, o, conv, err) {
@@ -166,7 +180,7 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 			conv = threads[0].ID
 		}
 	}
-	return Answer{Text: snap.Text, Citations: snap.Citations, ConversationID: conv, ResponseID: snap.ResponseID}, nil
+	return Answer{Text: snap.Text, Citations: snap.Citations, ConversationID: conv, ResponseID: snap.ResponseID, block: snap.AnswerBlock, transport: transportName}, nil
 }
 
 // domAskAllowed reports whether a failed stream may be retried on the DOM

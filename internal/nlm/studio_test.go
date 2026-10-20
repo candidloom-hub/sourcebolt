@@ -122,9 +122,9 @@ func TestCanGenerate(t *testing.T) {
 
 func TestGenerateBlocked(t *testing.T) {
 	ft := newFake()
-	_, err := New(ft).Generate(context.Background(), nb1, StudioRequest{Kind: StudioAudio})
+	_, err := New(ft).Generate(context.Background(), nb1, StudioRequest{Kind: StudioInteractiveReport, Instructions: "t"})
 	var te *transport.Error
-	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "24") || !strings.Contains(te.Message, "32") {
+	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "with instructions") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(ft.calls) != 0 {

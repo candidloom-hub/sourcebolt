@@ -112,6 +112,13 @@ func TestAskFallsBackToDOMOnDrift(t *testing.T) {
 	if !slices.Equal(prog, []string{"hi"}) {
 		t.Fatalf("progress = %q", prog)
 	}
+	// An answer read from the page cannot be saved as a note, and the
+	// error says why.
+	_, err = c.SaveAnswerNote(context.Background(), liveNB, a, "t")
+	var te *transport.Error
+	if !errors.As(err, &te) || te.Kind != transport.KindUnsupported || !strings.Contains(te.Message, "browser fallback") {
+		t.Fatalf("save err = %v", err)
+	}
 }
 
 func TestAskNoDOMOnRateLimit(t *testing.T) {

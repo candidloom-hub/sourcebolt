@@ -3,6 +3,7 @@ package nlm
 import (
 	"encoding/json/v2"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -72,30 +73,46 @@ func TestSuggestChatNoQueryNoSources(t *testing.T) {
 	}
 }
 
-func TestSuggestReport(t *testing.T) {
-	ft := newFake(loadFixture(t, "ciyUvf", "suggestions"))
-	got, err := New(ft).Suggest(t.Context(), fakeNB, "report", []string{"src-0001"}, "")
+// Live capture #3: the report dialog asked ciyUvf for its suggested
+// formats with ARTIFACT_OPTS and the notebook's sources; each row is
+// [title, description, null, [[sid]..], prompt, audience].
+func TestSuggestReportLive3(t *testing.T) {
+	fx := loadFixture(t, "ciyUvf", "live3_2026-10-20_01")
+	ft := newFake(fx)
+	got, err := New(ft).Suggest(t.Context(), fakeNB, "report", studioSources3, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Title != "text-title-1" || got[0].Description != "text-desc-1" ||
-		got[0].Prompt != "text-prompt-1" || got[0].Audience != 1 || got[1].Audience != 2 {
+	if len(got) != 4 || got[0].Title != "text-73" || got[0].Description != "text-74" || got[0].Prompt != "text-75" ||
+		got[3].Prompt != "text-84" {
 		t.Fatalf("got %+v", got)
 	}
 	c, _ := ft.callFor("ciyUvf")
 	p, _ := json.Marshal(c.Params)
-	if !sameJSON(t, p, loadFixture(t, "ciyUvf", "suggestions").Request) {
-		t.Fatalf("params %s", p)
+	if !sameJSON(t, p, fx.Request) {
+		t.Fatalf("params %s\nwant %s", p, fx.Request)
 	}
-	// no sources: the optional third element is dropped
-	ft2 := newFake(loadFixture(t, "ciyUvf", "suggestions"))
-	if _, err := New(ft2).Suggest(t.Context(), fakeNB, "report", nil, ""); err != nil {
+	if c.SourcePath != "/notebook/"+fakeNB || !c.Idempotent {
+		t.Fatalf("call = %+v", c)
+	}
+}
+
+// Without sources the web app's form is kept: every source of the
+// notebook is listed.
+func TestSuggestReportAllSources(t *testing.T) {
+	ft := newFake(loadFixture(t, "rLM1Ne", "live_2026-10-13_03"), loadFixture(t, "ciyUvf", "live3_2026-10-20_01"))
+	if _, err := New(ft).Suggest(t.Context(), fakeNB, "report", nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	c2, _ := ft2.callFor("ciyUvf")
-	p2, _ := json.Marshal(c2.Params)
-	if !sameJSON(t, p2, []byte(`[[2],"`+fakeNB+`"]`)) {
-		t.Fatalf("params %s", p2)
+	ids, err := New(ft).notebookSourceIDs(t.Context(), fakeNB)
+	if err != nil || len(ids) == 0 {
+		t.Fatalf("ids = %v %v", ids, err)
+	}
+	c, _ := ft.callFor("ciyUvf")
+	p, _ := json.Marshal(c.Params)
+	want, _ := json.Marshal(reportSuggestParams(fakeNB, ids))
+	if !sameJSON(t, p, want) || !strings.Contains(string(p), ids[0]) {
+		t.Fatalf("params %s want %s", p, want)
 	}
 }
 

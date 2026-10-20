@@ -167,7 +167,7 @@ Grouped by task. Every tool, option and state is in the generated reference, [do
 | Sharing, labels, account | `share_status`, `share_update`, `label_list`, `label_update`, `account_settings` |
 | Clean up | `delete` (always previews first), `job_cancel` |
 
-Some options are not available yet, for example Drive and file uploads and most Studio kinds. They return a clear `UNSUPPORTED_BY_TRANSPORT` error instead of failing silently. [SKILL.md](SKILL.md) tells an agent which tool to use when.
+Some options are not available yet, for example Drive and file uploads and the Studio option values no live capture has confirmed. They return a clear `UNSUPPORTED_BY_TRANSPORT` error instead of failing silently. [SKILL.md](SKILL.md) tells an agent which tool to use when.
 
 ## How it works
 

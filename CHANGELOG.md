@@ -4,17 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-Shapes pinned by live capture #2 (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
+Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-catalog.md` (rows marked "live").
 
 ### Added
 
-- `studio_generate` kind `flashcards`: needs `instructions` (the topic) and accepts `flashcards.quantity` `fewer` and `flashcards.difficulty` `hard`, the only options the capture pinned (also the defaults). Language defaults to `en`, sources to every source of the notebook. The quota check still runs first.
+- `studio_generate` generates every Studio type: `audio`, `video`, `report`, `interactive_report`, `slide_deck`, `mind_map`, `quiz`, `flashcards`, `infographic` and `data_table`. Each kind has its own option object whose schema enums list only the values a live capture sent; an omitted option takes the web app's default. A value the web app offers but no capture sent returns `UNSUPPORTED_BY_TRANSPORT` naming the option, before the quota check. Proven values (default first): audio format `deep_dive`, `critique`, length `default`, `short`; video format `cinematic`, `short`; slide deck format `detailed_deck`, `presenter_slides`, length `default`, `short`; quiz quantity `standard`, `more`, difficulty `medium`, `easy`; flashcards quantity `standard`, `fewer`, difficulty `medium`, `hard`, images `include`, `text_only`; infographic orientation `landscape`, `portrait`, detail `standard`, `concise`, style `auto`, `sketch_note`. `instructions` is optional for audio, video, slide deck and quiz, required for report, mind map, flashcards and data table, and refused by infographic and interactive report (each as captured). `report` needs `report.title` and `report.description` plus `instructions` as the prompt; `suggest` surface `report` returns such triples. `language` accepts only the captured codes `en` (default) and `en_in`; cinematic video takes none. `video.generate_later` asks for deferred generation (the web app's "Generate later"; cinematic only; the artifact lists as pending). Sources default to every source of the notebook.
+- `chat_ask` option `save_as_note`: saves the answer as a note the way the web app's "Save to note" does (the answer's passages and rich text go along; the server picks the title). Returns `note_id` and `note_title`, or `note_error` with the answer kept.
 - `delete` kinds `source`, `note` and `chat_history` (a conversation's whole history; ids are conversation ids). Same preview and `confirm:true` gate as notebooks; refs are matched strictly against a fresh list of the notebook's items. The `chat_history` preview shows each conversation's created and updated times and, when its whole history can be read, the first question; only the newest 20 conversations are reachable (an older id gets `UNSUPPORTED_BY_TRANSPORT`, not `NOT_FOUND`).
 - `source_read` mode `guide`: the source guide's summary as `text` plus `keywords`.
-- `studio_list` reports flashcards artifacts as kind `flashcards` instead of `interactive`.
+- `studio_list` decodes rows of every Studio type with their status (`pending` while queued, generating or deferred).
 
 ### Changed
 
+- **Breaking:** `studio_list` reports flashcards, quiz and mind map artifacts as kinds `flashcards`, `quiz` and `mind_map` (all were `interactive`), and slide decks as `slide_deck` (was `slides`), the names `studio_generate` uses. Filters on the old names match nothing.
+- **Breaking:** `studio_generate` flashcards default to the web app's defaults (standard, medium, with images), which capture #3 sent, instead of fewer, hard, text only (still available as options).
+- **Breaking:** `chat_configure` accepts mode `default`, `learning_guide` or `custom` and response_length `default`, `longer` or `shorter`, the values captures #3 and #3b saved; mode `default` with response_length `default` resets a notebook. Modes `concise` and `detailed` are removed.
+- `suggest` surface `report` no longer returns `audience`: the number has no verified meaning.
+- `suggest` surface `report` sends the live request (artifact options block and every source when none are given).
 - `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
 - Notebook rename, text load-source and artifact-read requests match the live web app (options block added, full `v9rmvd` form). Markdown load-source and chat suggestions were not captured and keep their earlier requests.
 - `note_list` (and so `note_save` and the note delete) skips rows that are not notes, such as note-backed mind maps.
@@ -23,13 +29,21 @@ Shapes pinned by live capture #2 (2026-10-20); see `research/rpc-catalog.md` (ro
 
 ### Fixed
 
+- `chat_configure` sent no options block; the web app sends it. Two changes on one notebook at once could lose one of them; the read and the write now run one at a time per notebook.
+- `chat_ask` streams copy the answer's rich block only when `save_as_note` is set.
+- `studio_list` with kind `slide_deck` matched nothing.
 - `source_read` returned a source's text as one run-on line: text blocks sit one level deeper than the research catalog said.
 - Chat citations: a marker lists passage indices, not a range (checked against both live captures). Answers citing a single passage had no citations, and answers whose markers cite several passages lost some. Exact duplicates are dropped and malformed indices skipped.
 - `source_add`: an item missing from a successful add answer was reported failed although Google had added it (seen live with YouTube). It is now looked up in the notebook: found is added, not found is failed, a failed lookup is pending.
 
 ### Known limitations
 
-- Replaces the 0.1.0 list. Not available yet: Studio generation other than flashcards, and flashcards with other options (standard or more cards, easy or medium, no topic) or with notes as sources; artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`; saving a chat turn as a note (the save request carries the answer's rich-text and citation structures, which the client does not keep).
+- Replaces the 0.1.0 list. Not available yet: Studio option values no capture sent (audio formats brief and debate, long audio, video formats explainer and brief and their visual styles, quiz fewer and hard, flashcards more and easy, square infographics, detailed infographics, other infographic styles), languages other than `en` and `en_in`, deferred generation for anything but cinematic video, free text where a kind was captured without it (infographic, interactive report) or required where only captured with it (report, mind map, flashcards, data table), report templates by name (their texts live in the web app), and notes as Studio sources; artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`.
+- Combinations are assumed independent: options proven in different captures (for example a cinematic video without "Generate later", or a quiz topic with the default quantity) are sent together although no capture sent that exact mix.
+- `chat_configure` serializes its own changes per notebook; a change made at the same moment in the web app can still be overwritten.
+- `studio_list` leaves media URLs empty: no finished video was captured, and the two slide-deck download URLs cannot be told apart (PDF or PPTX) in the sanitized capture.
+- Saving a chat answer re-encodes the answer's rich text the way both captured saves did; rich structures neither capture had (tables, images in answers) are sent as the stream had them.
+- Not capturable from the web UI: conversation-list paging (the UI keeps one thread per notebook and never pages, so only the newest 20 conversations are listed) and markdown load-source (`hizoJc` markdown mode; no UI path found, so the catalog's request is kept unverified).
 - Uncached `notebook_list` overhead: as listed for 0.1.0 (not re-measured for these changes).
 
 ## [0.1.0] - 2026-10-20
