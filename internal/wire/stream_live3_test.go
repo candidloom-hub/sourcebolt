@@ -52,6 +52,9 @@ func TestAnswerBlockOptIn(t *testing.T) {
 			t.Fatal("a plain decoder kept the answer block")
 		}
 	}
+	if raceEnabled {
+		return // the race detector's allocation noise (MBs) hides an 18 KB copy
+	}
 	// Malloc counts drift by a few dozen between runs, so compare bytes:
 	// the least allocated over several runs, with and without the copy.
 	// The difference must be most of the block's size.
