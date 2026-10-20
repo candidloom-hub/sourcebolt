@@ -40,3 +40,21 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/sourcebolt
+
+  # DOM fallback against local HTML fixtures in headless Chrome (preinstalled
+  # on ubuntu-latest). Fixtures only: no Google page is loaded.
+  browser-dom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: allow the Chrome sandbox
+        # Ubuntu 24.04 restricts unprivileged user namespaces, which the
+        # Chrome sandbox needs; this runner is throwaway.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: DOM fallback tests
+        env:
+          NOTEBOOKLM_BROWSER_FALLBACK: "0"
+        run: go test -tags browser ./internal/transport/browser -run 'DOM|Find' -v

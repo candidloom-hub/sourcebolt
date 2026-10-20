@@ -279,7 +279,7 @@ func TestAddTextDOM(t *testing.T) {
 	wantSources(t, d, "Pasted text: pasted body")
 }
 
-func TestAddSourceMissingInsertIsDrift(t *testing.T) {
+func TestAddSourceDOMMissingInsertIsDrift(t *testing.T) {
 	d, srv := newFixtureDOM(t)
 	openFixture(t, d, srv.URL+"/notebook/sources?noinsert=1")
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
@@ -294,7 +294,7 @@ func TestAddSourceMissingInsertIsDrift(t *testing.T) {
 	}
 }
 
-func TestAddSourceAddSourceParamFallback(t *testing.T) {
+func TestAddSourceDOMAddSourceParamFallback(t *testing.T) {
 	d, srv := newFixtureDOM(t)
 	openFixture(t, d, srv.URL+"/notebook/sources?hideadd=1")
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)

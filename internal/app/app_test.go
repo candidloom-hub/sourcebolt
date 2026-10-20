@@ -86,10 +86,39 @@ func TestForProfileWithFallbackUsesRouterOverRPC(t *testing.T) {
 	}
 }
 
+func TestForProfileWiresLazyDOMFallback(t *testing.T) {
+	rt := ForProfile(testProfile(), nil, WithBrowserFallback(t.TempDir()))
+	defer rt.Close()
+	if rt.Deps.NLM.DOM == nil {
+		t.Fatal("DOM fallback not wired with the browser fallback on")
+	}
+	if rt.launcher != nil {
+		t.Fatal("launcher built before the first DOM call")
+	}
+	d, err := rt.Deps.NLM.DOM.(*lazyDOM).get()
+	if err != nil || d == nil {
+		t.Fatalf("get = %v, %v", d, err)
+	}
+	l := rt.launcher
+	if l == nil {
+		t.Fatal("DOM fallback did not build the runtime's launcher")
+	}
+	if _, err := rt.newBrowser(context.Background()); err != nil || rt.launcher != l {
+		t.Fatalf("browser transport does not share the DOM launcher (err %v)", err)
+	}
+	rt.Close()
+	if err := rt.Deps.NLM.DOM.AddURL(context.Background(), "nb", "https://example.test/"); !errors.Is(err, browser.ErrClosed) {
+		t.Fatalf("DOM after Close: err = %v, want ErrClosed", err)
+	}
+}
+
 func TestForProfileWithoutFallbackIsBareRPC(t *testing.T) {
 	rt := ForProfile(testProfile(), nil)
 	if rt.Router != nil {
 		t.Fatal("Router set without fallback")
+	}
+	if rt.Deps.NLM.DOM != nil {
+		t.Fatal("DOM fallback set without the browser fallback")
 	}
 	if rt.Active != transport.Transport(rt.Transport) {
 		t.Fatalf("Active = %T, want the rpc transport", rt.Active)

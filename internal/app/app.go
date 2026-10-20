@@ -92,13 +92,73 @@ type Runtime struct {
 func (rt *Runtime) newBrowser(context.Context) (transport.Transport, error) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	l, err := rt.sharedLauncher()
+	if err != nil {
+		return nil, err
+	}
+	return browser.NewTransport(l.Get, rt.Profile.Host), nil
+}
+
+// sharedLauncher returns the runtime's launcher, creating it on first use.
+// Caller holds rt.mu.
+func (rt *Runtime) sharedLauncher() (*browser.Launcher, error) {
 	if rt.closed {
 		return nil, browser.ErrClosed
 	}
 	if rt.launcher == nil {
 		rt.launcher = browser.NewLauncher(rt.browserOpts)
 	}
-	return browser.NewTransport(rt.launcher.Get, rt.Profile.Host), nil
+	return rt.launcher, nil
+}
+
+// lazyDOM is the nlm DOM fallback. It builds browser.DOM on first use, on
+// the runtime's launcher (shared with the browser transport), so nothing
+// starts before an RPC drift asks for it.
+type lazyDOM struct {
+	rt  *Runtime
+	sel browser.Selectors
+
+	mu sync.Mutex
+	d  *browser.DOM
+}
+
+func (l *lazyDOM) get() (*browser.DOM, error) {
+	l.rt.mu.Lock()
+	launcher, err := l.rt.sharedLauncher()
+	l.rt.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.d == nil {
+		l.d = browser.NewDOM(launcher.Get, l.rt.Profile.Host, l.sel)
+	}
+	return l.d, nil
+}
+
+func (l *lazyDOM) Ask(ctx context.Context, nb, question string, progress func(string)) (string, error) {
+	d, err := l.get()
+	if err != nil {
+		return "", err
+	}
+	return d.Ask(ctx, nb, question, progress)
+}
+
+func (l *lazyDOM) AddURL(ctx context.Context, nb, url string) error {
+	d, err := l.get()
+	if err != nil {
+		return err
+	}
+	return d.AddURL(ctx, nb, url)
+}
+
+func (l *lazyDOM) AddText(ctx context.Context, nb, title, content string) error {
+	d, err := l.get()
+	if err != nil {
+		return err
+	}
+	return d.AddText(ctx, nb, title, content)
 }
 
 // Close cancels running detached jobs and stops the fallback browser (if
@@ -184,6 +244,11 @@ func ForProfile(p *session.Profile, store session.Store, opts ...Option) *Runtim
 		rt.Active = rt.Router
 	}
 	rt.Deps = mcpserver.Deps{NLM: nlm.New(rt.Active), Cache: cache.New(nil), Jobs: jobs.New(), Profile: p.Name, Host: p.Host}
+	if o.browserFallback && o.newBrowser == nil {
+		// Chat and add-source fall back to driving the page on RPC drift.
+		// A bad <config>/selectors.json logs one line and keeps the defaults.
+		rt.Deps.NLM.DOM = &lazyDOM{rt: rt, sel: browser.LoadSelectors(o.browserConfigDir, os.Stderr)}
+	}
 	return rt
 }
 
