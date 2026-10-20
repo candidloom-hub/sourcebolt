@@ -56,7 +56,7 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Mutation-check agent tests (agents skipped the red step). Diff after each mutation; a sed that matches nothing is a false survivor.
 - Tests set `NOTEBOOKLM_BROWSER_FALLBACK=0` and `NOTEBOOKLM_CONFIG_DIR` to a temp dir; no test may launch a browser.
 - Benchmarks: run base and head interleaved (`bench/interleave.sh`); sequential runs drift.
-- Cookie import needs SID/HSID/APISID; without them NotebookLM returns the signed-out shell (200, no SNlM0e). Do not relax this.
+- Cookie import needs SID, __Secure-1PSIDTS, and OSID or APISID+SAPISID (`Jar.Missing`); without them NotebookLM returns the signed-out shell (200, no SNlM0e). Do not relax this.
 - Live capture: an in-page hook via Claude in Chrome. NotebookLM calls `fetch(Request)`, so read the body from `input.clone()`, not from `init`. The tab must be visible: bring Chrome forward with computer-use `open_application`. The extension blocks query-string and base64 output, so don't route raw data through the model. Instead: trim in the page (strings over 200 characters, arrays over 25 items, drop `f.sid` and the other query values), put it in a temporary textarea, press Ctrl+C with a real keystroke, then run `Get-Clipboard -Raw > file`. Check the file starts with `{"log"`, run `tools/capture`, then leak-scan. A page reload loses the recording. Autofill extensions can take over the tab.
 - Payloads with `)]}'` or apostrophes: write files with the Write tool, not heredocs or `node -e`.
 - Commands for the owner use `.\bin\sourcebolt.exe`, never bare `sourcebolt`.
