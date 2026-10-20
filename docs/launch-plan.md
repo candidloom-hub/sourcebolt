@@ -189,7 +189,7 @@ sourcebolt is an MCP server for NotebookLM in Go. Some things that may interest 
 - Benchmarks gate CI; base and head run interleaved because sequential runs drifted on a laptop.
 - One CGO-free static binary per platform via GoReleaser, with SBOMs and cosign signatures.
 
-Numbers (one Windows laptop, high variance): cold start to MCP initialize p50 10.3 ms, 10.06 MB stripped binary, 12.4 MB idle.
+Numbers (GitHub Actions runner, 2 CPUs, v0.2.0): cold start to MCP initialize p50 8.2 ms, 16.2 MB idle, 0.40 ms of its own work per cached call; one ~10 MB binary.
 
 Repo: https://github.com/candidloom-hub/sourcebolt. Happy to answer questions about the wire format work or the official MCP Go SDK.
 ```
@@ -215,7 +215,7 @@ First comment: reuse the Show HN body.
 ```text
 sourcebolt: a free, open-source MCP server for Google NotebookLM.
 
-Ask your notebooks from Claude, Cursor, VS Code or Gemini CLI and get answers with citations. One Go binary, ~10 ms cold start, cookies encrypted locally, no telemetry.
+Ask your notebooks from Claude, Cursor, VS Code or Gemini CLI and get answers with citations. One Go binary, ~8 ms cold start, cookies encrypted locally, no telemetry.
 
 Unofficial and can break when Google changes the site.
 https://github.com/candidloom-hub/sourcebolt

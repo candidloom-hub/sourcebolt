@@ -84,7 +84,7 @@ Direct requests are faster and lighter than driving a web page, but they break w
 
 ## Where sourcebolt is ahead
 
-- **Footprint and speed:** one ~10 MB binary, no runtime to install, about 10 ms start-up ([performance.md](performance.md)).
+- **Footprint and speed:** one ~10 MB binary, no runtime to install, about 8 ms start-up ([performance.md](performance.md)).
 - **Resilience:** direct requests, plus browser replay and a page fallback for chat and adding sources, with rules that never replay a change twice.
 - **Safety by default:** encrypted session with the key in the OS keyring, no password handling, previews before delete and before widening sharing, SSRF checks, a token-protected loopback-only HTTP mode, signed releases.
 - **Agent-friendly errors:** stable error codes with a fix and `retry_after_seconds`.

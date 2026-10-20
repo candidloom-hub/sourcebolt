@@ -26,15 +26,16 @@ The assistant calls sourcebolt, sourcebolt talks to NotebookLM with your own Goo
 
 ## Key numbers
 
-Measured on a Windows laptop (Intel Core i7-12650H, 16 GB RAM). Method and raw data: [bench/RESULTS.md](bench/RESULTS.md) and [docs/performance.md](docs/performance.md).
+Measured on the GitHub Actions runner (2 CPUs, AMD EPYC 7763), v0.2.0, medians. Method and raw data: [bench/RESULTS.md](bench/RESULTS.md) and [docs/performance.md](docs/performance.md).
 
 | What | Result |
 |---|---|
-| Start-up time (start to ready) | 10.3 ms median |
-| Program size | 10.06 MB, one file |
-| Memory while idle | 12.4 MB |
-| sourcebolt's own work per call, cached (100 notebooks) | 1.6 ms median |
-| A real `notebook_list` call to Google | 848 ms median (Google's time dominates) |
+| Start-up time (start to ready) | 8.2 ms |
+| Program size | about 10 MB, one file |
+| Memory while idle | 16.2 MB |
+| sourcebolt's own work per call, 100 notebooks, cached / not cached | 0.40 ms / 0.76 ms |
+| Chat: first progress after Google's first chunk | +0.3 ms |
+| A real `notebook_list` call to Google | 848 ms median (Google's time dominates; one laptop, 2026-10-14) |
 
 ## Quick start
 
@@ -72,13 +73,13 @@ The full walkthrough with expected output is in [docs/getting-started.md](docs/g
 
 ## Install
 
-The current release is [v0.1.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0).
+The current release is [v0.2.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.2.0).
 
 | Channel | Status | How |
 |---|---|---|
 | GitHub release binary | Available | Windows, macOS and Linux, on x64 and ARM64. See below. |
 | `go install` | Available | Needs Go 1.27 or newer. |
-| Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.1.0`. Images are tagged by version only; there is no `latest` tag. |
+| Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.2.0`. Images are tagged by version only; there is no `latest` tag. |
 | npm (`npx`) | Not published yet | |
 | PyPI (`pipx`, `uvx`) | Not published yet | |
 
@@ -89,19 +90,19 @@ The current release is [v0.1.0](https://github.com/candidloom-hub/sourcebolt/rel
 ```powershell
 $dir = "$env:LOCALAPPDATA\Programs\sourcebolt"
 New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.1.0/sourcebolt_0.1.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
+Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
 Expand-Archive "$env:TEMP\sourcebolt.zip" -DestinationPath $dir -Force
 [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
 ```
 
-Open a new terminal, then run `sourcebolt --version`. It prints `sourcebolt 0.1.0`.
+Open a new terminal, then run `sourcebolt --version`. It prints `sourcebolt 0.2.0`.
 
 **macOS and Linux (bash).** Set `OS` to `darwin` or `linux` and `ARCH` to `amd64` or `arm64`.
 
 ```bash
 OS=linux ARCH=amd64
-curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.1.0/sourcebolt_0.1.0_${OS}_${ARCH}.tar.gz"
-tar -xzf "sourcebolt_0.1.0_${OS}_${ARCH}.tar.gz" sourcebolt
+curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.2.0/sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz"
+tar -xzf "sourcebolt_0.2.0_${OS}_${ARCH}.tar.gz" sourcebolt
 mkdir -p ~/.local/bin && mv sourcebolt ~/.local/bin/
 sourcebolt --version
 ```
@@ -117,10 +118,10 @@ go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest
 ### Docker
 
 ```bash
-docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0
+docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.2.0
 ```
 
-The image has no OS keyring, so the profile key is kept in a file inside the `/config` volume. Protect that volume like a password. The `0.1.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [docs/auth.md](docs/auth.md#docker).
+The image has no OS keyring, so the profile key is kept in a file inside the `/config` volume. Protect that volume like a password. The `0.2.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [docs/auth.md](docs/auth.md#docker).
 
 ## Connect your AI app
 

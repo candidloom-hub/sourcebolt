@@ -1,6 +1,6 @@
 {
   "name": "sourcebolt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Unofficial MCP server for Google NotebookLM: notebooks, sources, cited chat, research and notes. Needs the sourcebolt binary on PATH.",
   "mcpServers": {
     "sourcebolt": {

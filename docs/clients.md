@@ -192,7 +192,7 @@ Any app above can start the Docker image instead of the program. Sign in first (
   "mcpServers": {
     "sourcebolt": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-v", "sourcebolt-config:/config", "ghcr.io/candidloom-hub/sourcebolt:0.1.0"]
+      "args": ["run", "-i", "--rm", "-v", "sourcebolt-config:/config", "ghcr.io/candidloom-hub/sourcebolt:0.2.0"]
     }
   }
 }

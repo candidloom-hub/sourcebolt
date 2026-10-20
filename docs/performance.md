@@ -4,7 +4,7 @@ This page explains how sourcebolt's speed is measured, what the current numbers 
 
 ## The short version
 
-- sourcebolt starts in about 10 ms and adds a few milliseconds of its own work per call.
+- sourcebolt starts in about 8 ms and adds well under a millisecond of its own work per call (0.40 ms cached, 0.76 ms uncached for 100 notebooks).
 - A real NotebookLM call takes most of a second or more. That time is Google's, not sourcebolt's.
 - So for you, the biggest wins are fast start-up (apps can start the server on demand) and low memory, not shaving milliseconds off each call.
 
@@ -16,7 +16,23 @@ This page explains how sourcebolt's speed is measured, what the current numbers 
 - **Repeated, compared statistically.** Go benchmarks run 10 times and are summarized with `benchstat`. When comparing two versions, runs are interleaved (old, new, old, new) because back-to-back runs drift on a laptop.
 - **One live check.** The only number that includes Google is a round trip of `notebook_list` against a real account, labelled as such.
 
-## Current numbers
+## Current numbers (v0.2.0, CI runner)
+
+GitHub Actions `ubuntu-latest`, 2 CPUs (AMD EPYC 7763), each benchmark interleaved with the previous `main` (10 runs each, p50). This runner is the slowest type seen, so most machines are faster.
+
+| What | Target | v0.1.0 | v0.2.0 | Result |
+|---|---|---|---|---|
+| sourcebolt's own time per call, 100 notebooks, not cached | p50 < 1.5 ms | 2.20 ms | 0.758 ms | Meets |
+| sourcebolt's own time per call, 100 notebooks, cached | p50 < 0.5 ms | 0.99 ms | 0.398 ms | Meets |
+| Start-up, process start to MCP `initialize` answered | p50 < 25 ms | | 8.2 ms | Meets |
+| Memory while idle (real binary, median of 5 starts) | < 20 MB | 19.1–19.5 MB | 16.2 MB | Meets |
+| Peak memory after listing 100 notebooks (in-process gate) | < 25 MB | 21.9 MB | 19.7 MB | Meets |
+| Chat: first progress after Google's first chunk | ≤ +20 ms | | +0.30 ms | Meets |
+| Decode a 40 KB notebook-list response | | 508 µs, 93 allocations | 225 µs, 9 allocations | |
+
+What changed: a faster JSON scanner, decoding without copies, tool schemas prepared on first use, reused response buffers, `notebook_list` returning 20 notebooks per page by default, transparent huge pages off on Linux, and `GOGC=200` for `serve` (set `GOGC` yourself to override). Details per change: [bench/RESULTS.md](../bench/RESULTS.md).
+
+## Earlier numbers (v0.1.0, laptop)
 
 Machine: Windows 11, Intel Core i7-12650H (16 threads), 16 GB RAM, Go 1.27.0, a laptop with other programs running. Measured 2026-10-14. Variance on this machine is high (20 to 50 percent on millisecond benchmarks), so read these as orders of magnitude.
 
@@ -27,17 +43,15 @@ Machine: Windows 11, Intel Core i7-12650H (16 threads), 16 GB RAM, Go 1.27.0, a 
 | Peak memory after listing 100 notebooks | < 25 MB | 19.9 MB (in-process, includes a test client and fake server, so it overstates sourcebolt) | Meets |
 | Decode a 40 KB notebook-list response | p50 < 1 ms, < 100 allocations | 475 µs median, 93 allocations | Meets |
 | sourcebolt's own time per call, 100 notebooks, cached | p50 < 2 ms, p95 < 5 ms | p50 1.6 ms, p95 5.4 ms | Borderline |
-| sourcebolt's own time per call, 100 notebooks, not cached | p50 < 2 ms, p95 < 5 ms | p50 9.6 ms, p95 18 ms | Misses |
+| sourcebolt's own time per call, 100 notebooks, not cached | p50 < 2 ms, p95 < 5 ms | p50 9.6 ms, p95 18 ms | Missed (fixed in v0.2.0, see above) |
 | Connection reuse after the first request | > 95% | 100% (one TLS handshake, HTTP/2) | Meets |
 | Program size, stripped | < 20 MB | 10.06 MB | Meets |
 | Live `notebook_list` round trip, including Google | | p50 848 ms, p95 1.04 s (10 calls, one account) | |
 
-Later work (2026-10-20) on the 2-CPU CI runner: removing a redundant output re-parse and validation step cut the uncached per-call time from 2.88 ms to 2.26 ms median and the cached time from 1.67 ms to 1.00 ms, with 72% fewer allocations (interleaved, 10 runs each). The uncached path is still above the 2 ms target; see [bench/RESULTS.md](../bench/RESULTS.md) for the analysis.
 
 ## Not measured yet
 
 - The browser fallback (time to answer through the headless browser).
-- Streamed chat: time from asking to the first progress update.
 
 These are listed so that nobody quotes a number that does not exist.
 

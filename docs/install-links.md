@@ -5,10 +5,10 @@ Ready-made install links and commands for MCP clients. Sign in first (see [auth.
 Two ways to run sourcebolt:
 
 - **Binary on PATH.** Install a release binary (or `go install`) so that `sourcebolt` runs from a terminal.
-- **Docker.** Uses the pinned image `ghcr.io/candidloom-hub/sourcebolt:0.1.0` with a named volume for the encrypted profile. Sign in into that volume once, for example with a cookie export:
+- **Docker.** Uses the pinned image `ghcr.io/candidloom-hub/sourcebolt:0.2.0` with a named volume for the encrypted profile. Sign in into that volume once, for example with a cookie export:
 
   ```bash
-  docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0 login --import - < cookies.txt
+  docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.2.0 login --import - < cookies.txt
   ```
 
 npm (`npx sourcebolt`) and PyPI (`uvx sourcebolt`) links are not offered because those packages are not published yet.
@@ -64,36 +64,36 @@ cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW
 
 ### Docker
 
-Server config: `{"command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.1.0","serve"]}`
+Server config: `{"command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.2.0","serve"]}`
 
 VS Code install link:
 
 ```text
-vscode:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.1.0%22%2C%22serve%22%5D%7D
+vscode:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.2.0%22%2C%22serve%22%5D%7D
 ```
 
 VS Code Insiders install link:
 
 ```text
-vscode-insiders:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.1.0%22%2C%22serve%22%5D%7D
+vscode-insiders:mcp/install?%7B%22name%22%3A%22sourcebolt%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-v%22%2C%22sourcebolt-config%3A%2Fconfig%22%2C%22ghcr.io%2Fcandidloom-hub%2Fsourcebolt%3A0.2.0%22%2C%22serve%22%5D%7D
 ```
 
 VS Code from a terminal (bash, zsh):
 
 ```bash
-code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.1.0","serve"]}'
+code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"docker","args":["run","-i","--rm","-v","sourcebolt-config:/config","ghcr.io/candidloom-hub/sourcebolt:0.2.0","serve"]}'
 ```
 
 VS Code from PowerShell:
 
 ```powershell
-code --% --add-mcp "{\"name\":\"sourcebolt\",\"type\":\"stdio\",\"command\":\"docker\",\"args\":[\"run\",\"-i\",\"--rm\",\"-v\",\"sourcebolt-config:/config\",\"ghcr.io/candidloom-hub/sourcebolt:0.1.0\",\"serve\"]}"
+code --% --add-mcp "{\"name\":\"sourcebolt\",\"type\":\"stdio\",\"command\":\"docker\",\"args\":[\"run\",\"-i\",\"--rm\",\"-v\",\"sourcebolt-config:/config\",\"ghcr.io/candidloom-hub/sourcebolt:0.2.0\",\"serve\"]}"
 ```
 
 Cursor install link:
 
 ```text
-cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItaSIsIi0tcm0iLCItdiIsInNvdXJjZWJvbHQtY29uZmlnOi9jb25maWciLCJnaGNyLmlvL2NhbmRpZGxvb20taHViL3NvdXJjZWJvbHQ6MC4xLjAiLCJzZXJ2ZSJdfQ==
+cursor://anysphere.cursor-deeplink/mcp/install?name=sourcebolt&config=eyJjb21tYW5kIjoiZG9ja2VyIiwiYXJncyI6WyJydW4iLCItaSIsIi0tcm0iLCItdiIsInNvdXJjZWJvbHQtY29uZmlnOi9jb25maWciLCJnaGNyLmlvL2NhbmRpZGxvb20taHViL3NvdXJjZWJvbHQ6MC4yLjAiLCJzZXJ2ZSJdfQ==
 ```
 
 <!-- END GENERATED -->
@@ -106,6 +106,6 @@ These are not links, but each is one command or one file. The ones marked "not r
 |---|---|---|
 | Claude Code (plugin) | `/plugin install sourcebolt --marketplace candidloom-hub/sourcebolt` (Claude Code 2.1.275 or later), or `/plugin marketplace add candidloom-hub/sourcebolt` then `/plugin install sourcebolt@sourcebolt`. Installs the MCP server (binary on PATH) and the sourcebolt skill. | `claude plugin validate --strict` passes on the plugin and the marketplace; install not run |
 | Claude Code (server only) | `claude mcp add sourcebolt -- sourcebolt serve` | run |
-| Claude Desktop | Download `sourcebolt-mcp-<os>-<arch>.mcpb` from a release and double-click it, or use Settings > Extensions > Advanced settings > Install Extension. Bundles are built from the next release on; v0.1.0 has none. | manifest validated against the MCPB v0.3 schema; install not run |
+| Claude Desktop | Download `sourcebolt-mcp-<os>-<arch>.mcpb` from a release and double-click it, or use Settings > Extensions > Advanced settings > Install Extension. Bundles are built from the next release on; v0.2.0 has none. | manifest validated against the MCPB v0.3 schema; install not run |
 | Gemini CLI | `gemini extensions install https://github.com/candidloom-hub/sourcebolt` (reads `gemini-extension.json`; needs the binary on PATH) | not run |
 | Codex | `codex mcp add sourcebolt -- sourcebolt serve`, or the `config.toml` snippet in the README | not run |
