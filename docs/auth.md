@@ -52,8 +52,26 @@ Chrome works the same way with its own executable (`chrome.exe`, `Google Chrome.
 | Encryption key | OS keyring entry, service `sourcebolt`, user `<name>` (Windows Credential Manager, macOS Keychain, Linux Secret Service). If no keyring is usable: `<config dir>/profiles/<name>.key`, file mode `0600`. |
 | Browser profile for `login --browser` and the headless fallback | `<config dir>/browser/<profile>` |
 | Optional RPC id overrides | `<config dir>/rpc-ids.json` (or `NOTEBOOKLM_RPC_IDS`) |
+| Optional UI selector overrides for the DOM fallback | `<config dir>/selectors.json` |
 
 If the keyring is locked or fails with an error other than "not found", sourcebolt reports it instead of minting a new key, so an existing profile is never orphaned. Saves are revision-checked, so two processes cannot silently overwrite each other.
+
+## Browser fallback
+
+With the browser fallback on (the default; `--no-browser-fallback` or `NOTEBOOKLM_BROWSER_FALLBACK=0` turns it off), the headless browser runs on `<config dir>/browser/<profile>`, so it is signed in only after `login --browser` has run on that profile.
+
+When Google changes the shape of the chat or add-source request (a `DRIFT` error), sourcebolt drives the NotebookLM page in that browser instead: it types the question into the chat box and reads the answer, or opens the add-source dialog and adds the URL or pasted text. Such calls report the transport `browser-dom` (`server_info` shows the last transport). Limits of this path:
+
+- Chat: only questions about all sources in the notebook's default thread. A question scoped to some sources, to another thread or to a new thread returns the original error. The answer is text only, without citation details. A chat request that drifted after it was sent is asked once more on the page (one extra turn against the daily limit).
+- Add source: only URLs and pasted text, and only when the request was not sent; an add that may have reached Google is never repeated. Drive sources stay unsupported. The pasted-text title is not set on this path (NotebookLM names the source).
+
+The page controls are found through a selector registry built into sourcebolt. If NotebookLM's page changes before a new release, you can override any control in `<config dir>/selectors.json`. Each key replaces the built-in list for that control, and candidates are tried in order:
+
+```json
+{"chat.input": ["textarea.query-box-input", "textarea[aria-label=\"Query box\"]"]}
+```
+
+A candidate is a CSS selector, `text:<words>` (a visible button or menu item containing the words) or `icon:<name>` (the button around a Material icon). If the file is not valid JSON, sourcebolt prints one warning on stderr and uses the built-in registry.
 
 ## Commands
 

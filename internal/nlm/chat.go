@@ -70,6 +70,10 @@ func askParams(sources []string, question, conv, nb string, seq int) []any {
 // from hPTbtc afterwards. Null-id asks hold a per-notebook lock from send
 // through read-back so concurrent ones cannot read each other's thread.
 //
+// With c.DOM set, a KindDrift stream is asked again on the page (see
+// domAskAllowed); the answer then has text only and OnTransport gets
+// DOMTransport.
+//
 // seq is always 1. Ruling: the live capture (first ask) sent 1; counting
 // turns would cost a khqZz round trip per question and its turn layout is
 // not live-verified. Revisit if a multi-turn capture shows the server
@@ -139,11 +143,21 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 		progress(s.Text)
 	}
 	snap, err := st.Stream(ctx, nb, askParams(sources, question, conv, nb, 1), onSnap)
+	transportName := c.t.Name()
 	if err != nil {
-		return Answer{}, err
+		if !c.domAskAllowed(ctx, nb, o, conv, err) {
+			return Answer{}, err
+		}
+		// Still under the thread lock for a null-id ask: the DOM answer
+		// starts or continues the default thread that is read back below.
+		text, derr := c.DOM.Ask(ctx, nb, question, progress)
+		if derr != nil {
+			return Answer{}, derr
+		}
+		snap, transportName = wire.Snapshot{Text: text}, DOMTransport
 	}
 	if c.OnTransport != nil {
-		c.OnTransport(c.t.Name())
+		c.OnTransport(transportName)
 	}
 	if conv == "" {
 		// Best effort: the answer is already in hand, so a failed lookup
@@ -153,6 +167,23 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 		}
 	}
 	return Answer{Text: snap.Text, Citations: snap.Citations, ConversationID: conv, ResponseID: snap.ResponseID}, nil
+}
+
+// domAskAllowed reports whether a failed stream may be retried on the DOM
+// fallback: only on KindDrift, sent or not (owner ruling D-T5-1: the user
+// got nothing usable, so one more turn is worth it), and only for what the
+// page can do: every source, in the default thread. conv is the thread the
+// stream used ("" = none yet).
+func (c *Client) domAskAllowed(ctx context.Context, nb string, o AskOptions, conv string, err error) bool {
+	if _, ok := isDrift(err); !ok || c.DOM == nil || len(o.SourceIDs) > 0 || o.NewConversation {
+		return false
+	}
+	if o.ConversationID == "" {
+		return true
+	}
+	// An explicit id qualifies only when it is the default (newest) thread.
+	threads, lerr := c.ChatSessions(ctx, nb)
+	return lerr == nil && len(threads) > 0 && threads[0].ID == conv
 }
 
 // notebookSourceIDs reads the notebook's source ids with the rLM1Ne read

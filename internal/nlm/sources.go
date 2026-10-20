@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/safety"
@@ -152,7 +153,8 @@ func matchRows(keys []string, rows []srcRow, positional bool) []*srcRow {
 // applied) the notebook is listed and specs are matched by URL or title:
 // matched ones report added, the rest pending. A spec absent from a
 // successful response failed. Drive specs return KindUnsupported before any
-// call.
+// call. With c.DOM set, a KindDrift that happened before the request was
+// sent adds the specs through the page instead (addSourcesDOM).
 func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) ([]AddOutcome, error) {
 	if len(specs) == 0 {
 		return nil, &transport.Error{Kind: transport.KindInvalidArgument, RPC: "sources.add", Message: "no sources given"}
@@ -170,6 +172,9 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 		sourcePath: notebookPath(nb), idempotent: false, null: wire.NullAllowed, pending: pendingAdd,
 	})
 	if err != nil {
+		if te, ok := isDrift(err); ok && !te.Sent && c.DOM != nil {
+			return c.addSourcesDOM(ctx, nb, specs, keys), nil
+		}
 		var te *transport.Error
 		if !errors.As(err, &te) || te.Kind != transport.KindPending {
 			return nil, err
@@ -188,6 +193,64 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 		}
 	}
 	return out, nil
+}
+
+// addSourcesDOM adds each spec through the DOM fallback, one at a time,
+// after the add RPC drifted before it was sent (an add that may have been
+// applied is never repeated). A spec the page may have added before failing
+// reports pending, one it never sent reports failed. Source ids of added
+// specs are read back from the notebook (best effort), only from rows that
+// were not there before: a source the notebook already had with the same
+// URL or title is not the new one. Without that snapshot ids stay empty.
+func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpec, keys []string) []AddOutcome {
+	old, snapErr := c.listRows(ctx, nb)
+	out := make([]AddOutcome, len(specs))
+	var added []int
+	for i, s := range specs {
+		var err error
+		if s.Text != nil {
+			err = c.DOM.AddText(ctx, nb, s.Text.Title, s.Text.Content)
+		} else {
+			err = c.DOM.AddURL(ctx, nb, s.URL)
+		}
+		if err != nil {
+			status := AddFailed
+			var te *transport.Error
+			if errors.As(err, &te) && te.Sent {
+				status = AddPending
+			}
+			out[i] = AddOutcome{Index: i, Status: status, Error: DOMTransport + ": " + safety.Redact(err.Error())}
+			continue
+		}
+		out[i] = AddOutcome{Index: i, Status: AddAdded}
+		added = append(added, i)
+	}
+	if len(added) == 0 {
+		return out
+	}
+	if c.OnTransport != nil {
+		c.OnTransport(DOMTransport)
+	}
+	if snapErr != nil {
+		return out
+	}
+	existed := make(map[string]bool, len(old))
+	for _, r := range old {
+		existed[r.ID] = true
+	}
+	if rows, err := c.listRows(ctx, nb); err == nil {
+		rows = slices.DeleteFunc(rows, func(r srcRow) bool { return existed[r.ID] })
+		addedKeys := make([]string, len(added))
+		for j, i := range added {
+			addedKeys[j] = keys[i]
+		}
+		for j, m := range matchRows(addedKeys, rows, false) {
+			if m != nil {
+				out[added[j]].SourceID = m.ID
+			}
+		}
+	}
+	return out
 }
 
 func (c *Client) reconcileAdd(ctx context.Context, nb string, keys []string, cause string) []AddOutcome {

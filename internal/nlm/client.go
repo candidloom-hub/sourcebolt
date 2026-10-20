@@ -7,6 +7,7 @@ package nlm
 import (
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -23,6 +24,28 @@ type Client struct {
 	// newThread serializes, per notebook, the asks that start a thread and
 	// read its id back (see Ask).
 	newThread keyedLock
+	// DOM, when set, answers chat and adds URL and text sources by driving
+	// the NotebookLM page after the RPC path failed with KindDrift (see Ask
+	// and AddSources). nil = off.
+	DOM DOMFallback
+}
+
+// DOMFallback drives the NotebookLM web UI (browser.DOM). It can only ask
+// in the notebook's default thread about all sources, and only add URL and
+// pasted-text sources.
+type DOMFallback interface {
+	Ask(ctx context.Context, nb, question string, progress func(string)) (string, error)
+	AddURL(ctx context.Context, nb, url string) error
+	AddText(ctx context.Context, nb, title, content string) error
+}
+
+// DOMTransport is the transport name OnTransport reports for the DOM fallback.
+const DOMTransport = "browser-dom"
+
+// isDrift reports whether err is a KindDrift transport error.
+func isDrift(err error) (*transport.Error, bool) {
+	var te *transport.Error
+	return te, errors.As(err, &te) && te.Kind == transport.KindDrift
 }
 
 func New(t transport.Transport) *Client { return &Client{t: t} }

@@ -1,0 +1,144 @@
+<!doctype html>
+<!--
+  Hand-written test fixture for the DOM chat fallback. It mimics only the
+  structure the selector registry relies on (class names from the research
+  notes); it is not copied from any Google page.
+
+  Query parameters:
+    same=1     the new answer repeats the previous answer word for word
+    limit=1    submitting shows a daily-limit alert in the chat panel instead of an answer
+    noinput=1  the query box has no textarea
+    promo=1    a promo dialog overlays the page; submit is ignored while it is open
+    think=N    the answer bubble appears N ms after submit (default: at once)
+    streaming=1      an earlier answer is still streaming on load (done after 2 s)
+    streaming=stuck  an earlier answer is streaming on load and never completes
+    otheralert=1     submitting also shows unrelated alerts: one outside the chat
+                     panel, one in it that is not a chat limit
+    emptytext=1      the answer bubble has no message-text-content element
+    dropfirst=1      the first question is accepted but never answered
+  Submit is ignored while an earlier answer is pending, as in the real app.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>chat fixture</title>
+<style>
+  body { font-family: sans-serif; }
+  accessibility-promo-dialog { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: block; }
+</style>
+</head>
+<body>
+<div class="studio-panel"><p>Studio</p></div>
+<div class="chat-panel">
+  <div id="thread">
+    <div class="from-user-container"><div class="message-text-content">Earlier question</div></div>
+    <div class="to-user-container">
+      <div class="message-text-content">Same answer.</div>
+      <div class="message-actions"><button><mat-icon>content_copy</mat-icon></button></div>
+    </div>
+  </div>
+  <query-box>
+    <textarea class="query-box-input" aria-label="Query box"></textarea>
+    <div class="submit-button"><button type="button">send</button></div>
+  </query-box>
+</div>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const thread = document.getElementById("thread");
+  const panel = document.querySelector(".chat-panel");
+  if (q.get("noinput") === "1") document.querySelector("textarea").remove();
+  if (q.get("promo") === "1") {
+    const d = document.createElement("accessibility-promo-dialog");
+    d.setAttribute("role", "dialog");
+    d.innerHTML = '<p>New: accessibility features</p><button aria-label="Close"><mat-icon>close</mat-icon></button>';
+    d.querySelector("button").addEventListener("click", () => d.remove());
+    document.body.appendChild(d);
+  }
+  const alert = (parent, text) => {
+    const a = document.createElement("div");
+    a.setAttribute("role", "alert");
+    a.textContent = text;
+    parent.appendChild(a);
+  };
+
+  // pending counts questions whose answer is not complete; like the real
+  // app, submit does nothing while one is pending.
+  let pending = 0;
+  const leftover = q.get("streaming");
+  if (leftover) {
+    pending++;
+    const b = document.createElement("div");
+    b.className = "to-user-container";
+    b.innerHTML = '<div class="message-text-content">Leftover</div>';
+    thread.appendChild(b);
+    if (leftover !== "stuck") {
+      setTimeout(() => {
+        b.firstChild.textContent = "Leftover answer.";
+        const acts = document.createElement("div");
+        acts.className = "message-actions";
+        b.appendChild(acts);
+        pending--;
+      }, 2000);
+    }
+  }
+
+  let submits = 0;
+  document.querySelector(".submit-button button").addEventListener("click", () => {
+    if (document.querySelector("accessibility-promo-dialog")) return; // the overlay eats the click
+    if (pending > 0) return;
+    const ta = document.querySelector("textarea");
+    const question = ta.value;
+    if (!question) return;
+    ta.value = "";
+    submits++;
+    const mine = document.createElement("div");
+    mine.className = "from-user-container";
+    mine.innerHTML = '<div class="message-text-content"></div>';
+    mine.firstChild.textContent = question;
+    thread.appendChild(mine);
+
+    if (q.get("limit") === "1") {
+      alert(panel, "You have reached your daily limit. Try again tomorrow.");
+      return;
+    }
+    if (q.get("dropfirst") === "1" && submits === 1) return;
+    if (q.get("otheralert") === "1") {
+      setTimeout(() => {
+        alert(document.querySelector(".studio-panel"), "Too many requests to Drive. Try again later.");
+        alert(panel, "Audio overview quota reached for today.");
+      }, 50);
+    }
+
+    const final = q.get("same") === "1" ? "Same answer." : "Fixture answer to: " + question + " [1]";
+    const words = final.split(" ");
+    const bubble = document.createElement("div");
+    bubble.className = "to-user-container";
+    const textClass = q.get("emptytext") === "1" ? "answer-body" : "message-text-content";
+    bubble.innerHTML = '<div class="' + textClass + '"><span></span><div><button><mat-icon>more_vert</mat-icon></button></div></div>';
+    const out = bubble.querySelector("span");
+    // Stream the words over ~600 ms, then add the action bar.
+    let i = 0;
+    const step = () => {
+      i++;
+      out.textContent = words.slice(0, Math.ceil(words.length * i / 6)).join(" ");
+      if (i < 6) return setTimeout(step, 100);
+      const acts = document.createElement("div");
+      acts.className = "message-actions";
+      acts.innerHTML = "<button><mat-icon>content_copy</mat-icon></button><button><mat-icon>thumb_up</mat-icon></button>";
+      bubble.appendChild(acts);
+      pending--;
+    };
+    pending++;
+    const show = () => {
+      thread.appendChild(bubble);
+      setTimeout(step, 100);
+    };
+    const think = Number(q.get("think") || 0);
+    if (think > 0) setTimeout(show, think);
+    else show();
+  });
+})();
+</script>
+</body>
+</html>
