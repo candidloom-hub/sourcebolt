@@ -20,7 +20,6 @@ type Env struct {
 	LocalAppData   string // %LOCALAPPDATA% (Windows installer target)
 	TempDir        string // the OS temp dir (go run, unpacked downloads)
 	HomebrewPrefix string // $HOMEBREW_PREFIX
-	NPMCommand     string // $npm_command; "exec" under npx / npm exec
 }
 
 // OSEnv reads the real machine.
@@ -40,7 +39,6 @@ func OSEnv() Env {
 		LocalAppData:   os.Getenv("LOCALAPPDATA"),
 		TempDir:        os.TempDir(),
 		HomebrewPrefix: os.Getenv("HOMEBREW_PREFIX"),
-		NPMCommand:     os.Getenv("npm_command"),
 	}
 }
 
@@ -87,9 +85,10 @@ type Client struct {
 	Docs      string // where the path and shape come from
 }
 
-// Entry is the sourcebolt server entry for this client.
-func (c Client) Entry(exe string) Entry {
-	e := Entry{Command: exe, Args: []string{"serve"}}
+// Entry is the sourcebolt server entry for this client, running command
+// with args (see ServerCommand).
+func (c Client) Entry(command string, args []string) Entry {
+	e := Entry{Command: command, Args: append([]string(nil), args...)}
 	if c.Typed {
 		e.Type = "stdio"
 	}

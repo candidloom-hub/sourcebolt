@@ -49,7 +49,9 @@ func newSetupWorld(t *testing.T, onPath ...string) *setupWorld {
 	setupEnv = func() setup.Env {
 		return setup.Env{
 			GOOS: runtime.GOOS, Home: w.home, AppData: w.appData,
-			XDGConfig: filepath.Join(w.home, ".config"),
+			XDGConfig:    filepath.Join(w.home, ".config"),
+			LocalAppData: filepath.Join(w.home, "AppData", "Local"),
+			TempDir:      os.TempDir(),
 			Exists: func(p string) bool {
 				_, err := os.Stat(p)
 				return err == nil
@@ -315,8 +317,8 @@ func TestSetupClaudeCodeUsesCLI(t *testing.T) {
 // Run through npx with nothing installed: apps get the npx command, never
 // the npx cache path, which npm may delete.
 func TestSetupUnderNpxWritesNpxCommand(t *testing.T) {
-	w := newSetupWorld(t, "claude")
-	cache := filepath.Join(w.home, ".npm", "_npx", "3f2a", "node_modules", "@sourcebolt", "x64", "bin", "sourcebolt")
+	w := newSetupWorld(t, "claude", "npx")
+	cache := filepath.Join(w.home, ".npm", "_npx", "3f2a", "node_modules", "@candidloom-hub", "sourcebolt-linux-x64", "bin", "sourcebolt")
 	selfPath = func() (string, error) { return cache, nil }
 	write(t, w.path(".claude.json"), `{}`)
 	write(t, w.path(".cursor", "mcp.json"), `{}`)
@@ -336,10 +338,36 @@ func TestSetupUnderNpxWritesNpxCommand(t *testing.T) {
 	}
 }
 
+// Run through npx with an installed copy: apps get the installed program.
+func TestSetupUnderNpxPrefersInstalledBinary(t *testing.T) {
+	w := newSetupWorld(t, "npx")
+	installed := filepath.Join(w.home, ".local", "bin", "sourcebolt")
+	if runtime.GOOS == "windows" {
+		installed = filepath.Join(w.home, "AppData", "Local", "Programs", "sourcebolt", "sourcebolt.exe")
+	}
+	write(t, installed, "binary")
+	selfPath = func() (string, error) {
+		return filepath.Join(w.home, ".npm", "_npx", "3f2a", "node_modules", "@candidloom-hub", "sourcebolt-linux-x64", "bin", "sourcebolt"), nil
+	}
+	write(t, w.path(".cursor", "mcp.json"), `{}`)
+	code, out, errOut := w.run(t, "", "--yes", "--no-login", "--client", "cursor")
+	if code != 0 {
+		t.Fatalf("code=%d err=%q out=%q", code, errOut, out)
+	}
+	var m map[string]any
+	json.Unmarshal([]byte(read(t, w.path(".cursor", "mcp.json"))), &m)
+	sb := m["mcpServers"].(map[string]any)["sourcebolt"].(map[string]any)
+	if sb["command"] != installed || !slices.Equal(toStrings(sb["args"]), []string{"serve"}) {
+		t.Fatalf("cursor entry = %v, want %q serve", sb, installed)
+	}
+}
+
 // Run from a temp folder with nothing installed: refuse and change nothing.
 func TestSetupFromTempFolderRefuses(t *testing.T) {
 	w := newSetupWorld(t)
-	selfPath = func() (string, error) { return filepath.Join(os.TempDir(), "go-build1", "b001", "exe", "sourcebolt"), nil }
+	selfPath = func() (string, error) {
+		return filepath.Join(os.TempDir(), "go-build1", "b001", "exe", "sourcebolt"), nil
+	}
 	write(t, w.path(".cursor", "mcp.json"), cursorBefore)
 	code, _, errOut := w.run(t, "", "--yes", "--no-login")
 	if code != 1 || !strings.Contains(errOut, "Install sourcebolt first") {

@@ -132,7 +132,7 @@ func TestClientDetection(t *testing.T) {
 func TestEntryShape(t *testing.T) {
 	cs := Clients(fakeEnv("linux", nil))
 	for id, typed := range map[string]bool{"claude-desktop": false, "claude-code": true, "cursor": true, "vscode": true, "windsurf": false, "gemini": false} {
-		e := byID(t, cs, id).Entry("/opt/sourcebolt")
+		e := byID(t, cs, id).Entry("/opt/sourcebolt", []string{"serve"})
 		if e.Command != "/opt/sourcebolt" || len(e.Args) != 1 || e.Args[0] != "serve" {
 			t.Errorf("%s: %+v", id, e)
 		}

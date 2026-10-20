@@ -24,17 +24,8 @@ import (
 // Outside effects of setup; tests replace them.
 var (
 	setupEnv = setup.OSEnv
-	selfPath = func() (string, error) {
-		p, err := os.Executable()
-		if err != nil {
-			return "", err
-		}
-		if r, err := filepath.EvalSymlinks(p); err == nil {
-			p = r
-		}
-		return p, nil
-	}
-	runTool = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	selfPath = func() (string, error) { return setup.SelfPath(os.Executable, filepath.EvalSymlinks) }
+	runTool  = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return exec.CommandContext(ctx, name, args...).CombinedOutput()
 	}
 	runDoctor = cmdDoctor
@@ -104,7 +95,8 @@ func cmdSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 			return 2
 		}
 	}
-	clients := setup.Clients(setupEnv())
+	env := setupEnv()
+	clients := setup.Clients(env)
 	if len(only) > 0 {
 		clients = slices.DeleteFunc(clients, func(c setup.Client) bool { return !slices.Contains(only, c.ID) })
 	}
@@ -115,6 +107,10 @@ func cmdSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	exe, err := selfPath()
 	if err != nil {
 		return fail(stderr, fmt.Errorf("cannot find the sourcebolt program's own path: %w", err))
+	}
+	command, cmdArgs, err := setup.ServerCommand(exe, env)
+	if err != nil {
+		return fail(stderr, err)
 	}
 	a := asker{in: bufio.NewReader(stdin), out: stdout, yes: *yes}
 	if *dry {
@@ -142,7 +138,7 @@ func cmdSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 			fmt.Fprintf(stdout, "Skipped %s.\n", c.Name)
 			continue
 		}
-		ok, err := connectClient(ctx, c, exe, a, *dry, stdout)
+		ok, err := connectClient(ctx, c, c.Entry(command, cmdArgs), a, *dry, stdout)
 		if err != nil {
 			failed = true
 			fmt.Fprintf(stdout, "Could not connect %s: %s\nYou can add it by hand: see docs/clients.md.\n", c.Name, safety.Redact(err.Error()))
@@ -188,8 +184,7 @@ func cmdSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 
 // connectClient adds the sourcebolt entry to one client. ok is false when
 // nothing was (or would be) changed.
-func connectClient(ctx context.Context, c setup.Client, exe string, a asker, dry bool, stdout io.Writer) (ok bool, err error) {
-	entry := c.Entry(exe)
+func connectClient(ctx context.Context, c setup.Client, entry setup.Entry, a asker, dry bool, stdout io.Writer) (ok bool, err error) {
 	data, err := os.ReadFile(c.Path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return false, err
