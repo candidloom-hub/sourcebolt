@@ -2,11 +2,13 @@ package mcpserver
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/transport"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -38,11 +40,6 @@ type ResearchStatusIn struct {
 	IncludeReport bool   `json:"include_report,omitempty" jsonschema:"include the deep-research report text"`
 }
 
-type CandidateView struct {
-	Index int `json:"index"`
-	nlm.Candidate
-}
-
 type JobView struct {
 	ID         string          `json:"id"`
 	AltID      string          `json:"alt_id,omitempty"`
@@ -50,7 +47,7 @@ type JobView struct {
 	Query      string          `json:"query,omitempty"`
 	Status     int             `json:"status"`
 	Done       bool            `json:"done"`
-	Candidates []CandidateView `json:"candidates,omitempty"`
+	Candidates []nlm.Candidate `json:"candidates,omitempty"`
 	Report     string          `json:"report,omitempty"`
 }
 
@@ -60,11 +57,16 @@ type ResearchStatusOut struct {
 	Done     bool      `json:"done"`
 }
 
+// ResearchImportIn picks candidates by URL. Positions are not accepted:
+// poll rows carry no result id and the server may reorder or add results
+// between research_status and research_import, so an index read earlier
+// can name a different result now.
 type ResearchImportIn struct {
-	Notebook string `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
-	Job      string `json:"job" jsonschema:"research job id from research_start or research_status"`
-	Select   []int  `json:"select,omitempty" jsonschema:"candidate indices from research_status to import"`
-	All      bool   `json:"all,omitempty" jsonschema:"import every candidate"`
+	Notebook string   `json:"notebook" jsonschema:"notebook id, id prefix (6+ chars) or title"`
+	Job      string   `json:"job" jsonschema:"research job id from research_start or research_status"`
+	URLs     []string `json:"urls,omitempty" jsonschema:"URLs of the web candidates to import, as listed by research_status"`
+	Report   bool     `json:"report,omitempty" jsonschema:"also import the deep-research report candidate"`
+	All      bool     `json:"all,omitempty" jsonschema:"import every candidate"`
 }
 
 type ResearchImportOut struct {
@@ -76,8 +78,8 @@ type ResearchImportOut struct {
 }
 
 type ImportOutcome struct {
-	Index    int    `json:"index"`
 	Title    string `json:"title,omitempty"`
+	URL      string `json:"url,omitempty"`
 	SourceID string `json:"source_id,omitempty"`
 	Status   string `json:"status"` // added|skipped|failed
 	Error    string `json:"error,omitempty"`
@@ -92,12 +94,12 @@ func (s *server) registerResearch(m *mcp.Server) {
 	}, s.researchStart)
 	register(s, m, "research", &mcp.Tool{
 		Name:        "research_status",
-		Description: "Check research jobs of a notebook and list their candidates with indices. With wait_seconds (0-120) polls every 3 s, reporting progress, until the job is done.",
+		Description: "Check research jobs of a notebook and list their candidates (pick them by url in research_import). With wait_seconds (0-120) polls every 3 s, reporting progress, until the job is done.",
 		Annotations: readOnly("Research status"),
 	}, s.researchStatus)
 	register(s, m, "research", &mcp.Tool{
 		Name:        "research_import",
-		Description: "Import research candidates as notebook sources, by select indices or all. Candidates already in the notebook are skipped, so a retry is safe. Reports added, skipped and failed per candidate.",
+		Description: "Import research candidates as notebook sources, by urls (from research_status), report, or all. Candidates are matched by URL against a fresh read, so results reordered since research_status still import the intended ones; an unknown URL is NOT_FOUND. Candidates already in the notebook are skipped, so a retry is safe. Reports added, skipped and failed per candidate.",
 		Annotations: &mcp.ToolAnnotations{Title: "Import research", ReadOnlyHint: false, DestructiveHint: &f, IdempotentHint: false, OpenWorldHint: &f},
 	}, s.researchImport)
 }
@@ -181,11 +183,11 @@ func researchStatusOut(nb string, jobs []nlm.ResearchJob, done, report bool) Res
 		if report {
 			v.Report = j.Report
 		}
-		for i, c := range j.Candidates {
+		for _, c := range j.Candidates {
 			if !report {
 				c.Report = ""
 			}
-			v.Candidates = append(v.Candidates, CandidateView{Index: i, Candidate: c})
+			v.Candidates = append(v.Candidates, c)
 		}
 		out.Jobs = append(out.Jobs, v)
 	}
@@ -196,8 +198,8 @@ func (s *server) researchImport(ctx context.Context, in ResearchImportIn) (Resea
 	if strings.TrimSpace(in.Job) == "" {
 		return ResearchImportOut{}, badInput("job must not be empty")
 	}
-	if !in.All && len(in.Select) == 0 {
-		return ResearchImportOut{}, badInput("choose candidates: set select (indices from research_status) or all:true")
+	if !in.All && !in.Report && len(in.URLs) == 0 {
+		return ResearchImportOut{}, badInput("choose candidates: set urls (from research_status), report:true or all:true")
 	}
 	nb, err := s.resolveNotebook(ctx, in.Notebook)
 	if err != nil {
@@ -212,27 +214,28 @@ func (s *server) researchImport(ctx context.Context, in ResearchImportIn) (Resea
 		return ResearchImportOut{}, badInput("research job %q not found in this notebook; call research_status", in.Job)
 	}
 	job := jobs[idx]
-	var chosen []int
+	var picks []nlm.Candidate
 	if in.All {
-		for i := range job.Candidates {
-			chosen = append(chosen, i)
-		}
+		picks = slices.Clone(job.Candidates)
 	} else {
-		for _, i := range in.Select {
-			if i < 0 || i >= len(job.Candidates) {
-				return ResearchImportOut{}, badInput("select index %d out of range (candidates: %d)", i, len(job.Candidates))
-			}
-			if !slices.Contains(chosen, i) {
-				chosen = append(chosen, i)
+		var missing []string
+		picks, missing = job.CandidatesByURL(in.URLs)
+		if len(missing) > 0 {
+			return ResearchImportOut{}, &transport.Error{Kind: transport.KindNotFound, RPC: "research.import",
+				Message: fmt.Sprintf("no candidate with url %s in job %s; call research_status for the current list", strings.Join(missing, ", "), job.ID)}
+		}
+		if in.Report {
+			for _, c := range job.Candidates {
+				if c.Kind == nlm.CandReport {
+					picks = append(picks, c)
+				}
 			}
 		}
 	}
-	if len(chosen) == 0 {
-		return ResearchImportOut{}, badInput("the job has no candidates yet; wait with research_status")
+	if len(picks) == 0 {
+		return ResearchImportOut{}, badInput("the job has no matching candidates yet; wait with research_status")
 	}
-	picks := make([]nlm.Candidate, len(chosen))
-	for k, i := range chosen {
-		picks[k] = job.Candidates[i]
+	for k := range picks {
 		if picks[k].Kind == nlm.CandReport && picks[k].Report == "" {
 			picks[k].Report = job.Report
 		}
@@ -244,7 +247,7 @@ func (s *server) researchImport(ctx context.Context, in ResearchImportIn) (Resea
 	}
 	out := ResearchImportOut{Notebook: nb, Results: make([]ImportOutcome, len(outcomes))}
 	for k, o := range outcomes {
-		out.Results[k] = ImportOutcome{Index: chosen[k], Title: picks[k].Title, SourceID: o.SourceID, Status: o.Status, Error: o.Error}
+		out.Results[k] = ImportOutcome{Title: picks[k].Title, URL: picks[k].URL, SourceID: o.SourceID, Status: o.Status, Error: o.Error}
 		switch o.Status {
 		case nlm.AddAdded:
 			out.Added++

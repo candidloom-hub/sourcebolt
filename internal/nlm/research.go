@@ -2,6 +2,7 @@ package nlm
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -70,6 +71,28 @@ type ResearchJob struct {
 	Status     ResearchStatus `json:"status"`
 	Candidates []Candidate    `json:"candidates,omitempty"`
 	Report     string         `json:"report,omitempty"`
+}
+
+// CandidatesByURL picks the job's web candidates by URL, in the order of
+// urls (trailing slash ignored, duplicates dropped). Poll rows carry no
+// result id and their order can change between polls, so the URL is the
+// only stable handle. missing lists the urls with no candidate.
+func (j ResearchJob) CandidatesByURL(urls []string) (picks []Candidate, missing []string) {
+	seen := map[string]bool{}
+	for _, u := range urls {
+		k := normURL(strings.TrimSpace(u))
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		i := slices.IndexFunc(j.Candidates, func(c Candidate) bool { return c.URL != "" && normURL(c.URL) == k })
+		if k == "" || i < 0 {
+			missing = append(missing, u)
+			continue
+		}
+		picks = append(picks, j.Candidates[i])
+	}
+	return picks, missing
 }
 
 // Payload builders. All shapes are catalog consensus, not live-verified,

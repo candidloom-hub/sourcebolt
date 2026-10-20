@@ -1,6 +1,8 @@
 package mcpserver
 
 import (
+	"encoding/json/v2"
+	"strings"
 	"testing"
 	"time"
 )
@@ -39,12 +41,12 @@ func TestResearchStartDiscoverUnsupported(t *testing.T) {
 	}
 }
 
-func TestResearchStatusCandidatesWithIndices(t *testing.T) {
+func TestResearchStatusCandidates(t *testing.T) {
 	st := newStub()
 	st.payloads["e3bVqc"] = pollRows
 	cs := connect(t, st, "default")
 	out := decode[ResearchStatusOut](t, call(t, cs, "research_status", map[string]any{"notebook": idA}))
-	if !out.Done || len(out.Jobs) != 1 || len(out.Jobs[0].Candidates) != 2 || out.Jobs[0].Candidates[1].Index != 1 {
+	if !out.Done || len(out.Jobs) != 1 || len(out.Jobs[0].Candidates) != 2 || out.Jobs[0].Candidates[1].URL != "https://b.example/" {
 		t.Fatalf("out = %+v", out)
 	}
 	if out.Jobs[0].Report != "" {
@@ -83,14 +85,61 @@ func TestResearchStatusWaitBounds(t *testing.T) {
 	}
 }
 
-func TestResearchImportSelect(t *testing.T) {
+func TestResearchImportByURL(t *testing.T) {
 	st := newStub()
 	st.payloads["e3bVqc"] = pollRows
 	st.payloads["LBwxtb"] = `[[[["src-b"],"B"]]]`
 	cs := connect(t, st, "default")
-	out := decode[ResearchImportOut](t, call(t, cs, "research_import", map[string]any{"notebook": idA, "job": "task-1", "select": []int{1}}))
-	if out.Added != 1 || out.Results[0].Index != 1 || out.Results[0].SourceID != "src-b" {
+	out := decode[ResearchImportOut](t, call(t, cs, "research_import", map[string]any{"notebook": idA, "job": "task-1", "urls": []string{"https://b.example"}}))
+	if out.Added != 1 || out.Results[0].URL != "https://b.example/" || out.Results[0].SourceID != "src-b" {
 		t.Fatalf("out = %+v", out)
+	}
+}
+
+// pollReordered is pollRows after the server reordered the results and
+// added one: B now sits where A was.
+const pollReordered = `[["task-1",[null,["go mcp servers",1],1,[[["https://c.example/","C","desc-c"],["https://b.example/","B","desc-b"],["https://a.example/","A","desc-a"]],"summary"],2],[1,0],[1,0],"acct"]]`
+
+// Results can move between research_status and research_import; the URLs
+// the caller picked must be imported, not whatever now sits at old positions.
+func TestResearchImportSurvivesReorder(t *testing.T) {
+	st := newStub()
+	st.payloads["e3bVqc"] = pollRows
+	st.payloads["LBwxtb"] = `[[[["src-b"],"B"]]]`
+	cs := connect(t, st, "default")
+	status := decode[ResearchStatusOut](t, call(t, cs, "research_status", map[string]any{"notebook": idA}))
+	want := status.Jobs[0].Candidates[1].URL // B
+	st.mu.Lock()
+	st.payloads["e3bVqc"] = pollReordered
+	st.mu.Unlock()
+	out := decode[ResearchImportOut](t, call(t, cs, "research_import", map[string]any{"notebook": idA, "job": "task-1", "urls": []string{want}}))
+	if out.Added != 1 || len(out.Results) != 1 || out.Results[0].URL != want || out.Results[0].Title != "B" {
+		t.Fatalf("out = %+v", out)
+	}
+	st.mu.Lock()
+	var params string
+	for _, c := range st.calls {
+		if c.ID == "LBwxtb" {
+			params = mustJSONString(c.Params)
+		}
+	}
+	st.mu.Unlock()
+	if !strings.Contains(params, "https://b.example/") || strings.Contains(params, "a.example") || strings.Contains(params, "c.example") {
+		t.Fatalf("import params = %s", params)
+	}
+}
+
+func TestResearchImportUnknownURL(t *testing.T) {
+	st := newStub()
+	st.payloads["e3bVqc"] = pollRows
+	cs := connect(t, st, "default")
+	e := envelope(t, call(t, cs, "research_import", map[string]any{"notebook": idA, "job": "task-1",
+		"urls": []string{"https://a.example/", "https://gone.example/x"}}))
+	if e.Code != "NOT_FOUND" || !strings.Contains(e.Error, "https://gone.example/x") {
+		t.Fatalf("envelope = %+v", e)
+	}
+	if st.count("LBwxtb") != 0 {
+		t.Fatal("import reached the transport")
 	}
 }
 
@@ -100,7 +149,6 @@ func TestResearchImportErrors(t *testing.T) {
 	cs := connect(t, st, "default")
 	for _, args := range []map[string]any{
 		{"notebook": idA, "job": "task-1"},
-		{"notebook": idA, "job": "task-1", "select": []int{9}},
 		{"notebook": idA, "job": "missing", "all": true},
 	} {
 		if e := envelope(t, call(t, cs, "research_import", args)); e.Code != "INVALID_ARGUMENT" {
@@ -110,4 +158,12 @@ func TestResearchImportErrors(t *testing.T) {
 	if st.count("LBwxtb") != 0 {
 		t.Fatal("import reached the transport")
 	}
+}
+
+func mustJSONString(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
