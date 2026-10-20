@@ -3,9 +3,12 @@ package nlm
 import (
 	"context"
 	"encoding/json/v2"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
+	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
 
 // Ids in the izAoDd and rLM1Ne fixtures of live capture #2: the notebook,
@@ -29,7 +32,9 @@ func TestAddSourcesLive2Mixed(t *testing.T) {
 	if !sameJSON(t, got, add.Request) {
 		t.Fatalf("params %s\nwant   %s", got, add.Request)
 	}
-	ft := newFake(add, loadFixture(t, "rLM1Ne", "live_2026-10-20_01"))
+	after := loadFixture(t, "rLM1Ne", "live_2026-10-20_01")
+	ft := newFake(add)
+	listingAfter(ft, liveRowsWithout(t, after, mixWebID, mixVideoID), after)
 	out, err := New(ft).AddSources(context.Background(), mixNB, []SourceSpec{{URL: mixWebURL}, {URL: mixVideo}})
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +47,103 @@ func TestAddSourcesLive2Mixed(t *testing.T) {
 	}
 	if n := countCalls(ft, "izAoDd"); n != 1 {
 		t.Fatalf("izAoDd calls = %d, want 1", n)
+	}
+}
+
+// liveRowsWithout is the rLM1Ne answer of fx without the given sources: the
+// notebook as it was before they were added.
+func liveRowsWithout(t *testing.T, fx Fixture, ids ...string) Fixture {
+	t.Helper()
+	frames, _, err := wire.Decode([]byte(fx.ResponseBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := wire.Pick(frames, "rLM1Ne", wire.NullAllowed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var root []any
+	if err := json.Unmarshal(p, &root); err != nil {
+		t.Fatal(err)
+	}
+	nb := root[0].([]any)
+	var keep []any
+	for _, s := range nb[1].([]any) {
+		if !slices.Contains(ids, s.([]any)[0].([]any)[0].(string)) {
+			keep = append(keep, s)
+		}
+	}
+	if len(keep) != len(nb[1].([]any))-len(ids) {
+		t.Fatalf("fixture lacks %v", ids)
+	}
+	nb[1] = keep
+	b, _ := json.Marshal(root)
+	return synthFixture(t, "rLM1Ne", string(b))
+}
+
+// listingAfter makes rLM1Ne answer before until the izAoDd call is made,
+// and after from then on, like a notebook that gained the added sources.
+func listingAfter(ft *fakeTransport, before, after Fixture) {
+	ft.fixtures["rLM1Ne"] = before
+	ft.hook = func(_ context.Context, c transport.Call) error {
+		if c.ID == "izAoDd" {
+			ft.mu.Lock()
+			ft.fixtures["rLM1Ne"] = after
+			ft.mu.Unlock()
+		}
+		return nil
+	}
+}
+
+func notebookRows(rows ...string) string {
+	return `[["T",[` + strings.Join(rows, ",") + `],"` + nb1 + `"]]`
+}
+
+// Review item 1: a spec matching only a source the notebook had before the
+// add is not reported added with the old id; it is pending (the request was
+// sent, but nothing proves a new source).
+func TestAddSourcesOmittedMatchesOldSourceOnly(t *testing.T) {
+	old := srcRowJSON("sid-OLD", "Old", "https://example.com/1")
+	two := srcRowJSON("sid-2", "Two", "https://example.com/2")
+	ft := newFake(synthFixture(t, "izAoDd", `[[`+two+`]]`))
+	listingAfter(ft, synthFixture(t, "rLM1Ne", notebookRows(old)), synthFixture(t, "rLM1Ne", notebookRows(old, two)))
+	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{{URL: "https://example.com/1"}, {URL: "https://example.com/2"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0].Status != AddPending || out[0].SourceID != "" || out[0].Error == "" || out[1].SourceID != "sid-2" {
+		t.Fatalf("out = %+v", out)
+	}
+}
+
+// Same rule on the code 3/9 (pending) path.
+func TestAddSourcesPendingMatchesOldSourceOnly(t *testing.T) {
+	old := srcRowJSON("sid-OLD", "Old", "https://example.com/1")
+	ft := newFake()
+	ft.errs["izAoDd"] = &transport.Error{Kind: transport.KindPending, RPC: "sources.add", GRPCCode: 9}
+	listingAfter(ft, synthFixture(t, "rLM1Ne", notebookRows(old)), synthFixture(t, "rLM1Ne", notebookRows(old)))
+	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{{URL: "https://example.com/1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0].Status != AddPending || out[0].SourceID != "" {
+		t.Fatalf("out = %+v", out)
+	}
+}
+
+// Review item 2: every row the answer listed is excluded from the lookup,
+// also one that matched no spec.
+func TestAddSourcesOmittedSkipsUnmatchedAnswerRows(t *testing.T) {
+	ghost := srcRowJSON("sid-X", "Other", "https://example.com/other")
+	ft := newFake(synthFixture(t, "izAoDd", `[[`+ghost+`]]`))
+	listingAfter(ft, synthFixture(t, "rLM1Ne", notebookRows()),
+		synthFixture(t, "rLM1Ne", notebookRows(srcRowJSON("sid-X", "Other", "https://example.com/1"))))
+	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{{URL: "https://example.com/1"}, {URL: "https://example.com/2"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0].Status != AddFailed || out[0].SourceID != "" {
+		t.Fatalf("out = %+v; sid-X was in the answer and must not settle an omitted spec", out)
 	}
 }
 
