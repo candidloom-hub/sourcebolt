@@ -32,7 +32,8 @@ Usage:
 
 Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
              SOURCEBOLT_BROWSER (browser program for login and setup),
-             NOTEBOOKLM_BROWSER_FALLBACK=0 (disable the headless browser fallback)
+             NOTEBOOKLM_BROWSER_FALLBACK=0 (disable the headless browser fallback),
+             NOTEBOOKLM_COOKIES or NOTEBOOKLM_COOKIES_FILE (sign in from a cookie export, in memory; for containers)
 `
 
 func main() {

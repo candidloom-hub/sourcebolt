@@ -76,7 +76,10 @@ type Runtime struct {
 	Active    transport.Transport // what the nlm client calls: Router, or Transport when fallback is off
 	Router    *transport.Router   // nil when the browser fallback is disabled
 	Profile   *session.Profile
-	Store     session.Store
+	Store     session.Store // nil for env cookies: nothing is written to disk
+	// CookieSource names the environment variable the cookies came from
+	// (EnvCookies or EnvCookiesFile); empty for a saved profile.
+	CookieSource string
 
 	// The fallback browser launcher is created on first use but owned
 	// here, so Close can stop a headless browser that would otherwise
@@ -189,6 +192,28 @@ func Build(c Config) (*Runtime, error) {
 	if err := loadRPCOverrides(c); err != nil {
 		return nil, err
 	}
+	var opts []Option
+	if c.BrowserFallback {
+		opts = append(opts, WithBrowserFallback(c.ConfigDir))
+	}
+
+	// Env cookies win over a saved profile whenever they are set. Setting
+	// them is an explicit choice for this one process, while a saved
+	// profile is ambient state that may be older than the export; a
+	// container has no saved profile anyway. The saved profile is never
+	// read or written in this mode (no store: rotated cookies stay in
+	// memory and the secret is never persisted), so unsetting the
+	// variable brings the saved profile back unchanged.
+	envP, src, err := EnvProfile(c)
+	if err != nil {
+		return nil, err
+	}
+	if envP != nil {
+		rt := ForProfile(envP, nil, opts...)
+		rt.CookieSource = src
+		return rt, nil
+	}
+
 	store := c.Store()
 	p, err := store.Load(c.Profile)
 	switch {
@@ -202,10 +227,6 @@ func Build(c Config) (*Runtime, error) {
 	}
 	if p.Host == "" {
 		p.Host = session.HostDefault
-	}
-	var opts []Option
-	if c.BrowserFallback {
-		opts = append(opts, WithBrowserFallback(c.ConfigDir))
 	}
 	return ForProfile(p, store, opts...), nil
 }

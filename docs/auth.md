@@ -109,6 +109,41 @@ Get-Content cookies.txt -Raw | docker run -i --rm -v sourcebolt-config:/config g
 
 Export every `google.com` cookie, not only the `__Secure-` ones: `login` needs `SID`, `__Secure-1PSIDTS`, and `OSID` or `APISID` plus `SAPISID`. Delete the cookie file afterwards.
 
+## Sign in with an environment variable (containers)
+
+A container started by an MCP app (Docker MCP Toolkit, a `docker run` line in a client config) cannot run `login`. Instead, hand it the cookie export itself:
+
+| Variable | Value |
+|---|---|
+| `NOTEBOOKLM_COOKIES_FILE` (preferred) | Path of a file holding the export, for example a Docker secret at `/run/secrets/notebooklm_cookies`. |
+| `NOTEBOOKLM_COOKIES` | The export itself. |
+
+Both accept what `login --import` accepts, detected the same way: a Netscape `cookies.txt`, a JSON cookie array, or a `Cookie:` header (`SID=...; __Secure-1PSIDTS=...; ...`). Set only one; setting both is an error. An empty value counts as not set.
+
+How it behaves:
+
+- `serve`, `call`, `status` and `doctor` read the variable at startup. The same required-cookie check as `login` runs: without `SID`, `__Secure-1PSIDTS`, and `OSID` or `APISID` plus `SAPISID`, sourcebolt stops with an error that names the missing cookies. Errors never show cookie values.
+- **The cookies stay in memory.** Nothing is written to `<config dir>/profiles`, and cookies Google rotates during the session are kept in memory only. After a restart sourcebolt starts again from the export, so when Google expires that session (calls fail with `AUTH_REQUIRED`), export fresh cookies and update the secret.
+- **When the variable is set, it wins over a saved profile** of the same name. Setting it is an explicit choice for that one process, and a container has no saved profile anyway. The saved profile is not read or changed; remove the variable to use it again. `status` and `doctor` say when the cookies come from the variable.
+- sourcebolt removes both variables from its own environment right after reading them, so the fallback browser and any other child process do not inherit them.
+
+**Security.** The export is your Google session: treat it like a password.
+
+- Prefer the file form. A value passed with `-e NOTEBOOKLM_COOKIES=...` is visible to anyone who can run `docker inspect` on the container, and may end up in shell history or in your MCP app's config file.
+- Keep the file in a folder only you can open (for example `chmod 700` on the folder). The image runs as user 65532, so on Linux the file itself must be readable by that user (`chmod 644` inside the private folder); Docker Desktop on Windows and macOS does not need this.
+- Never commit the file or paste it into a chat.
+
+Example with the file form (bash):
+
+```bash
+docker run -i --rm \
+  -v "$HOME/.sourcebolt-secrets/cookies.txt:/run/secrets/notebooklm_cookies:ro" \
+  -e NOTEBOOKLM_COOKIES_FILE=/run/secrets/notebooklm_cookies \
+  ghcr.io/candidloom-hub/sourcebolt:0.3.1 doctor
+```
+
+`doctor` should print `ok    cookies from NOTEBOOKLM_COOKIES_FILE (in memory, not saved)` and a working token bootstrap. For client configs, see [clients.md](clients.md#docker).
+
 ## Where data is stored
 
 | Item | Location |
@@ -147,7 +182,7 @@ A candidate is a CSS selector, `text:<words>` (a visible button or menu item con
 
 ## Commands
 
-- `sourcebolt status` shows the config dir, the active profile and, for each saved profile, the host, last update, where the key lives and whether the required cookies are present.
+- `sourcebolt status` shows the config dir, the active profile, whether the cookies come from `NOTEBOOKLM_COOKIES` or `NOTEBOOKLM_COOKIES_FILE` and, for each saved profile, the host, last update, where the key lives and whether the required cookies are present.
 - `sourcebolt doctor --dom-check "<notebook>"` runs the checks below and also asks one short question through the page fallback.
 - `sourcebolt doctor` checks that the config dir is writable, that the OS keyring works (otherwise profiles use the key file), that the profile loads, that the cookies are complete, and does a token bootstrap against Google. It exits with code 1 if any check fails. Only the bootstrap uses the network, and only when a valid session exists.
 - `sourcebolt logout [--profile p]` deletes the encrypted profile and its key. It does **not** sign you out of Google. To end the session, sign out of Google in that browser or on your Google account's security page.

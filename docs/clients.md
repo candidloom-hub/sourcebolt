@@ -230,6 +230,36 @@ Any app above can start the Docker image instead of the program. Sign in first (
 }
 ```
 
+### Docker without a login step
+
+The container can also sign in from a cookie export you hand it, so you never run `login` ([auth.md](auth.md#sign-in-with-an-environment-variable-containers)). Mount the export read-only as a file and point `NOTEBOOKLM_COOKIES_FILE` at it (use the full path of your file):
+
+```json
+{
+  "mcpServers": {
+    "sourcebolt": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "/home/you/.sourcebolt-secrets/cookies.txt:/run/secrets/notebooklm_cookies:ro",
+        "-e", "NOTEBOOKLM_COOKIES_FILE=/run/secrets/notebooklm_cookies",
+        "ghcr.io/candidloom-hub/sourcebolt:0.3.1"
+      ]
+    }
+  }
+}
+```
+
+Or keep the variable in an env file that only you can read and pass `--env-file`:
+
+```json
+"args": ["run", "-i", "--rm", "--env-file", "/home/you/.sourcebolt-secrets/sourcebolt.env", "ghcr.io/candidloom-hub/sourcebolt:0.3.1"]
+```
+
+where `sourcebolt.env` holds one line, `NOTEBOOKLM_COOKIES=SID=...; __Secure-1PSIDTS=...; OSID=...` (the `Cookie:` header form; an env file cannot hold a multi-line `cookies.txt`).
+
+Treat the export like a password. The file form is safer: a value in `NOTEBOOKLM_COOKIES` (from `-e` or `--env-file`) is visible to `docker inspect`. The cookies stay in memory and are never saved in the container; when Google expires the session, export fresh cookies.
+
 ## HTTP mode
 
 Some setups prefer a server that keeps running. sourcebolt can serve MCP over "streamable HTTP" on your own computer only:

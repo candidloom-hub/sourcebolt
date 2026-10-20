@@ -46,6 +46,17 @@ func cmdStatus(stdout, stderr io.Writer) int {
 		return fail(stderr, err)
 	}
 	fmt.Fprintf(stdout, "config dir: %s\nactive profile: %s\n", cfg.ConfigDir, cfg.Profile)
+	envP, src, err := app.EnvProfile(cfg)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	if envP != nil {
+		fmt.Fprintf(stdout, "cookies: from %s, in memory only, overrides any saved profile; host=%s valid_cookies=%v\n",
+			src, envP.Host, envP.Jar.Valid())
+	}
+	if len(names) == 0 && envP != nil {
+		return 0
+	}
 	if len(names) == 0 {
 		fmt.Fprintln(stdout, "no profiles; run: sourcebolt login")
 		return 0
@@ -109,6 +120,9 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 
 	rt, err := app.Build(cfg)
 	check("profile "+cfg.Profile, err)
+	if err == nil && rt.CookieSource != "" {
+		check("cookies from "+rt.CookieSource+" (in memory, not saved)", nil)
+	}
 	if err == nil {
 		if !rt.Profile.Jar.Valid() {
 			check("cookies", errors.New("no valid session; run: sourcebolt login"))

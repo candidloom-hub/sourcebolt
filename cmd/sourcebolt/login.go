@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -117,7 +116,7 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		if err != nil {
 			return fail(stderr, err)
 		}
-		jar, err = parseCookies(raw, *format, h)
+		jar, err = session.ParseExport(raw, *format, h)
 		if err != nil {
 			return fail(stderr, err)
 		}
@@ -208,27 +207,4 @@ func safeProfileName(name string) error {
 		return fmt.Errorf("invalid profile name %q", name)
 	}
 	return nil
-}
-
-func parseCookies(raw []byte, format string, h session.Host) (*session.Jar, error) {
-	if format == "" {
-		t := bytes.TrimSpace(raw)
-		switch {
-		case bytes.HasPrefix(t, []byte("[")):
-			format = "json"
-		case bytes.Contains(t, []byte("\t")):
-			format = "netscape"
-		default:
-			format = "header"
-		}
-	}
-	switch format {
-	case "json":
-		return session.ImportJSON(bytes.NewReader(raw))
-	case "netscape":
-		return session.ImportNetscape(bytes.NewReader(raw))
-	case "header":
-		return session.ImportHeader(strings.TrimSpace(string(raw)), h)
-	}
-	return nil, fmt.Errorf("unknown --format %q", format)
 }
