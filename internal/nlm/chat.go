@@ -67,7 +67,8 @@ func askParams(sources []string, question, conv, nb string, seq int) []any {
 // ghost turn. Without an explicit id the notebook's default thread is read
 // from hPTbtc (newest first); when there is none yet, or NewConversation is
 // set, the question is sent with a null id and the thread is read back
-// from hPTbtc afterwards.
+// from hPTbtc afterwards. Null-id asks hold a per-notebook lock from send
+// through read-back so concurrent ones cannot read each other's thread.
 //
 // seq is always 1. Ruling: the live capture (first ask) sent 1; counting
 // turns would cost a khqZz round trip per question and its turn layout is
@@ -100,6 +101,28 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 		}
 		if len(threads) > 0 {
 			conv = threads[0].ID
+		}
+	}
+	if conv == "" {
+		// A null id makes the server start a thread whose id is then read
+		// back as the newest in hPTbtc. Two such asks on one notebook could
+		// read each other's thread, so they run one at a time per notebook,
+		// from send through read-back. Asks on other notebooks and asks
+		// with an id stay concurrent.
+		unlock, err := c.newThread.Lock(ctx, nb)
+		if err != nil {
+			return Answer{}, err
+		}
+		defer unlock()
+		if !o.NewConversation {
+			// The default thread may have been started while this ask waited.
+			threads, err := c.ChatSessions(ctx, nb)
+			if err != nil {
+				return Answer{}, err
+			}
+			if len(threads) > 0 {
+				conv = threads[0].ID
+			}
 		}
 	}
 

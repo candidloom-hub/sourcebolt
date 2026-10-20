@@ -44,6 +44,9 @@ type fakeTransport struct {
 	errs     map[string]error
 	calls    []transport.Call
 	ctxs     []context.Context
+	// hook, when set, runs first on every call (outside the lock); a non-nil
+	// error is returned as the call's result.
+	hook func(ctx context.Context, c transport.Call) error
 }
 
 func newFake(fs ...Fixture) *fakeTransport {
@@ -61,8 +64,13 @@ func (f *fakeTransport) Do(ctx context.Context, c transport.Call) (transport.Res
 	f.mu.Lock()
 	f.calls = append(f.calls, c)
 	f.ctxs = append(f.ctxs, ctx)
-	err, fx := f.errs[c.ID], f.fixtures[c.ID]
+	err, fx, hook := f.errs[c.ID], f.fixtures[c.ID], f.hook
 	f.mu.Unlock()
+	if hook != nil {
+		if herr := hook(ctx, c); herr != nil {
+			return transport.Result{}, herr
+		}
+	}
 	if err != nil {
 		return transport.Result{}, err
 	}

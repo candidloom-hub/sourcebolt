@@ -28,9 +28,9 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`notebook_list`](#notebook_list) | minimal, default, all | List NotebookLM notebooks with id, title, source count and ownership. |
 | [`notebook_open`](#notebook_open) | minimal, default, all | Open one notebook by id or title: its sources with status, summary and suggested questions. |
 | [`notebook_update`](#notebook_update) | default, all | Rename a notebook (title, verified by read-back) and/or drop it from the recently viewed list (remove_from_recent). |
-| [`research_import`](#research_import) | default, all | Import research candidates as notebook sources, by select indices or all. |
+| [`research_import`](#research_import) | default, all | Import research candidates as notebook sources, by urls (from research_status), report, or all. |
 | [`research_start`](#research_start) | default, all | Start a web or Drive research job in a notebook (fast or deep). |
-| [`research_status`](#research_status) | default, all | Check research jobs of a notebook and list their candidates with indices. |
+| [`research_status`](#research_status) | default, all | Check research jobs of a notebook and list their candidates (pick them by url in research_import). |
 | [`server_info`](#server_info) | minimal, default, all | Show the sourcebolt version, active Google profile, NotebookLM host, enabled tools and which transport served the last call. |
 | [`share_status`](#share_status) | default, all | Show who a notebook is shared with and whether the link is public. |
 | [`share_update`](#share_update) | default, all | Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). |
@@ -326,7 +326,7 @@ Annotations: title: Update notebook, readOnly: false, destructive: false, idempo
 
 Profiles: default, all.
 
-Import research candidates as notebook sources, by select indices or all. Candidates already in the notebook are skipped, so a retry is safe. Reports added, skipped and failed per candidate.
+Import research candidates as notebook sources, by urls (from research_status), report, or all. Candidates are matched by URL against a fresh read, so results reordered since research_status still import the intended ones; an unknown URL is NOT_FOUND. Candidates already in the notebook are skipped, so a retry is safe. Reports added, skipped and failed per candidate.
 
 Annotations: title: Import research, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -335,7 +335,8 @@ Annotations: title: Import research, readOnly: false, destructive: false, idempo
 | `job` | string | yes | research job id from research_start or research_status |
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `all` | boolean | no | import every candidate |
-| `select` | null or array | no | candidate indices from research_status to import |
+| `report` | boolean | no | also import the deep-research report candidate |
+| `urls` | null or array | no | URLs of the web candidates to import, as listed by research_status |
 
 ### `research_start`
 
@@ -357,7 +358,7 @@ Annotations: title: Start research, readOnly: false, destructive: false, idempot
 
 Profiles: default, all.
 
-Check research jobs of a notebook and list their candidates with indices. With wait_seconds (0-120) polls every 3 s, reporting progress, until the job is done.
+Check research jobs of a notebook and list their candidates (pick them by url in research_import). With wait_seconds (0-120) polls every 3 s, reporting progress, until the job is done.
 
 Annotations: title: Research status, readOnly: true, idempotent: true, openWorld: false.
 
@@ -400,7 +401,7 @@ Annotations: title: Share status, readOnly: true, idempotent: true, openWorld: f
 
 Profiles: default, all.
 
-Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.
+Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. The link setting and the user changes are sent as two calls; if only one applies, status is partial and parts says which applied and which failed. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.
 
 Annotations: title: Update sharing, readOnly: false, destructive: true, idempotent: true, openWorld: true.
 

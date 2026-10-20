@@ -126,27 +126,45 @@ func boolAt(v jsontext.Value, path ...int) bool {
 // UpdateShare changes link visibility and/or per-user permissions (QDyure).
 // The payload shapes are catalog consensus and not live-verified. Never
 // retried: a replayed share could notify people twice.
-func (c *Client) UpdateShare(ctx context.Context, nb string, u ShareUpdate) error {
+//
+// The link and the users go out as two calls, so one can apply while the
+// other fails. Both are always tried and the result has one outcome per
+// part sent (link first); the returned error is only for invalid input,
+// and then nothing is sent.
+func (c *Client) UpdateShare(ctx context.Context, nb string, u ShareUpdate) ([]SharePart, error) {
 	if u.Public == nil && len(u.Users) == 0 {
-		return fmt.Errorf("nlm: share update changes nothing")
+		return nil, fmt.Errorf("nlm: share update changes nothing")
 	}
 	var users []any
 	if len(u.Users) > 0 {
 		var err error
 		if users, err = shareUsersParams(nb, u); err != nil { // validate before any call
-			return err
+			return nil, err
 		}
 	}
 	opts := callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed}
-	if u.Public != nil {
-		if _, err := c.do(ctx, "sharing.share", shareLinkParams(nb, *u.Public), opts); err != nil {
-			return err
+	var out []SharePart
+	send := func(part string, params []any) {
+		r := SharePart{Part: part, Status: "applied"}
+		if err := ctx.Err(); err != nil {
+			r.Status, r.Err = "failed", err
+		} else if _, err := c.do(ctx, "sharing.share", params, opts); err != nil {
+			r.Status, r.Err = "failed", err
 		}
+		out = append(out, r)
+	}
+	if u.Public != nil {
+		send("link", shareLinkParams(nb, *u.Public))
 	}
 	if users != nil {
-		if _, err := c.do(ctx, "sharing.share", users, opts); err != nil {
-			return err
-		}
+		send("users", users)
 	}
-	return nil
+	return out, nil
+}
+
+// SharePart is the outcome of one of UpdateShare's calls.
+type SharePart struct {
+	Part   string // link | users
+	Status string // applied | failed
+	Err    error  // set when Status is "failed"
 }

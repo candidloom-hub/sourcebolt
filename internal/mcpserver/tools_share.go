@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
+	"github.com/candidloom-hub/sourcebolt/internal/safety"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -28,13 +29,23 @@ type ShareUpdateIn struct {
 	Confirm   bool              `json:"confirm,omitempty" jsonschema:"required to widen access or remove people; without it only a preview is returned"`
 }
 
+// SharePartOut is the outcome of one of the two sharing calls (link
+// setting, users) and the changes it carried.
+type SharePartOut struct {
+	Part    string   `json:"part"`   // link | users
+	Status  string   `json:"status"` // applied | failed
+	Changes []string `json:"changes"`
+	Error   string   `json:"error,omitempty"`
+}
+
 type ShareUpdateOut struct {
-	Status          string   `json:"status"` // preview | applied
-	NotebookID      string   `json:"notebook_id"`
-	NotebookTitle   string   `json:"notebook_title,omitempty"`
-	RequiresConfirm bool     `json:"requires_confirm,omitempty"`
-	Changes         []string `json:"changes"`
-	Guidance        string   `json:"guidance,omitempty"`
+	Status          string         `json:"status"` // preview | applied | partial
+	NotebookID      string         `json:"notebook_id"`
+	NotebookTitle   string         `json:"notebook_title,omitempty"`
+	RequiresConfirm bool           `json:"requires_confirm,omitempty"`
+	Changes         []string       `json:"changes"`
+	Parts           []SharePartOut `json:"parts,omitempty"`
+	Guidance        string         `json:"guidance,omitempty"`
 }
 
 func (s *server) registerSharing(m *mcp.Server) {
@@ -46,7 +57,7 @@ func (s *server) registerSharing(m *mcp.Server) {
 
 	register(s, m, "core", &mcp.Tool{
 		Name:        "share_update",
-		Description: "Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.",
+		Description: "Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). Widening access or removing people requires confirm:true; without it a preview is returned and nothing is sent. The link setting and the user changes are sent as two calls; if only one applies, status is partial and parts says which applied and which failed. Payload shapes are not live-verified. view_level and artifact sharing are not available yet.",
 		Annotations: writeAnn("Update sharing", true, true, true),
 	}, s.shareUpdate)
 }
@@ -66,14 +77,15 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 	if in.Public == nil && len(in.Users) == 0 {
 		return ShareUpdateOut{}, badInput("give public or at least one users entry")
 	}
-	var changes []string
+	// Changes are kept per part so a partial outcome can say which ones landed.
+	var linkChanges, userChanges []string
 	needConfirm := false
 	if in.Public != nil {
 		if *in.Public {
-			changes = append(changes, "make the notebook viewable by anyone with the link")
+			linkChanges = append(linkChanges, "make the notebook viewable by anyone with the link")
 			needConfirm = true
 		} else {
-			changes = append(changes, "restrict the link to invited people")
+			linkChanges = append(linkChanges, "restrict the link to invited people")
 		}
 	}
 	for _, u := range in.Users {
@@ -82,14 +94,15 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 		}
 		switch u.Role {
 		case "viewer", "editor":
-			changes = append(changes, fmt.Sprintf("give %s %s access", u.Email, u.Role))
+			userChanges = append(userChanges, fmt.Sprintf("give %s %s access", u.Email, u.Role))
 		case "remove":
-			changes = append(changes, fmt.Sprintf("remove %s", u.Email))
+			userChanges = append(userChanges, fmt.Sprintf("remove %s", u.Email))
 		default:
 			return ShareUpdateOut{}, badInput("role for %q must be viewer, editor or remove, got %q", u.Email, u.Role)
 		}
 		needConfirm = true
 	}
+	changes := append(append([]string{}, linkChanges...), userChanges...)
 	it, err := s.resolveNotebookStrict(ctx, in.Notebook)
 	if err != nil {
 		return ShareUpdateOut{}, err
@@ -103,9 +116,40 @@ func (s *server) shareUpdate(ctx context.Context, in ShareUpdateIn) (ShareUpdate
 	for _, c := range in.Users {
 		u.Users = append(u.Users, nlm.ShareChange{Email: c.Email, Role: c.Role})
 	}
-	if err := s.NLM.UpdateShare(ctx, nb, u); err != nil {
+	parts, err := s.NLM.UpdateShare(ctx, nb, u)
+	if err != nil {
 		return ShareUpdateOut{}, err
 	}
 	s.invalidateNotebook(nb)
-	return ShareUpdateOut{Status: "applied", NotebookID: nb, NotebookTitle: it.Title, Changes: changes}, nil
+	out := ShareUpdateOut{NotebookID: nb, NotebookTitle: it.Title, Changes: changes}
+	applied := 0
+	var firstErr error
+	for _, p := range parts {
+		po := SharePartOut{Part: p.Part, Status: p.Status, Changes: linkChanges}
+		if p.Part == "users" {
+			po.Changes = userChanges
+		}
+		if p.Err != nil {
+			po.Error = safety.Redact(p.Err.Error())
+			if firstErr == nil {
+				firstErr = p.Err
+			}
+		} else {
+			applied++
+		}
+		out.Parts = append(out.Parts, po)
+	}
+	// Same rule as delete: all applied is "applied", none applied is the
+	// first error as an envelope (nothing changed), anything between is
+	// "partial" with per-part outcomes.
+	switch {
+	case applied == len(out.Parts):
+		out.Status = "applied"
+	case applied == 0:
+		return ShareUpdateOut{}, firstErr
+	default:
+		out.Status = "partial"
+		out.Guidance = "Only some sharing changes were applied; see each part's status and error. Check share_status before retrying the failed part."
+	}
+	return out, nil
 }
