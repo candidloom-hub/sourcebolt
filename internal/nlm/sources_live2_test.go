@@ -45,6 +45,20 @@ func TestAddSourcesLive2Mixed(t *testing.T) {
 	}
 }
 
+// A row the answer already gave to one spec is never handed to a missing
+// spec, even when titles collide.
+func TestAddSourcesOmittedSkipsAnsweredRows(t *testing.T) {
+	row := srcRowJSON("sid-2", "Two", "https://example.com/2")
+	ft := newFake(synthFixture(t, "izAoDd", `[[`+row+`]]`), synthFixture(t, "rLM1Ne", `[["T",[`+row+`],"`+nb1+`"]]`))
+	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{{URL: "https://example.com/2"}, {Text: &TextSpec{Title: "Two", Content: "c"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0].SourceID != "sid-2" || out[1].Status != AddFailed || out[1].SourceID != "" {
+		t.Fatalf("out = %+v", out)
+	}
+}
+
 func TestAddSourcesOmittedListFails(t *testing.T) {
 	ft := newFake(synthFixture(t, "izAoDd", `[[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`]]`))
 	ft.errs["rLM1Ne"] = &transport.Error{Kind: transport.KindTransport, RPC: "notebooks.get"}
