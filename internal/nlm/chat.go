@@ -26,6 +26,10 @@ type AskOptions struct {
 	SourceIDs       []string
 	ConversationID  string
 	NewConversation bool
+	// KeepAnswerBlock keeps the stream's final answer block on the Answer,
+	// which SaveAnswerNote needs. Off for plain asks: the copy is the size
+	// of the rich answer.
+	KeepAnswerBlock bool
 }
 
 // Answer is the final state of a streamed answer.
@@ -148,7 +152,11 @@ func (c *Client) Ask(ctx context.Context, nb, question string, o AskOptions, pro
 		last = now
 		progress(s.Text)
 	}
-	snap, err := st.Stream(ctx, nb, askParams(sources, question, conv, nb, 1), onSnap)
+	sctx := ctx
+	if o.KeepAnswerBlock {
+		sctx = wire.WithAnswerBlock(ctx)
+	}
+	snap, err := st.Stream(sctx, nb, askParams(sources, question, conv, nb, 1), onSnap)
 	transportName := c.t.Name()
 	if err != nil {
 		if !c.domAskAllowed(ctx, nb, o, conv, err) {

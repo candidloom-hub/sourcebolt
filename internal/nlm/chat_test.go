@@ -34,6 +34,7 @@ type fakeStreamer struct {
 	err    error
 	nbs    []string
 	params []any
+	wanted []bool // wire.AnswerBlockWanted per stream
 	// onSnap runs between snapshots (tests advance a fake clock here).
 	between func(i int)
 }
@@ -41,6 +42,7 @@ type fakeStreamer struct {
 func (f *fakeStreamer) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
 	f.mu.Lock()
 	f.nbs, f.params = append(f.nbs, nb), append(f.params, params)
+	f.wanted = append(f.wanted, wire.AnswerBlockWanted(ctx))
 	f.mu.Unlock()
 	if f.err != nil {
 		return wire.Snapshot{}, f.err

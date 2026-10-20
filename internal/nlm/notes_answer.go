@@ -43,7 +43,7 @@ func answerNoteParams(nb string, a Answer, title string) ([]any, error) {
 	}
 	if len(a.block) == 0 {
 		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: "notes.create",
-			Message: "this answer cannot be saved as a note: the stream sent no final answer block (only a complete streamed answer can be saved)"}
+			Message: "this answer cannot be saved as a note: it has no final answer block (ask with KeepAnswerBlock; only a complete streamed answer can be saved)"}
 	}
 	var tb []any
 	if err := json.Unmarshal(a.block, &tb); err != nil || len(tb) < 4 {

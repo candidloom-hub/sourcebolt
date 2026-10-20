@@ -230,6 +230,7 @@ func askProgress(prog Progress) func(string) {
 // the question (the server replaces the title). A failed save does not
 // lose the answer: it is reported in NoteError.
 func (s *server) runAsk(ctx context.Context, nb, q string, o nlm.AskOptions, progress func(string), saveNote bool) (ChatAskOut, error) {
+	o.KeepAnswerBlock = saveNote
 	a, err := s.NLM.Ask(ctx, nb, q, o, progress)
 	if err != nil {
 		return ChatAskOut{}, err

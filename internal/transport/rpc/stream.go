@@ -118,6 +118,9 @@ func (t *Transport) Stream(ctx context.Context, nb string, params any, onSnap fu
 	}
 
 	d := wire.NewStreamDecoder(&idleReader{r: resp.Body, timer: timer, idle: t.o.StreamIdle, started: &started})
+	if wire.AnswerBlockWanted(ctx) {
+		d.KeepAnswerBlock() // only when the answer will be saved as a note
+	}
 	var final, last *wire.Snapshot
 	for {
 		s, err := d.Next()

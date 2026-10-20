@@ -28,6 +28,9 @@ func TestChatAskSaveAsNote(t *testing.T) {
 			params = string(b)
 		}
 	}
+	if len(tr.wanted) != 1 || !tr.wanted[0] {
+		t.Fatalf("stream did not ask for the answer block: %v", tr.wanted)
+	}
 	for _, want := range []string{`"Answer",[2,null,null,null,null,null,1],[],"why?",`, `["Answer",[1,0,0,null,null,null,null,0,0]]`, `[null,1]`} {
 		if !strings.Contains(params, want) {
 			t.Fatalf("CYK0Xb params %s lack %s", params, want)
@@ -42,6 +45,9 @@ func TestChatAskSaveAsNoteOptional(t *testing.T) {
 	saveable.snaps = []wire.Snapshot{{Text: "Answer", Final: true, AnswerBlock: []byte(`[[[],[]],null,null,[],1]`)}}
 	saveable.payloads["CYK0Xb"] = `[["note-1","Answer",[2],null,"Server title"]]`
 	res := call(t, connectChat(t, saveable, nil, nil), "chat_ask", map[string]any{"notebook": idA, "question": "why?"})
+	if len(saveable.wanted) != 1 || saveable.wanted[0] {
+		t.Fatalf("a plain ask asked for the answer block: %v", saveable.wanted)
+	}
 	if saveable.count("CYK0Xb") != 0 || strings.Contains(text(res), "note") {
 		t.Fatalf("saved or tried to save a note without save_as_note: %s", text(res))
 	}

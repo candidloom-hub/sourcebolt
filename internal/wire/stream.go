@@ -3,6 +3,7 @@ package wire
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json/v2"
 	"io"
 )
@@ -76,6 +77,26 @@ type StreamDecoder struct {
 	queue    []streamItem
 	qi       int
 	err      error
+
+	keepBlock bool // copy the final answer block (KeepAnswerBlock)
+}
+
+// KeepAnswerBlock makes the decoder copy the final answer's type block
+// into Snapshot.AnswerBlock. Off by default: only saving an answer as a
+// note needs it, and the copy is the size of the rich answer.
+func (d *StreamDecoder) KeepAnswerBlock() { d.keepBlock = true }
+
+type answerBlockKey struct{}
+
+// WithAnswerBlock asks the stream transport to keep the answer block.
+func WithAnswerBlock(ctx context.Context) context.Context {
+	return context.WithValue(ctx, answerBlockKey{}, true)
+}
+
+// AnswerBlockWanted reports whether ctx asks for the answer block.
+func AnswerBlockWanted(ctx context.Context) bool {
+	v, _ := ctx.Value(answerBlockKey{}).(bool)
+	return v
 }
 
 // NewStreamDecoder reads the stream from r.
@@ -267,7 +288,7 @@ func (d *StreamDecoder) row(r []byte) {
 			}
 			return
 		}
-		if s, ok := parseSnapshot(payload); ok {
+		if s, ok := parseSnapshot(payload, d.keepBlock); ok {
 			d.queue = append(d.queue, streamItem{snap: s})
 		}
 	}
@@ -280,7 +301,7 @@ func (d *StreamDecoder) row(r []byte) {
 //	typeBlock = [rich, null, null, passages, flag]   flag 1 answer, 2 thinking
 //
 // Heartbeats (`[]`) and payloads without a row report ok=false.
-func parseSnapshot(p []byte) (Snapshot, bool) {
+func parseSnapshot(p []byte, keepBlock bool) (Snapshot, bool) {
 	top, ok := splitElems(p)
 	if !ok || len(top) == 0 {
 		return Snapshot{}, false
@@ -318,7 +339,7 @@ func parseSnapshot(p []byte) (Snapshot, bool) {
 		_ = json.Unmarshal(top[4], &fin)
 		s.Final = fin
 	}
-	if s.Final && !s.Thinking && len(row) > 4 {
+	if keepBlock && s.Final && !s.Thinking && len(row) > 4 {
 		// p points into the decoder's reused buffer: copy.
 		s.AnswerBlock = bytes.Clone(row[4])
 	}

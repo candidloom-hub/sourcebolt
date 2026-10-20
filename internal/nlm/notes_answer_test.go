@@ -17,6 +17,7 @@ func streamSnaps(t *testing.T, name string) []wire.Snapshot {
 	t.Helper()
 	fx := loadFixture(t, "GenerateFreeFormStreamed", name)
 	d := wire.NewStreamDecoder(bytes.NewReader([]byte(fx.ResponseBody)))
+	d.KeepAnswerBlock()
 	var out []wire.Snapshot
 	for {
 		s, err := d.Next()
@@ -34,11 +35,24 @@ func streamSnaps(t *testing.T, name string) []wire.Snapshot {
 func liveAnswer(t *testing.T, stream string) Answer {
 	t.Helper()
 	fs := &fakeStreamer{fakeTransport: newFake(), snaps: streamSnaps(t, stream)}
-	a, err := New(fs).Ask(context.Background(), fakeNB, "q", AskOptions{SourceIDs: studioSources3, ConversationID: "conv"}, nil)
+	a, err := New(fs).Ask(context.Background(), fakeNB, "q", AskOptions{SourceIDs: studioSources3, ConversationID: "conv", KeepAnswerBlock: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return a
+}
+
+// Ask asks the transport for the answer block only when told to.
+func TestAskKeepAnswerBlockOptIn(t *testing.T) {
+	fs := &fakeStreamer{fakeTransport: newFake(), snaps: []wire.Snapshot{{Text: "a", Final: true}}}
+	for _, keep := range []bool{false, true} {
+		if _, err := New(fs).Ask(context.Background(), fakeNB, "q", AskOptions{SourceIDs: studioSources3, ConversationID: "conv", KeepAnswerBlock: keep}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(fs.wanted) != 2 || fs.wanted[0] || !fs.wanted[1] {
+		t.Fatalf("answer block wanted = %v", fs.wanted)
+	}
 }
 
 // Saving a chat answer as a note (CYK0Xb) re-sends the stream's final

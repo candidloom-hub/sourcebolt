@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"os"
@@ -9,7 +10,7 @@ import (
 	"testing"
 )
 
-func liveStream(t *testing.T, name string) []Snapshot {
+func liveBody(t *testing.T, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "fixtures", "GenerateFreeFormStreamed", name+".json"))
 	if err != nil {
@@ -21,11 +22,53 @@ func liveStream(t *testing.T, name string) []Snapshot {
 	if err := json.Unmarshal(b, &fx); err != nil {
 		t.Fatal(err)
 	}
-	snaps, err := drain(NewStreamDecoder(bytes.NewReader([]byte(fx.Body))))
+	return fx.Body
+}
+
+// liveStream decodes a live stream fixture with the answer block kept.
+func liveStream(t *testing.T, name string) []Snapshot {
+	t.Helper()
+	d := NewStreamDecoder(bytes.NewReader([]byte(liveBody(t, name))))
+	d.KeepAnswerBlock()
+	snaps, err := drain(d)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return snaps
+}
+
+// The answer block is opt-in: a plain decoder (every chat_ask without
+// save_as_note) never copies it, which costs one allocation less.
+func TestAnswerBlockOptIn(t *testing.T) {
+	body := []byte(liveBody(t, "live3_2026-10-20_01"))
+	plain, err := drain(NewStreamDecoder(bytes.NewReader(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range plain {
+		if s.AnswerBlock != nil {
+			t.Fatal("a plain decoder kept the answer block")
+		}
+	}
+	run := func(keep bool) float64 {
+		return testing.AllocsPerRun(5, func() {
+			d := NewStreamDecoder(bytes.NewReader(body))
+			if keep {
+				d.KeepAnswerBlock()
+			}
+			_, _ = drain(d)
+		})
+	}
+	if p, k := run(false), run(true); k-p < 1 {
+		t.Fatalf("allocs plain %.0f, keep %.0f: the plain decoder should skip the block copy", p, k)
+	}
+}
+
+// The request to keep the block travels in the context.
+func TestAnswerBlockContext(t *testing.T) {
+	if AnswerBlockWanted(context.Background()) || !AnswerBlockWanted(WithAnswerBlock(context.Background())) {
+		t.Fatal("context flag")
+	}
 }
 
 // The final answer snapshot keeps its raw type block
@@ -57,21 +100,14 @@ func TestAnswerBlockOnFinalSnapshotOnly(t *testing.T) {
 // The block must not alias the decoder's reused buffers: a frame decoded
 // after the final snapshot must leave it intact.
 func TestAnswerBlockIsACopy(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "fixtures", "GenerateFreeFormStreamed", "live3_2026-10-20_01.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fx struct {
-		Body string `json:"response_body"`
-	}
-	if err := json.Unmarshal(b, &fx); err != nil {
-		t.Fatal(err)
-	}
+	fx := struct{ Body string }{liveBody(t, "live3_2026-10-20_01")}
 	want := LastAnswer(liveStream(t, "live3_2026-10-20_01")).AnswerBlock
 	inner, _ := json.Marshal([]any{[]any{string(bytes.Repeat([]byte("x"), 4*len(want)))}})
 	frame, _ := json.Marshal([]any{[]any{"wrb.fr", nil, string(inner)}})
 	body := fx.Body + "\n" + string(frame) + "\n"
-	snaps, err := drain(NewStreamDecoder(bytes.NewReader([]byte(body))))
+	d := NewStreamDecoder(bytes.NewReader([]byte(body)))
+	d.KeepAnswerBlock()
+	snaps, err := drain(d)
 	if err != nil {
 		t.Fatal(err)
 	}

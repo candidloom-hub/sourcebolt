@@ -23,9 +23,14 @@ type streamStub struct {
 	snaps []wire.Snapshot
 	delay time.Duration // pause before each snapshot
 	block bool          // wait for ctx cancellation instead of answering
+	// wanted records wire.AnswerBlockWanted for each stream.
+	wanted []bool
 }
 
 func (s *streamStub) Stream(ctx context.Context, _ string, _ any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+	s.mu.Lock()
+	s.wanted = append(s.wanted, wire.AnswerBlockWanted(ctx))
+	s.mu.Unlock()
 	if s.block {
 		<-ctx.Done()
 		return wire.Snapshot{}, ctx.Err()
