@@ -86,6 +86,12 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Homebrew tap + Scoop bucket (one fine-grained PAT, Contents read/write on
+          # candidloom-hub/homebrew-tap and candidloom-hub/scoop-bucket). Empty or missing
+          # secret: .goreleaser.yaml skips those uploads and the release still succeeds.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # winget pull request from the candidloom-hub/winget-pkgs fork; skipped when unset.
+          WINGET_PKGS_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
 
       # workflow_dispatch from a tag: real version in the binaries, but nothing is published
       # or signed here (npm/PyPI jobs below publish only if their input is true).
