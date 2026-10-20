@@ -60,12 +60,30 @@ $sourceboltState = @{ Failed = $false }
         try { return [Environment]::UserInteractive -and -not [Console]::IsInputRedirected } catch { return $false }
     }
 
+    # Returns $false (never the default) when nobody can answer: Read-Host throws in hosts that
+    # cannot prompt, such as -NonInteractive sessions.
     function Confirm-Yes([string]$question, [bool]$defaultYes) {
         if (-not (Test-Interactive)) { return $false }
         $hint = if ($defaultYes) { '[Y/n]' } else { '[y/N]' }
-        $a = Read-Host "$question $hint"
+        try { $a = Read-Host "$question $hint" } catch { return $false }
         if ([string]::IsNullOrWhiteSpace($a)) { return $defaultYes }
         return $a.Trim() -match '^(y|yes)$'
+    }
+
+    # The URL scheme a download may use: https, or file for the installer tests.
+    function Assert-AllowedUrl([string]$url) {
+        if ($url -notmatch '^(https|file)://') { Fail "downloads must use HTTPS (got '$url'). Only HTTPS downloads are allowed." }
+    }
+
+    # Refuses to recursively delete a folder that is clearly not sourcebolt's own.
+    function Assert-SafeToPurge([string]$p) {
+        $full = try { [IO.Path]::GetFullPath($p).TrimEnd('\') } catch { '' }
+        $danger = @($env:USERPROFILE, $env:APPDATA, $env:LOCALAPPDATA, $env:HOME, $env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
+            Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') }
+        $isRoot = $full -and ([IO.Path]::GetPathRoot($full).TrimEnd('\') -ieq $full)
+        if (-not $full -or $isRoot -or @($danger | Where-Object { $_ -ieq $full }).Count -gt 0) {
+            Fail "refusing to delete '$p': it is not a sourcebolt data folder. Check NOTEBOOKLM_CONFIG_DIR."
+        }
     }
 
     # Runs a native program without letting its stderr turn into a terminating error (5.1).
@@ -87,7 +105,16 @@ $sourceboltState = @{ Failed = $false }
             Copy-Item -LiteralPath ([Uri]$url).LocalPath -Destination $dest -Force
             return
         }
-        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+        Assert-AllowedUrl $url
+        $r = Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -PassThru
+        # Invoke-WebRequest follows redirects on its own; refuse the file if one went to plain HTTP.
+        $final = $null
+        if ($r.BaseResponse.PSObject.Properties['ResponseUri']) { $final = $r.BaseResponse.ResponseUri }
+        elseif ($r.BaseResponse.PSObject.Properties['RequestMessage']) { $final = $r.BaseResponse.RequestMessage.RequestUri }
+        if ($final -and $final.Scheme -ne 'https') {
+            Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+            Fail "a download was redirected to $($final.Scheme)://; only HTTPS downloads are allowed."
+        }
     }
 
     function Get-ConfigDir {
@@ -102,7 +129,12 @@ $sourceboltState = @{ Failed = $false }
     }
     function Set-UserPath([string]$value) {
         $k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
-        try { $k.SetValue('Path', $value, [Microsoft.Win32.RegistryValueKind]::ExpandString) } finally { $k.Close() }
+        try {
+            # Keep the value's existing kind (REG_SZ or REG_EXPAND_SZ); new values get ExpandString.
+            $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+            if ($k.GetValueNames() -contains 'Path') { $kind = $k.GetValueKind('Path') }
+            $k.SetValue('Path', $value, $kind)
+        } finally { $k.Close() }
         # Tell Explorer and new terminals that the environment changed (WM_SETTINGCHANGE).
         [Environment]::SetEnvironmentVariable('SOURCEBOLT_INSTALLER_REFRESH', '1', 'User')
         [Environment]::SetEnvironmentVariable('SOURCEBOLT_INSTALLER_REFRESH', $null, 'User')
@@ -115,6 +147,11 @@ $sourceboltState = @{ Failed = $false }
 
     try {
         try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+
+        # The folder goes into the user PATH, where ';' separates entries and '"' is not allowed.
+        $dirOk = $false
+        try { $dirOk = [IO.Path]::IsPathRooted($dir) -and ($dir -notmatch '[;"]') -and ([IO.Path]::GetPathRoot($dir).TrimEnd('\') -ine $dir.TrimEnd('\')) } catch { }
+        if (-not $dirOk) { Fail "'$dir' cannot be used as the install folder. Use a full path of its own, with no ';' or '`"'." }
 
         # ---------------------------------------------------------------- uninstall
         if ($Uninstall) {
@@ -144,11 +181,14 @@ $sourceboltState = @{ Failed = $false }
             if ($Purge) {
                 if (-not (Test-Path -LiteralPath $data)) {
                     Step "no sourcebolt data at $data"
-                } elseif ($Yes -or (Confirm-Yes "Also delete your sourcebolt sign-in data at ${data}? This signs you out for good." $false)) {
-                    Remove-Item -LiteralPath $data -Recurse -Force
-                    Step "deleted $data"
                 } else {
-                    Step "kept your sourcebolt data at $data (run again with -Purge -Yes to delete it)"
+                    Assert-SafeToPurge $data
+                    if ($Yes -or (Confirm-Yes "Also delete your sourcebolt sign-in data at ${data}? This signs you out for good." $false)) {
+                        Remove-Item -LiteralPath $data -Recurse -Force
+                        Step "deleted $data"
+                    } else {
+                        Step "kept your sourcebolt data at $data (run again with -Purge -Yes to delete it)"
+                    }
                 }
             } elseif (Test-Path -LiteralPath $data) {
                 Step "kept your sourcebolt data at $data (add -Purge to delete it)"
@@ -186,6 +226,8 @@ $sourceboltState = @{ Failed = $false }
             if (-not $ver) { Fail 'could not find the latest release. Check your internet connection, or set $env:SOURCEBOLT_VERSION = "v0.2.0" and try again.' }
         }
         if (-not $ver.StartsWith('v')) { $ver = "v$ver" }
+        if ($ver -cnotmatch '^v\d+\.\d+\.\d+(-[A-Za-z0-9_.]+)?$') { Fail "'$ver' is not a valid version. Use a release tag such as v0.2.0." }
+        Assert-AllowedUrl $downloadBase
         $num = $ver.Substring(1)
         $archive = "sourcebolt_${num}_windows_${arch}.zip"
         $base = "$($downloadBase.TrimEnd('/'))/$ver"
@@ -211,7 +253,7 @@ $sourceboltState = @{ Failed = $false }
                 if ($v.Code -ne 0) { Fail 'the signature of checksums.txt did not verify. The download may have been tampered with.' }
                 Step 'signature verified (cosign)'
             } else {
-                Step 'cosign not installed: signature check skipped (the SHA-256 check below still runs)'
+                Step 'cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.'
             }
 
             $expected = $null
@@ -238,7 +280,21 @@ $sourceboltState = @{ Failed = $false }
                 $old = "$exe.old-" + [Guid]::NewGuid().ToString('N').Substring(0, 8)
                 try { Move-Item -LiteralPath $exe -Destination $old -Force } catch { Fail "could not replace $exe. Close any program that is using sourcebolt and try again." }
             }
-            Copy-Item -LiteralPath $newExe -Destination $exe -Force
+            # Keep the old copy until the new one has run, so a broken upgrade can be undone.
+            $restore = {
+                Remove-Item -LiteralPath $exe -Force -ErrorAction SilentlyContinue
+                if ($hadOld) { Move-Item -LiteralPath $old -Destination $exe -Force }
+            }
+            try { Copy-Item -LiteralPath $newExe -Destination $exe -Force } catch {
+                & $restore
+                Fail "could not write $exe ($($_.Exception.Message)); the previous version was kept."
+            }
+            $vr = Invoke-Native $exe @('--version')
+            if ($vr.Code -ne 0) {
+                & $restore
+                if ($hadOld) { Fail "the new program did not run ($exe --version); restored the previous version." }
+                Fail "the installed program did not run: $exe --version"
+            }
             if ($hadOld) {
                 Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue
                 Step "upgraded $exe"
@@ -249,8 +305,6 @@ $sourceboltState = @{ Failed = $false }
             Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        $vr = Invoke-Native $exe @('--version')
-        if ($vr.Code -ne 0) { Fail "the installed program did not run: $exe --version" }
         Say ''
         Say "Installed: $($vr.Output.Trim())"
 

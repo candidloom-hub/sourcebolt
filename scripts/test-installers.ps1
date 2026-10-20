@@ -49,22 +49,39 @@ $bin = Join-Path $work 'bin'
 $exe = Join-Path $bin 'sourcebolt.exe'
 $config = Join-Path $work 'config'
 
+$script:baseOverride = $null
+$script:envOverride = $null
+
 function Invoke-Installer([string[]]$extra) {
-    $env:SOURCEBOLT_DOWNLOAD_BASE = 'file:///' + ((Join-Path $work 'rel') -replace '\\', '/')
+    $env:SOURCEBOLT_DOWNLOAD_BASE = if ($script:baseOverride) { $script:baseOverride } else { 'file:///' + ((Join-Path $work 'rel') -replace '\\', '/') }
     $env:SOURCEBOLT_INSTALL_DIR = $bin
     $env:SOURCEBOLT_NO_SETUP = '1'
     $env:NOTEBOOKLM_CONFIG_DIR = $config
     if ($TestUserPath) { Remove-Item Env:SOURCEBOLT_NO_MODIFY_PATH -ErrorAction SilentlyContinue } else { $env:SOURCEBOLT_NO_MODIFY_PATH = '1' }
+    $saved = @{}
+    if ($script:envOverride) {
+        foreach ($n in $script:envOverride.Keys) {
+            $saved[$n] = [Environment]::GetEnvironmentVariable($n, 'Process')
+            [Environment]::SetEnvironmentVariable($n, $script:envOverride[$n], 'Process')
+        }
+    }
     $old = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    $o = & $Shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer @extra 2>&1 | ForEach-Object { "$_" }
-    $code = $LASTEXITCODE
-    $ErrorActionPreference = $old
+    try {
+        $o = & $Shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer @extra 2>&1 | ForEach-Object { "$_" }
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $old
+        foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n], 'Process') }
+    }
     $script:out = $o -join "`n"
     return $code
 }
 
-function Get-Ver { if (Test-Path -LiteralPath $exe) { (& $exe --version) -join '' } else { '' } }
+function Get-Ver {
+    if (-not (Test-Path -LiteralPath $exe)) { return '' }
+    try { return (& $exe --version) -join '' } catch { return 'does not run' }
+}
 
 function Test-UserPathHas([string]$d) {
     $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')
@@ -144,6 +161,55 @@ try {
     if ((Invoke-Installer @('-Uninstall', '-Purge', '-Yes')) -eq 0 -and -not (Test-Path -LiteralPath $config)) {
         Ok '-Purge -Yes deletes the data'
     } else { Bad '-Purge -Yes deletes the data' }
+
+    # --- hardening (security review) ---------------------------------------------------
+
+    # 9. malformed version
+    if ((Invoke-Installer @('-Version', 'v1.0.0;calc')) -ne 0 -and $script:out -match 'not a valid version' -and -not (Test-Path -LiteralPath $exe)) {
+        Ok 'refuses a malformed version'
+    } else { Bad 'refuses a malformed version' }
+
+    # 10. plain-http download base
+    $savedBase = $null
+    $script:baseOverride = 'http://example.invalid/rel'
+    if ((Invoke-Installer @('-Version', 'v1.0.0')) -ne 0 -and $script:out -match 'HTTPS' -and -not (Test-Path -LiteralPath $exe)) {
+        Ok 'refuses a non-HTTPS download base'
+    } else { Bad 'refuses a non-HTTPS download base' }
+    $script:baseOverride = $null
+
+    # 11. an install folder with ';' would split the PATH entry
+    if ((Invoke-Installer @('-Version', 'v1.0.0', '-InstallDir', "$work\a;b")) -ne 0 -and $script:out -match 'cannot be used as the install folder') {
+        Ok "refuses an install folder with ';'"
+    } else { Bad "refuses an install folder with ';'" }
+
+    # 12. -Purge never deletes the user profile folder (USERPROFILE is a temp folder here)
+    $fakeProfile = Join-Path $work 'profile-home'
+    New-Item -ItemType Directory -Force -Path $fakeProfile | Out-Null
+    Set-Content -LiteralPath (Join-Path $fakeProfile 'keep-me') -Value keep
+    $script:envOverride = @{ USERPROFILE = $fakeProfile; NOTEBOOKLM_CONFIG_DIR = $fakeProfile }
+    $code = Invoke-Installer @('-Uninstall', '-Purge', '-Yes')
+    $script:envOverride = $null
+    if ($code -ne 0 -and (Test-Path -LiteralPath (Join-Path $fakeProfile 'keep-me')) -and $script:out -match 'refusing to delete') {
+        Ok 'refuses to purge the user profile folder'
+    } else { Bad 'refuses to purge the user profile folder' }
+
+    # 13. without cosign the output says the check is integrity only
+    if ((Invoke-Installer @('-Version', 'v1.0.0')) -eq 0 -and $script:out -match 'integrity only') {
+        Ok "says 'integrity only' when cosign is absent"
+    } else { Bad "says 'integrity only' when cosign is absent" }
+
+    # 14. a new binary that does not run is rolled back to the old one
+    $d = Join-Path $work 'rel\v1.2.0'
+    $pkg = Join-Path $work 'pkg-broken'
+    New-Item -ItemType Directory -Force -Path $d, $pkg | Out-Null
+    [IO.File]::WriteAllText((Join-Path $pkg 'sourcebolt.exe'), 'not a program')
+    $bz = Join-Path $d "sourcebolt_1.2.0_windows_${arch}.zip"
+    Compress-Archive -Path (Join-Path $pkg 'sourcebolt.exe') -DestinationPath $bz -Force
+    $bh = (Get-FileHash -LiteralPath $bz -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText((Join-Path $d 'checksums.txt'), "$bh  sourcebolt_1.2.0_windows_${arch}.zip`n")
+    if ((Invoke-Installer @('-Version', 'v1.2.0')) -ne 0 -and (Get-Ver) -eq 'sourcebolt 1.0.0' -and $script:out -match 'restored') {
+        Ok 'rolls back a broken upgrade'
+    } else { Bad 'rolls back a broken upgrade' }
 } finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

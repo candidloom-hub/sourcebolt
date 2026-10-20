@@ -184,5 +184,89 @@ if run_installer --uninstall --purge --yes && [ ! -e "$WORK/config" ]; then
 	ok "--purge --yes deletes the data"
 else bad "--purge --yes deletes the data"; fi
 
+# --- hardening (security review) -----------------------------------------------------------
+
+# 14. a version that is not vX.Y.Z[-pre] is refused before anything is fetched
+if run_installer --version 'v1.0.0;touch /tmp/x'; then
+	bad "refuses a malformed version (installer exited 0)"
+elif grep -q 'not a valid version' "$WORK/out" && [ ! -e "$BINDIR/sourcebolt" ]; then
+	ok "refuses a malformed version"
+else bad "refuses a malformed version"; fi
+
+# 15. a plain-http download base is refused
+if env PATH="$WORK/shim:$PATH" HOME="$H" SHELL=/bin/sh SOURCEBOLT_DOWNLOAD_BASE=http://example.invalid/rel \
+	SOURCEBOLT_INSTALL_DIR="$BINDIR" SOURCEBOLT_NO_SETUP=1 sh "$INSTALLER" --version v1.0.0 >"$WORK/out" 2>&1; then
+	bad "refuses a non-HTTPS download base (installer exited 0)"
+elif grep -q 'HTTPS' "$WORK/out" && [ ! -e "$BINDIR/sourcebolt" ]; then
+	ok "refuses a non-HTTPS download base"
+else bad "refuses a non-HTTPS download base"; fi
+
+# 16. an install folder that would break the startup-file line is refused, nothing written
+rm -f "$H/.profile"
+if run_installer --version v1.0.0 --dir "$WORK/we\"ird"; then
+	bad "refuses an install folder with a quote (installer exited 0)"
+elif grep -q 'cannot be used as the install folder' "$WORK/out" && [ ! -e "$H/.profile" ]; then
+	ok "refuses an install folder with a quote"
+else bad "refuses an install folder with a quote"; fi
+
+# 17. --dir "" is refused (uninstall would otherwise look at /sourcebolt)
+if run_installer --uninstall --dir ""; then
+	bad "refuses an empty --dir (installer exited 0)"
+elif grep -q 'cannot be used as the install folder' "$WORK/out"; then
+	ok "refuses an empty --dir"
+else bad "refuses an empty --dir"; fi
+
+# 17b. the home folder itself is not an install folder
+if run_installer --version v1.0.0 --dir "$H"; then
+	bad "refuses the home folder as install folder (installer exited 0)"
+elif grep -q 'cannot be used as the install folder' "$WORK/out" && [ ! -e "$H/sourcebolt" ]; then
+	ok "refuses the home folder as install folder"
+else bad "refuses the home folder as install folder"; fi
+
+# 18. --purge never deletes the home folder itself
+echo keep >"$H/keep-me"
+if env PATH="$WORK/shim:$PATH" HOME="$H" SHELL=/bin/sh NOTEBOOKLM_CONFIG_DIR="$H" SOURCEBOLT_INSTALL_DIR="$BINDIR" \
+	sh "$INSTALLER" --uninstall --purge --yes >"$WORK/out" 2>&1; then
+	bad "refuses to purge the home folder (installer exited 0)"
+elif [ -f "$H/keep-me" ] && grep -q 'refusing to delete' "$WORK/out"; then
+	ok "refuses to purge the home folder"
+else bad "refuses to purge the home folder"; fi
+
+# 19. a startup file with a BEGIN marker but no END marker is left exactly as it was
+printf 'line1\n# >>> added by sourcebolt installer >>>\nexport X=1\nline4\n' >"$H/.bashrc"
+cp "$H/.bashrc" "$WORK/bashrc-before"
+if run_installer --uninstall && cmp -s "$H/.bashrc" "$WORK/bashrc-before" && grep -q 'end marker' "$WORK/out"; then
+	ok "uninstall leaves a startup file with an unmatched marker untouched"
+else bad "uninstall leaves a startup file with an unmatched marker untouched"; fi
+rm -f "$H/.bashrc"
+
+# 20. without cosign the output says the check is integrity only
+if run_installer --version v1.0.0 && grep -q 'integrity only' "$WORK/out"; then
+	ok "says 'integrity only' when cosign is absent"
+else bad "says 'integrity only' when cosign is absent"; fi
+
+# 21. a truncated download runs nothing (the whole script is one function called at the end)
+head -n 300 "$INSTALLER" >"$WORK/truncated.sh"
+rm -f "$BINDIR/sourcebolt"
+env PATH="$WORK/shim:$PATH" HOME="$H" SHELL=/bin/sh SOURCEBOLT_DOWNLOAD_BASE="$BASE_URL" SOURCEBOLT_INSTALL_DIR="$BINDIR" \
+	SOURCEBOLT_NO_SETUP=1 sh "$WORK/truncated.sh" --version v1.0.0 >"$WORK/out" 2>&1 || true
+if [ ! -e "$BINDIR/sourcebolt" ] && ! grep -q 'Installing sourcebolt' "$WORK/out"; then
+	ok "a truncated script does nothing"
+else bad "a truncated script does nothing"; fi
+
+# 22. a new binary that does not run is rolled back to the old one
+run_installer --version v1.0.0 >/dev/null 2>&1 || true
+d="$WORK/rel/v1.2.0"
+mkdir -p "$d" "$WORK/pkg-broken"
+printf '#!/bin/sh\nexit 3\n' >"$WORK/pkg-broken/sourcebolt"
+chmod +x "$WORK/pkg-broken/sourcebolt"
+(cd "$WORK/pkg-broken" && tar -czf "$d/sourcebolt_1.2.0_linux_amd64.tar.gz" sourcebolt)
+printf '%s  %s\n' "$(sha256 "$d/sourcebolt_1.2.0_linux_amd64.tar.gz")" "sourcebolt_1.2.0_linux_amd64.tar.gz" >"$d/checksums.txt"
+if run_installer --version v1.2.0; then
+	bad "rolls back a broken upgrade (installer exited 0)"
+elif [ "$("$BINDIR/sourcebolt" --version)" = "sourcebolt 1.0.0" ] && grep -q 'restored' "$WORK/out"; then
+	ok "rolls back a broken upgrade"
+else bad "rolls back a broken upgrade"; fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
