@@ -27,13 +27,16 @@ type Suggestion struct {
 // chatSuggestMode is the otmP3b mode for the chat surface (4).
 const chatSuggestMode = 4
 
-// shape: catalog consensus, not live-verified. [HDR, nb, [[sid]..], mode, null, query]
+// chatSuggestParams: the envelope is pinned by live capture #2 (2026-10-20,
+// otmP3b): [HDR, nb, [[sid]..], mode] without a query, [.., mode, null,
+// query] with one. The capture used mode 9 (flashcards dialog); chat mode 4
+// is catalog-only (TL).
 func chatSuggestParams(nb string, sources []string, query string) []any {
-	var q any
+	p := []any{requestOptions(), nb, sourceRefs(sources), chatSuggestMode}
 	if query != "" {
-		q = query
+		p = append(p, nil, query)
 	}
-	return []any{requestOptions(), nb, sourceRefs(sources), chatSuggestMode, nil, q}
+	return p
 }
 
 // shape: catalog consensus, not live-verified. [[2], nb(, [[sid]..])]

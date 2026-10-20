@@ -66,7 +66,7 @@ func TestSuggestChatNoQueryNoSources(t *testing.T) {
 	}
 	c, _ := ft.callFor("otmP3b")
 	p, _ := json.Marshal(c.Params)
-	want := `[[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]],"` + fakeNB + `",[],4,null,null]`
+	want := `[[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]],"` + fakeNB + `",[],4]`
 	if !sameJSON(t, p, []byte(want)) {
 		t.Fatalf("params %s", p)
 	}
