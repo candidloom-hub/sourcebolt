@@ -252,6 +252,8 @@ func TestGenerateRejectsUnprovenOptions(t *testing.T) {
 		{StudioRequest{Kind: StudioDataTable}, transport.KindUnsupported, "instructions"},
 		{StudioRequest{Kind: StudioInteractiveReport, Instructions: topic}, transport.KindUnsupported, "instructions"},
 		{StudioRequest{Kind: "poem", Instructions: topic}, transport.KindInvalidArgument, "poem"},
+		{StudioRequest{Kind: StudioQuiz, Language: "de"}, transport.KindUnsupported, "language"},
+		{StudioRequest{Kind: StudioAudio, Language: "en-IN"}, transport.KindUnsupported, "language"},
 	} {
 		ft := newFake()
 		tc.r.SourceIDs = studioSources3

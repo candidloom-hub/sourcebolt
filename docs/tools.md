@@ -503,7 +503,7 @@ Annotations: title: Generate studio artifact, readOnly: false, destructive: fals
 | `infographic.orientation` | string (`landscape`, `portrait`) | no | page orientation: landscape, portrait (default landscape) |
 | `infographic.style` | string (`auto`, `sketch_note`) | no | visual style: auto, sketch_note (default auto) |
 | `instructions` | string | no | free text: audio and video focus, slide deck description and quiz topic (optional); report prompt, data table description, mind map and flashcards topic (required); infographic and interactive_report take none |
-| `language` | string | no | output language code as the web app sends it, for example en or en_in (default en) |
+| `language` | string (`en`, `en_in`) | no | output language code as the web app sends it (default en; cinematic video takes none) |
 | `quiz` | null or object | no | options for kind quiz |
 | `quiz.difficulty` | string (`easy`, `medium`) | no | question difficulty: easy, medium (default medium) |
 | `quiz.quantity` | string (`standard`, `more`) | no | number of questions: standard, more (default standard) |

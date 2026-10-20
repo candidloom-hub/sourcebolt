@@ -31,7 +31,7 @@ type StudioGenerateIn struct {
 	Kind         string   `json:"kind" jsonschema:"the artifact kind"`
 	Sources      []string `json:"sources,omitempty" jsonschema:"source ids, id prefixes or titles; default all sources (notes cannot be used as sources)"`
 	Instructions string   `json:"instructions,omitempty" jsonschema:"free text: audio and video focus, slide deck description and quiz topic (optional); report prompt, data table description, mind map and flashcards topic (required); infographic and interactive_report take none"`
-	Language     string   `json:"language,omitempty" jsonschema:"output language code as the web app sends it, for example en or en_in (default en)"`
+	Language     string   `json:"language,omitempty" jsonschema:"output language code as the web app sends it (default en; cinematic video takes none)"`
 
 	Audio       *AudioOptions       `json:"audio,omitempty" jsonschema:"options for kind audio"`
 	Video       *VideoOptions       `json:"video,omitempty" jsonschema:"options for kind video"`
@@ -97,6 +97,9 @@ func studioGenerateSchema() *jsonschema.Schema {
 	s, _ := schemaFor[StudioGenerateIn]()
 	for _, k := range nlm.GeneratableKinds() {
 		s.Properties["kind"].Enum = append(s.Properties["kind"].Enum, string(k))
+	}
+	for _, l := range nlm.StudioLanguages {
+		s.Properties["language"].Enum = append(s.Properties["language"].Enum, l)
 	}
 	for prop, kind := range studioOptionObjects {
 		opts, _ := nlm.StudioOptions(kind)

@@ -233,6 +233,11 @@ func GeneratableKinds() []StudioKind {
 
 const defaultStudioLanguage = "en"
 
+// StudioLanguages are the output language codes a capture has sent:
+// en (every kind) and en_in (video, capture #3). Any other code is
+// refused with KindUnsupported naming the option.
+var StudioLanguages = []string{"en", "en_in"}
+
 // Variants of type code 4 at config [1][0] and listing row [9][1][0].
 const (
 	flashcardsVariant = 1 // captures #2 and #3
@@ -294,6 +299,10 @@ func studioParams(nb string, r StudioRequest) ([]any, error) {
 					"report without a %s is not supported yet: only a request with title, description and instructions is pinned by a live capture", f.name)}
 			}
 		}
+	}
+	if r.Language != "" && !slices.Contains(StudioLanguages, r.Language) {
+		return nil, &transport.Error{Kind: transport.KindUnsupported, RPC: rpc, Message: fmt.Sprintf(
+			"%s option language %q is not supported yet: only %s are pinned by a live capture", r.Kind, r.Language, strings.Join(StudioLanguages, ", "))}
 	}
 	if r.GenerateLater {
 		switch {

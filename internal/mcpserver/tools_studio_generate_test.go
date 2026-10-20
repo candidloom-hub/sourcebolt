@@ -69,6 +69,7 @@ func TestStudioGenerateSchemaEnums(t *testing.T) {
 		{[]string{"infographic", "orientation"}, []string{"landscape", "portrait"}},
 		{[]string{"infographic", "detail"}, []string{"concise", "standard"}},
 		{[]string{"infographic", "style"}, []string{"auto", "sketch_note"}},
+		{[]string{"language"}, []string{"en", "en_in"}},
 	} {
 		if got := enumOf(t, s, tc.path...); !slices.Equal(got, tc.want) {
 			t.Errorf("%v enum = %v, want %v", tc.path, got, tc.want)
@@ -147,6 +148,7 @@ func TestStudioGenerateRefusesBeforeQuota(t *testing.T) {
 		{map[string]any{"kind": "infographic", "infographic": map[string]any{"style": "watercolor"}}, "INVALID_ARGUMENT", "style"},
 		{map[string]any{"kind": "quiz", "instructions": "q", "audio": map[string]any{"format": "critique"}}, "INVALID_ARGUMENT", "audio"},
 		{map[string]any{"kind": "interactive_report", "instructions": "q"}, "UNSUPPORTED_BY_TRANSPORT", "instructions"},
+		{map[string]any{"kind": "audio", "language": "fr"}, "UNSUPPORTED_BY_TRANSPORT", "language"},
 	} {
 		st := newStub()
 		st.payloads["EylDcb"] = quotaPayload
