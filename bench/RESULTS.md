@@ -8,7 +8,7 @@ from the sanitized live `wXbhsf` capture, cloned with fresh ids
 ## Current: 2026-10-20, after the performance program (branch `perf/program`)
 
 CI: `bench` workflow, manual run with `cpu=2` (ubuntu-latest now has 4 vCPUs;
-`go test -cpu 2` holds the B3 targets' 2 CPUs), run 39462699223 on an AMD
+`go test -cpu 2` holds the B3 targets' 2 CPUs), run 39467140553 on an AMD
 EPYC 7763 runner, the slowest runner type seen. B3/B4 are interleaved with
 `main` (10 rounds each) and compared with benchstat (every B3/B4 change is
 p = 0.000); the other rows are single CI runs. Program targets are the owner's tightened ones (2026-10-20), stricter
@@ -16,16 +16,16 @@ than section 8 of the architecture plan.
 
 | # | Metric | Program target | before | perf/program | Result |
 |---|---|---|---|---|---|
-| B1 | cold start to `initialize`, p50 | < 25 ms | 7.5-9.0 ms (runs before round 4) | 7.4 ms (p95 7.9) | meets |
-| B2 | idle binary peak RSS (median of 5 spawns) | < 20 MB | 19.1-19.5 MB median on THP "always" runners before round 7; single spawns 15.8-21.6 MB | 17.5 MB (RssAnon 7.6, RssFile 10.3) | meets |
-| B2 | peak RSS after listing 100 notebooks, in-process | < 25 MB | 21.9 MB (run before round 4) | 21.6 MB | meets |
-| B3 | `notebook_list` uncached ("refresh"), p50 | < 1.5 ms | 2.234 ms | 0.809 ms (p95 1.33) | meets |
-| B3 | `notebook_list` cached, p50 | < 0.5 ms | 0.984 ms | 0.493 ms (p95 0.95) | meets, 1% margin on this runner type (0.437 ms on an EPYC 9V74 runner, run 39459598454) |
-| B3 | allocations per call, refresh / cached | | 1765 / 1370 | 1041 / 713 | |
-| B4 | decode 40 KB envelope | p50 < 1 ms | 492 us, 93 allocs, 363 KiB | 228 us, 9 allocs, 40 KiB | meets |
+| B1 | cold start to `initialize`, p50 | < 25 ms | 7.5-9.0 ms (runs before round 4) | 8.2 ms (p95 10.5) | meets |
+| B2 | idle binary peak RSS (median of 5 spawns) | < 20 MB | 19.1-19.5 MB median on THP "always" runners before round 7; single spawns 15.8-21.6 MB | 16.2 MB | meets |
+| B2 | peak RSS after listing 100 notebooks, in-process | < 25 MB | 21.9 MB (run before round 4) | 19.7 MB | meets |
+| B3 | `notebook_list` uncached ("refresh"), p50 | < 1.5 ms | 2.197 ms | 0.758 ms (p95 1.19) | meets |
+| B3 | `notebook_list` cached, p50 | < 0.5 ms | 0.993 ms | 0.398 ms (p95 0.76) | meets (0.49 ms on this runner type before round 8) |
+| B3 | allocations per call, refresh / cached | | 1765 / 1370 | 1040 / 712 | |
+| B4 | decode 40 KB envelope | p50 < 1 ms | 508 us, 93 allocs, 363 KiB | 225 us, 9 allocs, 40 KiB | meets |
 | B6 | connection reuse after first request | > 95% | 100% | 100%, 1 TLS handshake, HTTP/2 | meets |
 | B7 | stripped binary size | < 20 MB | 12.1 MB | 12.1 MB | meets |
-| B9 | chat time-to-first-progress after Google's first answer chunk | <= +20 ms | not measured | p50 0.33 ms, p95 0.61 ms (`bench/ttfp`, 29 asks) | meets |
+| B9 | chat time-to-first-progress after Google's first answer chunk | <= +20 ms | not measured | p50 0.30 ms, p95 0.41 ms (`bench/ttfp`, 29 asks) | meets |
 
 Local (Windows laptop above, `-cpu 2`, interleaved with `main`, n=10):
 `notebook_list` refresh 1640 -> 713 us/op, cached 838 -> 441 us/op;
@@ -49,6 +49,7 @@ numbers.
 | 5 | `notebook_list` default page 20 (was 50; behaviour change) | B3 cached / refresh sec/op | 778 / 1025 us | 419 / 683 us | 0.000 |
 | 6 | RPC bodies read into a pooled buffer (Decode results never alias it) | BenchmarkDoList40KB sec/op, B/op | 380.5 us, 149 KiB | 323.7 us, 62.7 KiB | 0.000 |
 | 7 | `prctl(PR_SET_THP_DISABLE)` at startup on Linux | CI idle RSS median, THP-always runner | 19.1-19.5 MB | 17.5 MB | single CI runs |
+| 8 | serve runs with GOGC=200 unless GOGC is set (`internal/runtimecfg`; benchmarks apply the same) | B3 cached / refresh sec/op | 407 / 676 us | 326 / 585 us | 0.000 |
 | - | B9 measurement (`bench/ttfp`), RSS median of 5 spawns, CI `cpu` input | measurement only | | | |
 
 Tried and dropped: writing JSON-RPC responses directly instead of through

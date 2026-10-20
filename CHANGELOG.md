@@ -31,8 +31,9 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 
 ### Performance
 
-- Tool-call overhead (B3, 100 notebooks, 2-CPU CI, p50): uncached `notebook_list` 2.23 -> 0.81 ms, cached 0.98 -> 0.49 ms; decoding a 40 KB answer 492 -> 228 us with 9 instead of 93 allocations; cold start and idle memory lower (tool schemas are resolved on first use). See `bench/RESULTS.md`.
+- Tool-call overhead (B3, 100 notebooks, 2-CPU CI, p50): uncached `notebook_list` 2.20 -> 0.76 ms, cached 0.99 -> 0.40 ms; decoding a 40 KB answer 508 -> 225 us with 9 instead of 93 allocations; cold start and idle memory lower (tool schemas are resolved on first use). See `bench/RESULTS.md`.
 - On Linux the server turns off transparent huge pages for its own process (`prctl`), which cut idle RSS by about 2 MB on hosts whose THP mode is "always". The fallback browser inherits the setting.
+- `serve` runs with GOGC=200 unless `GOGC` is set: fewer collections per tool call (cached `notebook_list` about 20% faster) at the cost of a somewhat larger heap under load.
 
 ### Fixed
 
