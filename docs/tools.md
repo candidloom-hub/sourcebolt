@@ -169,7 +169,7 @@ Annotations: title: Chat job status, readOnly: true, idempotent: true, openWorld
 
 Profiles: default, all.
 
-Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.
+Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations; it reaches only the newest 20 conversations of a notebook, and its preview shows their created and updated times and, when the whole history can be read, the first question. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Delete, readOnly: false, destructive: true, idempotent: true, openWorld: false.
 

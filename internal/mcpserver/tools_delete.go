@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/nlm"
 	"github.com/candidloom-hub/sourcebolt/internal/resolve"
@@ -18,10 +19,15 @@ type DeleteIn struct {
 }
 
 type DeleteItem struct {
-	ID     string `json:"id"`
-	Title  string `json:"title,omitempty"`
-	Status string `json:"status,omitempty"` // deleted | failed | unsupported (empty in a preview)
-	Error  string `json:"error,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	// Conversations (kind chat_history) have no title: their times and,
+	// when the whole history could be read, the first question are shown.
+	Created       time.Time `json:"created,omitzero"`
+	Updated       time.Time `json:"updated,omitzero"`
+	FirstQuestion string    `json:"first_question,omitempty"`
+	Status        string    `json:"status,omitempty"` // deleted | failed | unsupported (empty in a preview)
+	Error         string    `json:"error,omitempty"`
 }
 
 type DeleteOut struct {
@@ -34,7 +40,7 @@ type DeleteOut struct {
 func (s *server) registerDelete(m *mcp.Server) {
 	register(s, m, "core", &mcp.Tool{
 		Name:        "delete",
-		Description: "Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.",
+		Description: "Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations; it reaches only the newest 20 conversations of a notebook, and its preview shows their created and updated times and, when the whole history can be read, the first question. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.",
 		Annotations: writeAnn("Delete", true, true, false),
 	}, s.delete)
 }
@@ -60,6 +66,8 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	// a stale or loose match must never pick the item that gets deleted.
 	nb := ""
 	var items []resolve.Item
+	var extra map[string]DeleteItem
+	var fullPage bool
 	var err error
 	if in.Kind == "notebook" {
 		items, err = s.notebookItems(ctx, true)
@@ -67,7 +75,7 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 		var it resolve.Item
 		if it, err = s.resolveNotebookStrict(ctx, in.Notebook); err == nil {
 			nb = it.ID
-			items, err = s.deletableItems(ctx, in.Kind, nb)
+			items, extra, fullPage, err = s.deletableItems(ctx, in.Kind, nb)
 		}
 	}
 	if err != nil {
@@ -78,6 +86,11 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 	seen := map[string]bool{}
 	for _, ref := range in.IDs {
 		it, err := resolveStrict(ref, items, true)
+		var nf *resolve.ErrNotFound
+		if errors.As(err, &nf) && fullPage {
+			return DeleteOut{}, unsupported("delete.chat_history",
+				"conversation %q is not among the newest %d conversations of this notebook; older ones cannot be listed yet (hPTbtc paging is not pinned by a live capture)", ref, nlm.ChatSessionsPage)
+		}
 		if err != nil {
 			return DeleteOut{}, err
 		}
@@ -86,7 +99,12 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 		}
 		seen[it.ID] = true
 		ids = append(ids, it.ID)
-		titles = append(titles, DeleteItem{ID: it.ID, Title: it.Title})
+		d := extra[it.ID]
+		d.ID, d.Title = it.ID, it.Title
+		if in.Kind == "chat_history" {
+			d.FirstQuestion = s.firstQuestion(ctx, nb, it.ID)
+		}
+		titles = append(titles, d)
 	}
 	if !in.Confirm {
 		return DeleteOut{Status: "preview", Kind: in.Kind, Items: titles,
@@ -107,14 +125,16 @@ func (s *server) delete(ctx context.Context, in DeleteIn) (DeleteOut, error) {
 }
 
 // deletableItems lists the items of one notebook-scoped kind, fresh from the
-// server: sources (rLM1Ne), notes (cFji9) or conversations (hPTbtc, no titles).
-func (s *server) deletableItems(ctx context.Context, kind, nb string) ([]resolve.Item, error) {
-	var items []resolve.Item
+// server: sources (rLM1Ne), notes (cFji9) or conversations (hPTbtc, no
+// titles). For conversations extra carries created and updated times, and
+// fullPage reports a full first page (older conversations may exist but
+// cannot be listed).
+func (s *server) deletableItems(ctx context.Context, kind, nb string) (items []resolve.Item, extra map[string]DeleteItem, fullPage bool, err error) {
 	switch kind {
 	case "source":
 		srcs, err := s.NLM.ListSources(ctx, nb)
 		if err != nil {
-			return nil, err
+			return nil, nil, false, err
 		}
 		for _, x := range srcs {
 			items = append(items, resolve.Item{ID: x.ID, Title: x.Title})
@@ -122,7 +142,7 @@ func (s *server) deletableItems(ctx context.Context, kind, nb string) ([]resolve
 	case "note":
 		notes, err := s.NLM.ListNotes(ctx, nb)
 		if err != nil {
-			return nil, err
+			return nil, nil, false, err
 		}
 		for _, n := range notes {
 			items = append(items, resolve.Item{ID: n.ID, Title: n.Title})
@@ -130,13 +150,43 @@ func (s *server) deletableItems(ctx context.Context, kind, nb string) ([]resolve
 	case "chat_history":
 		convs, err := s.NLM.ChatSessions(ctx, nb)
 		if err != nil {
-			return nil, err
+			return nil, nil, false, err
 		}
+		extra = make(map[string]DeleteItem, len(convs))
 		for _, c := range convs {
 			items = append(items, resolve.Item{ID: c.ID})
+			extra[c.ID] = DeleteItem{Created: c.Created, Updated: c.Updated}
 		}
+		fullPage = len(convs) >= nlm.ChatSessionsPage
 	}
-	return items, nil
+	return items, extra, fullPage, nil
+}
+
+// firstQuestionPages caps the khqZz pages read to find a first question.
+const firstQuestionPages = 5
+
+// firstQuestion returns a conversation's first user question, best effort:
+// "" unless the whole history was read within firstQuestionPages pages
+// (khqZz turn layout and cursor are catalog consensus, not live-verified)
+// or on any error.
+func (s *server) firstQuestion(ctx context.Context, nb, conv string) string {
+	cursor := ""
+	for range firstQuestionPages {
+		turns, next, err := s.NLM.History(ctx, nb, conv, 20, cursor)
+		if err != nil {
+			return ""
+		}
+		if next == "" { // last page: oldest turns, oldest first
+			for _, t := range turns {
+				if t.Role == "user" {
+					return t.Text
+				}
+			}
+			return ""
+		}
+		cursor = next
+	}
+	return ""
 }
 
 // deleteOutcome merges per-id results into the tool output. When every id
