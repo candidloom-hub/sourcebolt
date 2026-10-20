@@ -41,8 +41,10 @@ func (d *DOM) addSource(ctx context.Context, nb, typeKey, inputKey, value string
 		return d.wrap(ctx, rpc, false, err)
 	}
 	defer release()
-	if err := d.open(ctx, p, nb, ""); err != nil {
+	if navigated, err := d.open(ctx, p, nb, ""); err != nil {
 		return d.wrap(ctx, rpc, false, err)
+	} else if navigated {
+		d.setAbandoned(-1) // a reload drops any answer still on its way
 	}
 	before, err := d.openAddDialog(ctx, p, nb)
 	if err != nil {
@@ -95,9 +97,10 @@ func (d *DOM) openAddDialog(ctx context.Context, p page, nb string) (int, error)
 	err = d.press(ctx, p, "sources.add")
 	var te *transport.Error
 	if errors.As(err, &te) && te.Kind == transport.KindDrift {
-		if err := d.open(ctx, p, nb, "addSource=true"); err != nil {
+		if _, err := d.open(ctx, p, nb, "addSource=true"); err != nil {
 			return 0, err
 		}
+		d.setAbandoned(-1)
 		if before, err = d.rowCount(ctx, p); err != nil {
 			return 0, err
 		}

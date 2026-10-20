@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/session"
@@ -34,6 +35,9 @@ const (
 	// before it counts as this question's answer.
 	limitGrace = selectorWait
 	navTimeout = 45 * time.Second
+	// idleWait bounds the wait for an earlier answer to finish before a
+	// question is sent.
+	idleWait = 60 * time.Second
 )
 
 // DOM drives NotebookLM's web UI as the fallback for chat and add-source
@@ -46,6 +50,13 @@ type DOM struct {
 
 	wait  time.Duration // per-control wait (selectorWait)
 	total time.Duration // answer ceiling (answerTotal)
+	idle  time.Duration // wait for an earlier answer before sending (idleWait)
+
+	mu sync.Mutex
+	// abandoned is the bubble count before a question whose Ask ended
+	// (cancelled) after sending it; -1 = none. Its answer may still be
+	// on the way, so the next Ask waits until the count passes it.
+	abandoned int
 }
 
 // NewDOM returns the DOM fallback on the browser that get returns (see
@@ -62,7 +73,8 @@ func newDOM(acquire func(ctx context.Context) (page, func(), error), host sessio
 	if sel == nil {
 		sel = LoadSelectors("", nil)
 	}
-	return &DOM{acquire: acquire, origin: host.Origin(), sel: sel, wait: selectorWait, total: answerTotal}
+	return &DOM{acquire: acquire, origin: host.Origin(), sel: sel, wait: selectorWait, total: answerTotal,
+		idle: idleWait, abandoned: -1}
 }
 
 // chatState is what __sbDom.chatState reports.
@@ -83,13 +95,17 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 		return "", d.wrap(ctx, rpc, false, err)
 	}
 	defer release()
-	if err := d.open(ctx, p, nb, ""); err != nil {
+	navigated, err := d.open(ctx, p, nb, "")
+	if err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
+	}
+	if navigated {
+		d.setAbandoned(-1) // a fresh page: no earlier answer is on its way
 	}
 	if err := d.sel.find(ctx, p, "chat.input", d.wait); err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
 	}
-	before, err := d.chat(ctx, p)
+	before, err := d.waitIdle(ctx, p)
 	if err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
 	}
@@ -99,7 +115,15 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 	if err := d.press(ctx, p, "chat.submit"); err != nil {
 		return "", d.wrap(ctx, rpc, false, err)
 	}
-	// From here on the question may have been sent.
+	// From here on the question may have been sent. If this call ends
+	// without its answer (cancelled, page error), the answer may still
+	// arrive later; the next Ask must not take it for its own.
+	answered := false
+	defer func() {
+		if !answered {
+			d.setAbandoned(before.Count)
+		}
+	}()
 	sentAt := time.Now()
 	deadline := sentAt.Add(d.total)
 	var last string
@@ -120,9 +144,11 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 					progressAt = now
 				}
 			case st.Done && now.Sub(changedAt) >= answerStable:
+				answered = true
 				return text, nil
 			}
 		} else if isRateLimit(st.Alert) && (st.Alert != before.Alert || now.Sub(sentAt) >= limitGrace) {
+			answered = true // refused: no answer will follow
 			return "", &transport.Error{Kind: transport.KindRateLimited, RPC: rpc, Transport: domTransport, Sent: true,
 				Message: "NotebookLM shows a chat limit: " + firstLine(st.Alert)}
 		}
@@ -136,6 +162,53 @@ func (d *DOM) Ask(ctx context.Context, nb, question string, progress func(text s
 		case <-time.After(answerPoll):
 		}
 	}
+}
+
+// waitIdle waits until no answer is in progress (no bubbles, or the newest
+// one carries the done marker) and the answer to an abandoned question, if
+// any, has arrived; it returns the thread state to compare against. When
+// the page stays busy for d.idle it fails without sending anything.
+func (d *DOM) waitIdle(ctx context.Context, p page) (chatState, error) {
+	abandoned := d.getAbandoned()
+	deadline := time.Now().Add(d.idle)
+	for {
+		st, err := d.chat(ctx, p)
+		if err != nil {
+			return chatState{}, err
+		}
+		idle := st.Count == 0 || st.Done
+		if idle && st.Count > abandoned {
+			d.setAbandoned(-1)
+			return st, nil
+		}
+		if time.Now().After(deadline) {
+			// Do not block later calls on an answer that never came.
+			d.setAbandoned(-1)
+			reason := "an earlier answer is still in progress"
+			if idle {
+				reason = "the answer to an abandoned question has not arrived"
+			}
+			return chatState{}, &transport.Error{Kind: transport.KindTransport, Transport: domTransport,
+				Message: fmt.Sprintf("chat not idle after %s: %s; the question was not sent", d.idle, reason)}
+		}
+		select {
+		case <-ctx.Done():
+			return chatState{}, ctx.Err()
+		case <-time.After(answerPoll):
+		}
+	}
+}
+
+func (d *DOM) getAbandoned() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.abandoned
+}
+
+func (d *DOM) setAbandoned(n int) {
+	d.mu.Lock()
+	d.abandoned = n
+	d.mu.Unlock()
 }
 
 func (d *DOM) chat(ctx context.Context, p page) (chatState, error) {
@@ -156,12 +229,13 @@ func (d *DOM) chat(ctx context.Context, p page) (chatState, error) {
 }
 
 // open puts the tab on notebook nb (with query, if any) unless it is
-// already there, and reports a sign-in redirect as KindAuth.
-func (d *DOM) open(ctx context.Context, p page, nb, query string) error {
+// already there, and reports a sign-in redirect as KindAuth. navigated
+// reports that the page was (re)loaded.
+func (d *DOM) open(ctx context.Context, p page, nb, query string) (navigated bool, err error) {
 	target := d.origin + "/notebook/" + url.PathEscape(nb)
 	if query == "" {
 		if href, err := d.href(ctx, p); err == nil && samePage(href, target) {
-			return nil
+			return false, nil
 		}
 	} else {
 		target += "?" + query
@@ -169,16 +243,16 @@ func (d *DOM) open(ctx context.Context, p page, nb, query string) error {
 	nctx, cancel := context.WithTimeout(ctx, navTimeout)
 	defer cancel()
 	if err := p.Navigate(nctx, target); err != nil {
-		return fmt.Errorf("browser: open notebook: %w", err)
+		return true, fmt.Errorf("browser: open notebook: %w", err)
 	}
 	href, err := d.href(ctx, p)
 	if err != nil {
-		return err
+		return true, err
 	}
 	if u, err := url.Parse(href); err == nil && u.Hostname() == "accounts.google.com" {
-		return &transport.Error{Kind: transport.KindAuth, Transport: domTransport, Cause: fmt.Errorf("%w (sign-in page)", session.ErrSignedOut)}
+		return true, &transport.Error{Kind: transport.KindAuth, Transport: domTransport, Cause: fmt.Errorf("%w (sign-in page)", session.ErrSignedOut)}
 	}
-	return nil
+	return true, nil
 }
 
 func (d *DOM) href(ctx context.Context, p page) (string, error) {

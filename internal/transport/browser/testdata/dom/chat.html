@@ -10,6 +10,9 @@
     noinput=1  the query box has no textarea
     promo=1    a promo dialog overlays the page; submit is ignored while it is open
     think=N    the answer bubble appears N ms after submit (default: at once)
+    streaming=1      an earlier answer is still streaming on load (done after 2 s)
+    streaming=stuck  an earlier answer is streaming on load and never completes
+  Submit is ignored while an earlier answer is pending, as in the real app.
 -->
 <html lang="en">
 <head>
@@ -47,8 +50,30 @@
     document.body.appendChild(d);
   }
 
+  // pending counts questions whose answer is not complete; like the real
+  // app, submit does nothing while one is pending.
+  let pending = 0;
+  const leftover = q.get("streaming");
+  if (leftover) {
+    pending++;
+    const b = document.createElement("div");
+    b.className = "to-user-container";
+    b.innerHTML = '<div class="message-text-content">Leftover</div>';
+    thread.appendChild(b);
+    if (leftover !== "stuck") {
+      setTimeout(() => {
+        b.firstChild.textContent = "Leftover answer.";
+        const acts = document.createElement("div");
+        acts.className = "message-actions";
+        b.appendChild(acts);
+        pending--;
+      }, 2000);
+    }
+  }
+
   document.querySelector(".submit-button button").addEventListener("click", () => {
     if (document.querySelector("accessibility-promo-dialog")) return; // the overlay eats the click
+    if (pending > 0) return;
     const ta = document.querySelector("textarea");
     const question = ta.value;
     if (!question) return;
@@ -83,7 +108,9 @@
       acts.className = "message-actions";
       acts.innerHTML = "<button><mat-icon>content_copy</mat-icon></button><button><mat-icon>thumb_up</mat-icon></button>";
       bubble.appendChild(acts);
+      pending--;
     };
+    pending++;
     const show = () => {
       thread.appendChild(bubble);
       setTimeout(step, 100);

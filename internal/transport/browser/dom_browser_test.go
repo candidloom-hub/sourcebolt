@@ -163,6 +163,66 @@ func TestAskDOMPromoDialog(t *testing.T) {
 	}
 }
 
+func TestAskDOMWaitsForStreamingAnswer(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	openFixture(t, d, srv.URL+"/notebook/chat?streaming=1")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	text, err := d.Ask(ctx, "chat", "mine", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Fixture answer to: mine [1]"; text != want {
+		t.Errorf("text = %q, want %q", text, want)
+	}
+}
+
+func TestAskDOMAfterCancelGetsOwnAnswer(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	// The answer bubble appears 1.5 s after submit: the cancel at 0.5 s
+	// lands after the question went out but before its bubble exists.
+	openFixture(t, d, srv.URL+"/notebook/chat?think=1500")
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(500*time.Millisecond, cancel)
+	if _, err := d.Ask(ctx, "chat", "abandoned", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("first Ask err = %v, want context.Canceled", err)
+	}
+	ctx2, cancel2 := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel2()
+	text, err := d.Ask(ctx2, "chat", "next", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Fixture answer to: next [1]"; text != want {
+		t.Errorf("text = %q, want %q (the abandoned answer leaked)", text, want)
+	}
+}
+
+func TestAskDOMBusyPageNeverSends(t *testing.T) {
+	d, srv := newFixtureDOM(t)
+	d.idle = time.Second
+	openFixture(t, d, srv.URL+"/notebook/chat?streaming=stuck")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	_, err := d.Ask(ctx, "chat", "never sent", nil)
+	te := wantKind(t, err, transport.KindTransport)
+	if te.Sent {
+		t.Error("Sent set although the question was never sent")
+	}
+	p, release, err := d.acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	raw, err := p.Eval(ctx, `document.querySelector("textarea").value + "|" + document.querySelectorAll(".from-user-container").length`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(raw); got != `"|1"` {
+		t.Errorf("input|questions = %s, want \"|1\" (nothing typed or sent)", got)
+	}
+}
+
 // sourcesPage reads the fixture's source rows and whether a dialog is open.
 func sourcesPage(t *testing.T, d *DOM) (rows []string, dialog bool) {
 	t.Helper()
