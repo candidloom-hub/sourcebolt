@@ -27,16 +27,33 @@ type Suggestion struct {
 // chatSuggestMode is the otmP3b mode for the chat surface (4).
 const chatSuggestMode = 4
 
-// chatSuggestParams: the envelope is pinned by live capture #2 (2026-10-20,
-// otmP3b): [HDR, nb, [[sid]..], mode] without a query, [.., mode, null,
-// query] with one. The capture used mode 9 (flashcards dialog); chat mode 4
-// is catalog-only (TL).
-func chatSuggestParams(nb string, sources []string, query string) []any {
-	p := []any{requestOptions(), nb, sourceRefs(sources), chatSuggestMode}
-	if query != "" {
-		p = append(p, nil, query)
+// flashcardsSuggestMode is the otmP3b mode the flashcards dialog sent in
+// live capture #2 (2026-10-20); MOOD names 9 flashcards. No surface uses it
+// yet.
+const flashcardsSuggestMode = 9
+
+// promptSuggestParams builds otmP3b. Mode 9 is pinned by live capture #2:
+// [HDR, nb, [[id]..], 9] without a query, [.., 9, null, query] with one.
+// Every other mode, chat's 4 included, was not captured and keeps the
+// catalog's 6-element envelope [HDR, nb, [[sid]..], mode, null, query|null].
+func promptSuggestParams(nb string, sources []string, mode int, query string) []any {
+	p := []any{requestOptions(), nb, sourceRefs(sources), mode}
+	if mode == flashcardsSuggestMode {
+		if query != "" {
+			p = append(p, nil, query)
+		}
+		return p
 	}
-	return p
+	var q any
+	if query != "" {
+		q = query
+	}
+	return append(p, nil, q)
+}
+
+// shape: catalog consensus, not live-verified for mode 4 (see promptSuggestParams).
+func chatSuggestParams(nb string, sources []string, query string) []any {
+	return promptSuggestParams(nb, sources, chatSuggestMode, query)
 }
 
 // shape: catalog consensus, not live-verified. [[2], nb(, [[sid]..])]
