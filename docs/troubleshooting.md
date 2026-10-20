@@ -66,7 +66,7 @@ Google rejected the cookies for this client, usually because they were copied fr
 ### `error: missing required cookies: ...` (cookie import)
 
 ```text
-error: missing required cookies: SID, __Secure-1PSIDTS, OSID or APISID+SAPISID. Export every google.com cookie, including the plain SID, HSID and APISID ones, not only the __Secure- ones
+error: missing required cookies: SID, __Secure-1PSIDTS, OSID or APISID+SAPISID. Export every google.com cookie (sourcebolt needs SID, __Secure-1PSIDTS, and OSID or APISID+SAPISID), not only the __Secure- ones
 ```
 
 The message lists only the cookies that are missing; the example above is what you see when all of them are missing.
@@ -77,7 +77,7 @@ The message lists only the cookies that are missing; the example above is what y
 - `__Secure-1PSIDTS`
 - `OSID`, or both `APISID` and `SAPISID`
 
-Many browser extensions export only the `__Secure-` cookies. Without the plain `SID` and `APISID` cookies, NotebookLM returns a signed-out page. (The message's advice also mentions `HSID`; sourcebolt does not check for it.)
+Many browser extensions export only the `__Secure-` cookies. Without the plain `SID` and `APISID` cookies, NotebookLM returns a signed-out page.
 
 Fix: export **every** cookie for `google.com` (not only for `notebook.google.com`), or use `login --attach`, which reads them all for you.
 
