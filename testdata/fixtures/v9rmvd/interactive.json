@@ -1,9 +1,10 @@
 {
  "rpc": "v9rmvd",
  "synthetic": true,
- "source": "synthetic from rpc-catalog consensus rows",
+ "source": "synthetic from rpc-catalog consensus rows; request in the live capture #2 (2026-10-20) form",
  "request": [
-  "art-3"
+  "art-3",
+  [2, null, null, [1, null, null, null, null, null, null, null, null, null, [1]], [[1, 4, 8, 10, 14, 2, 3, 6, 7]]]
  ],
  "response_body": ")]}'\n\n161\n[[\"wrb.fr\",\"v9rmvd\",\"[[null,null,null,null,null,null,null,null,null,[\\\"<html>quiz</html>\\\",null,null,[[\\\"n1\\\",\\\"root\\\"]]]]]\",null,null,null,\"generic\"],[\"di\",1]]\n",
  "captured": "2026-10-14",

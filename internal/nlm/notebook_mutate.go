@@ -15,10 +15,10 @@ import (
 // empty title and the HDR options block. The title is set afterwards.
 func createNotebookParams() []any { return []any{"", nil, nil, requestOptions()} }
 
-// shape: catalog consensus, not live-verified (s0tc2d rename):
-// [nb, [[null, null, null, [null, title]]]].
+// renameNotebookParams is pinned by live capture #2 (2026-10-20, s0tc2d
+// rename): [nb, [[null, null, null, [null, title]]], HDR].
 func renameNotebookParams(id, title string) []any {
-	return []any{id, []any{[]any{nil, nil, nil, []any{nil, title}}}}
+	return []any{id, []any{[]any{nil, nil, nil, []any{nil, title}}}, requestOptions()}
 }
 
 // shape: catalog consensus, not live-verified (fejl7e): [nb].

@@ -1,6 +1,6 @@
 # RPC catalog
 
-Date: 2026-10-14. Union of every RPC id and endpoint found in `research/notes/*.md`. All facts are reverse-engineered third-party claims recorded in those notes, not Google documentation and not verified live by us. Upstream codes and wire families are defined in [feature-matrix.md](feature-matrix.md#how-to-read-this).
+Date: 2026-10-14, updated 2026-10-20 with live capture #2 (rows marked "live"). Union of every RPC id and endpoint found in `research/notes/*.md`. All facts are reverse-engineered third-party claims recorded in those notes, not Google documentation and, except where a row says "live", not verified live by us. Upstream codes and wire families are defined in [feature-matrix.md](feature-matrix.md#how-to-read-this).
 
 ## Status legend and counts
 
@@ -8,8 +8,11 @@ Date: 2026-10-14. Union of every RPC id and endpoint found in `research/notes/*.
 - **conflicting**: families disagree on request shape, response positions or semantics. Must be pinned by live capture before we ship it (see checklist at the end).
 - **stale**: legacy, dead, or shown wrong by another upstream.
 - **single-source**: one family only, or only declared (named) without a working call.
+- **live YYYY-MM-DD**: request (and the response positions the row names) seen in our own live capture on that date; the sanitized fixture is `testdata/fixtures/<id>/live_<date>_NN.json`. Fixtures replace ids, URLs and free text, so they pin shapes, not values. The earlier status is kept in brackets.
 
-Counts over the 108 distinct batchexecute ids below: **31 consensus, 23 conflicting, 11 stale, 43 single-source/declared-only**. Not counted as ids: the streamed chat endpoint (its params are conflicting), the Scotty upload endpoint, RotateCookies, signaler `refreshCreds`, Enterprise REST and the Android gRPC service.
+Counts over the 108 distinct batchexecute ids below (research, 2026-10-14): **31 consensus, 23 conflicting, 11 stale, 43 single-source/declared-only**. Live capture #2 (2026-10-20) then settled `izAoDd`, `tGMBJ`, `tr032e`, `J7Gthc`, `AH0mwd`, `R7cb6c` (flashcards only), `gArtLc` (flashcards rows) and `EylDcb`, and moved `sODAg` from single-source to live.
+
+**HDR everywhere.** In capture #2 every notebook call carried `HDR` (`[2,null,[1],[1,null×9,[1,3]]]`) as its last element (`s0tc2d`, `izAoDd`, `tGMBJ`, `hizoJc`, `tr032e`, `AH0mwd`, `CYK0Xb`, `cYAfTb`, `cFji9`, `rLM1Ne`) or first element (`J7Gthc`, `otmP3b`, `EylDcb`), and Studio calls carried `ARTIFACT_OPTS` = `[2,null,null,[1,null×9,[1]],[[1,4,8,10,14,2,3,6]]]` first (`R7cb6c`, `gArtLc`) or last with type `7` appended (`v9rmvd`). Several upstream shapes that end in `[2]` are this block misread. Not counted as ids: the streamed chat endpoint (its params are conflicting), the Scotty upload endpoint, RotateCookies, signaler `refreshCreds`, Enterprise REST and the Android gRPC service.
 
 `OPTS` below = TL's request-options block `[2,null,null,[1,null*9,[1]]]` (MOOD calls it `templateBlock()`). `HDR` = TMC/ARL block `[2,null,[1],[1,null*9,[1,3]]]`. `FLAT` = `[2],[1,null*9,[1]]` as two trailing elements. `src2` = `[[sid],...]`, `src3` = `[[[sid]],...]`.
 
@@ -74,8 +77,8 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 |---|---|---|---|---|---|---|
 | `wXbhsf` | ListRecentlyViewedProjects | `[null,1,null,[2]]` | `[0]` rows `[title, sources, id, emoji, null, meta]`; meta[0] 1 mine/2 shared, meta[5] modified, meta[8] created `[s,ns]` | TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, ERS, JUL, DOK, MFL, PHO | LKA `[]`, JAC `[null,2]` (outliers). TMC 2024 fixture shows `[[id], title, ...]` row layout; MFL titles may carry `thought\n` prefix | consensus |
 | `CCqFvf` | CreateProject | `[title,null,null,...tail]` | id at `[2]`; ICE `[11][0][0]` default chat thread | all families | tail FLAT (JB, ROO, ARL, ERS, M4Y) vs `OPTS` (TL, MOOD) vs `[2],[1]` (AGM, DOK, LKA) vs `[title, emoji]` (TMC proto); PHO 8 nulls (bug); ICE sends `""` title | conflicting |
-| `rLM1Ne` | GetProject (+ sources, chat settings at `[7]`) | `[nb,null,[2],null,0]` | `[0]=[title, sources, id, ...]`; source `[[sid], title, meta, [null,status]]` | JB, ROO, ARL, AGM, ERS, JUL, DOK, WAN | nested `OPTS` instead of `[2]` (TL, MOOD "safe on both cohorts", SAH "flat rejected"); last arg `1` (ICE, PHO "poll source processing"); TMC `[id,null,ctx,null,include_artifacts,filter]`; LKA `[id]` | conflicting |
-| `s0tc2d` | MutateProject | rename `[nb,[[null,null,null,[null,title]]]]`; chat config slot 7 `[nb,[[null*7,[[goal(,prompt)],[len]]]]]`; view level slot 8 `[[0|1]]` | project row | TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, M4Y | ERS flat `[goal,len,prompt]` (outlier) | consensus |
+| `rLM1Ne` | GetProject (+ sources, chat settings at `[7]`) | `[nb,null,[2],null,0]` | `[0]=[title, sources, id, ...]`; source `[[sid], title, meta, [null,status]]` | JB, ROO, ARL, AGM, ERS, JUL, DOK, WAN | nested `OPTS` instead of `[2]` (TL, MOOD "safe on both cohorts", SAH "flat rejected"); last arg `1` (ICE, PHO "poll source processing"); TMC `[id,null,ctx,null,include_artifacts,filter]`; LKA `[id]`. Live: `[nb,null,HDR,null,0]` (2026-10-13) and, after adding sources, `[nb,null,HDR,null,1,[[null,null,[]]]]` (2026-10-20); both answer the same layout, a source added seconds earlier already listed (title = its URL for YouTube, status `[null,1]` while processing) | live 2026-10-13, 2026-10-20 [conflicting] |
+| `s0tc2d` | MutateProject | rename `[nb,[[null,null,null,[null,title]]],HDR]` (live 2026-10-20: the upstreams omit the trailing `HDR`); chat config slot 7 `[nb,[[null*7,[[goal(,prompt)],[len]]]]]`; view level slot 8 `[[0|1]]` | project row `[title,null,nb,emoji,null,meta]` | TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, M4Y | ERS flat `[goal,len,prompt]` (outlier). Chat config and view level not captured | live 2026-10-20 (rename) [consensus] |
 | `WWINqb` | DeleteProjects | `[[nb],[2]]` | empty | TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, M4Y, ERS, DOK | batch shapes rejected (TL); bare `[nb]` fails code 3 (M4Y live); LKA `[nb]` | consensus |
 | `fejl7e` | RemoveRecentlyViewedProject | `[nb]` | none; may be INTERNAL(13) on success | TL, AGM, TMC | | consensus |
 | `te3DCe` | CopyProject | `[OPTS, src_nb, title]` | project row | TL, TMC | never retried (no idempotency token) | consensus |
@@ -89,12 +92,12 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 
 | Id | Purpose | Request | Response | Sources agreeing | Conflicts | Status |
 |---|---|---|---|---|---|---|
-| `izAoDd` | AddSources (URL, YouTube, text, Drive; batch of specs) | `[[spec...], nb, ...tail]`; spec is 11 slots: URL `[null,null,[url],null*7,1]`, YouTube URL at slot 7, text `[null,[title,content],null,2,null*6,1]`, Drive slot 0 `[[id,mime,1,title],null*9,1]` | `[[ [[sid], title, ...] ]]`; per-item failures silently omitted unless all fail (TL) | spec slots: TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, M4Y, JUL, SAH | tail FLAT (JB, ROO, ARL, ICE, M4Y "works", JUL) vs `OPTS` (TL, MOOD, SAH "flat rejected since Gemini-3.5 rollout", offline audit) vs `[2],null,null` (AGM, DOK) vs none (TMC short form, ERS); Drive keeps FLAT (TL, MOOD, SAH); LKA slot 8 (outlier) | conflicting |
+| `izAoDd` | AddSources (URL, YouTube, text, Drive; batch of specs) | `[[spec...], nb, ...tail]`; spec is 11 slots: URL `[null,null,[url],null*7,1]`, YouTube URL at slot 7, text `[null,[title,content],null,2,null*6,1]`, Drive slot 0 `[[id,mime,1,title],null*9,1]` | `[[ [[sid], title, ...] ]]`; per-item failures silently omitted unless all fail (TL) | spec slots: TL, JB, TMC, ICE, ROO, ARL, AGM, MOOD, M4Y, JUL, SAH | tail FLAT (JB, ROO, ARL, ICE, M4Y "works", JUL) vs `OPTS` (TL, MOOD, SAH "flat rejected since Gemini-3.5 rollout", offline audit) vs `[2],null,null` (AGM, DOK) vs none (TMC short form, ERS); Drive keeps FLAT (TL, MOOD, SAH); LKA slot 8 (outlier). **Live:** tail is `HDR`: `[[spec..], nb, HDR]` (URL 2026-10-13; URL + YouTube in one call 2026-10-20, YouTube URL at slot 7 confirmed). The 2026-10-20 answer listed only the website although the video was added (it was in the next `rLM1Ne`): an item missing from a successful answer is not necessarily failed, look it up. Text and Drive specs not captured (the "Copied text" option now creates a note via `CYK0Xb`) | live 2026-10-13, 2026-10-20 (URL, YouTube) [conflicting] |
 | `X1snv` | AddSourcesAsync | same as `izAoDd` | `[[Source...],null,[[Source,ack]...]]`, ~0.65 s | TL | | single-source |
 | `ozz5Z` | disputed | ROO/ARL/JB: `[[[[null,url,627],[null*9,[null,null,1]],1]]]` (nb only in source-path) | ROO: same as izAoDd; ARL: none, ids found by re-listing | ROO, ARL, JB use it as "add URL v2"; JB also as entitlement tier with `"1"` | names: SUBSCRIPTION (M4Y, JAC), GET_UI_CONFIG (ICE, MIS), LogEvent (TMC), "after slide deck" (PHO) | conflicting |
 | `o4cbdc` | AddTentativeSources (register upload) | `[[[filename]], nb, ...tail]` | first string = SOURCE_ID | TL, JB, TMC, ICE, AGM, DOK, WAN | tail FLAT (TMC, ICE, JB, AGM, DOK) vs OPTS (TL); PHO `[[[name,13]],...]` | conflicting |
-| `tGMBJ` | DeleteSources | notebook id in `source-path` only | empty | id: all | `[[[sid]],[2]]` (ROO, ICE, MOOD, M4Y, ERS, PHO, JB) vs `[[[sid]]]` (TL, DOK) vs `[nb,[sid],[2]]` (AGM) vs TMC `[%ids%, ctx]` | conflicting |
-| `hizoJc` | LoadSource | `[[sid],[2],[2]]` text; `[[sid],[3],[3]]` markdown/HTML | `[0]=[[sid],title,meta]`, text blocks `[3][0]`, HTML `[4][1]` | TL, JB, ROO, ARL, AGM, JUL, ERS | M4Y `[[sid]]`; TMC adds ctx | consensus |
+| `tGMBJ` | DeleteSources | `[[[sid]],HDR]`; notebook id in `source-path` only | `[]` | id: all | `[[[sid]],[2]]` (ROO, ICE, MOOD, M4Y, ERS, PHO, JB: the `[2]` is `HDR` misread) vs `[[[sid]]]` (TL, DOK) vs `[nb,[sid],[2]]` (AGM) vs TMC `[%ids%, ctx]`. Live 2026-10-20 (UI delete of one source) settles it; batch form not captured, send one id per call | live 2026-10-20 [conflicting] |
+| `hizoJc` | LoadSource | `[[sid],[2],HDR]` text (live 2026-10-20); `[[sid],[3],[3]]` markdown (catalog, not captured; sourcebolt keeps it) | `[0]=[[sid],title,meta,[null,status]]`, text blocks at `[3][0][0]` (live; one level deeper than the catalog's `[3][0]`), each block `[start,end,[[[start,end,[text]]],[null,1]]]`; no HTML `[4]` in the capture | TL, JB, ROO, ARL, AGM, JUL, ERS | M4Y `[[sid]]`; TMC adds ctx | live 2026-10-20 (text) [consensus] |
 | `b7Wfje` | MutateSource (rename) | `[null,[sid],[[[title]]]]` | `[0][1]` title | TL, JB, ICE, ARL, MOOD | JAC (outlier) | consensus |
 | `FLmJqe` | RefreshSource | `[null,[sid],[2]]` | null on success; `[3]` = INVALID_ARGUMENT | TL, JB, ICE, MOOD | AGM `[nb,sid,[2]]`; M4Y `[sid,nb]`; DOK `[sid]` | conflicting |
 | `yR9Yof` | CheckSourceFreshness | `[null,[sid],[2]]` | URL `[]` = fresh; Drive `[[null,bool,[id]]]` | TL, JB, AGM, MOOD, ERS | M4Y soft-failed to null and dropped the tool | consensus |
@@ -104,7 +107,7 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 | `Z8UXi` | CopySources (sync twin) | | | TL says dead | | stale |
 | `ASU5Oe` | RetrieveRelevantChunks | `[nb, query, null, [1], [[[sid]]..]?]` | ranked chunks with ranges | TL | | single-source |
 | `mVtEUb` | ListExpertIntelligenceContent (Play Books) | builder in TL | book rows | TL (TMC name only) | | single-source |
-| `tr032e` | GenerateDocumentGuides (source guide) | `[[[[sid]]]]` | summary `[0][0][1][0]`, keywords `[0][0][2][0]` | TL, JB, ICE, ARL, AGM, MOOD | M4Y `[sid,nb,[2]]`; LKA `[nb]`; TMC `[%sources%, ctx]` | conflicting |
+| `tr032e` | GenerateDocumentGuides (source guide) | `[[[[sid]]],HDR]` | `[[[[[sid]],[summary],[[keyword..]],[]]]]`: summary `[0][0][1][0]`, keywords `[0][0][2][0]` | TL, JB, ICE, ARL, AGM, MOOD | M4Y `[sid,nb,[2]]`; LKA `[nb]`; TMC `[%sources%, ctx]`. Live 2026-10-20 confirms TL's family plus the `HDR` tail | live 2026-10-20 [conflicting] |
 
 ### Research / discover
 
@@ -127,10 +130,10 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 | `ZAnZ8` | "QUERY" constant | declared, unused | | M4Y | | stale |
 | `hPTbtc` | ListChatSessions / last conversation id | `[[],null,nb,limit]` (limit 1 or 20; UI sends OPTS first) | `[[[conv_id]]]`; ARL rows `[conv, created, updated]` | TL, JB, TMC, ICE, ARL, AGM, MOOD | DOK `nil` | consensus |
 | `khqZz` | ListChatTurns | `[ctx,null,null,conv,limit(,cursor)]` | turns newest first; `t[2]==1` user text `[3]`, `==2` AI text `[4][0][0]`; `[1]` cursor | TL, JB, TMC, ARL, AGM, MOOD | first element `[]` (TL, MOOD, AGM) vs `HDR` (JB, ARL, TMC); DOK `[conv,20]` | consensus |
-| `J7Gthc` | DeleteChatTurns | `[[],conv,null,1]` | `[]` | TL, ICE, MOOD, ARL (HDR) | JB `[nb,conv]`; TMC `[options,conv,null,unknown]` | conflicting |
+| `J7Gthc` | DeleteChatTurns (UI: delete chat history of a conversation) | `[HDR,conv,null,1]` | `[]` | TL, ICE, MOOD, ARL (HDR) | JB `[nb,conv]`; TMC `[options,conv,null,unknown]`. Live 2026-10-20: ARL's form (`HDR` first) | live 2026-10-20 [conflicting] |
 | `oXwmh` | GetChatSessionStatus | `[null,conv]` | `[null,1]` idle, `[token,2]` generating | TL | | single-source |
 | `XgrPMd` | CancelGeneration | `[null,conv]` | `[]` | TL, TMC | | consensus |
-| `otmP3b` | GeneratePromptSuggestions | `[OPTS, nb, [[sid]..], mode, null, query]` | `[[ [title,prompt]..]]` | TL, TMC, MOOD | | consensus |
+| `otmP3b` | GeneratePromptSuggestions | mode 9 (live): `[HDR, nb, [[id]..], 9]`, plus `null, query` only when there is a query; other modes (catalog): `[HDR, nb, [[sid]..], mode, null, query|null]`, which sourcebolt keeps for chat mode 4 | `[[ [title,prompt]..]]` (3 rows live) | TL, TMC, MOOD | Live 2026-10-20 from the flashcards dialog: mode 9 (MOOD: 9 flashcards, 8 quiz, 4 chat), query = the flashcards topic, ids = sources and notes alike as `[id]`. Chat mode 4 not captured | live 2026-10-20 (mode 9) [consensus] |
 | `OcvKNc` | NextStepSuggestions | `[null,nb(,[[[sid]]..])]` | `[[ [question, 9]..]]` | TL | | single-source |
 | `uNyJKe` | SubmitFeedback | | | TMC | | single-source |
 
@@ -138,19 +141,19 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 
 | Id | Purpose | Request | Response | Sources agreeing | Conflicts | Status |
 |---|---|---|---|---|---|---|
-| `CYK0Xb` | CreateNote / save mind map / save chat answer | blank `[nb,"",[1],null,"New Note"]`; mind map `[nb,json,[2,null,null,5,[[sid]..]],null,title]`; chat answer 7 slots (TL) | note row | TL, JB, ICE, ROO, AGM, MOOD, ERS | title ignored on create (follow with `cYAfTb`) | consensus |
-| `cFji9` | GetNotes (notes + note-backed mind maps) | `[nb]` | `[[ [id, [id,content,meta,null,title]] ]]`; tombstone `[id,null,2]` | TL, JB, ICE, AGM, MOOD | ERS `[nb,[2]]`; JBc second call `[nb,null,[s,us],[2]]` for mind-map delete | consensus |
-| `cYAfTb` | MutateNote | `[nb,note,[[[content,title,[],0]]]]` | row | TL, JB, ICE, AGM, MOOD | | consensus |
-| `AH0mwd` | DeleteNotes (soft) | `[nb,null,[ids]]` | `["id",null,2]` | TL, JB, ICE, AGM | MOOD and JBc append `[2]`; mind maps need the `cFji9` timestamp step (JBc) | conflicting |
+| `CYK0Xb` | CreateNote / save mind map / save chat answer | text note (UI "Copied text", live 2026-10-20) `[nb,content,[1,null×5,1],null,title,null,HDR]`; chat answer (live 2026-10-20) `[nb,answer_text,[2,null×5,1],[cited passages],title,[rich answer],HDR]`, where `[3]` is the stream's passage list (`[[null,null,null,[[null,start,end]],[runs]],[[[source],chunk]],[passage_id]]..`) and `[5]` the stream's rich answer block with formatting flags as 0/1; blank `[nb,"",[1],null,"New Note"]` and mind map `[nb,json,[2,null,null,5,[[sid]..]],null,title]` not captured | `[[id,content,meta,null,title(,rich)]]`; meta `[kind,owner,updated[s,ns],null,null,created[s,ns],true]` | TL, JB, ICE, ROO, AGM, MOOD, ERS | "title ignored on create" does not hold for the text form: the title sticks. A saved chat answer gets a server-made title and plain-text content | live 2026-10-20 (text note, chat answer) [consensus] |
+| `cFji9` | GetNotes (notes + note-backed mind maps) | `[nb,null,null,HDR]` (live 2026-10-13); `[nb,null,[s,ns],HDR]` (live 2026-10-20, after edits) | `[[ [id, [id,content,meta,null,title(,rich)]] ], [s,ns]]`; tombstone `[id,null,2]` | TL, JB, ICE, AGM, MOOD | ERS `[nb,[2]]`; JBc second call `[nb,null,[s,us],[2]]` for mind-map delete: the `[s,ns]` form is real | live 2026-10-13, 2026-10-20 [consensus] |
+| `cYAfTb` | MutateNote | `[nb,note,[[[content,title,[],0,null,1]]],HDR]` | `[[id,content,meta,null,title]]` | TL, JB, ICE, AGM, MOOD | upstreams omit `null,1` and `HDR` | live 2026-10-20 (title edit) [consensus] |
+| `AH0mwd` | DeleteNotes (soft) | `[nb,null,[ids],HDR]` | `[]` | TL, JB, ICE, AGM | MOOD and JBc append `[2]`: it is `HDR` (live 2026-10-20, a text note and a saved chat answer, one id each). Mind-map ghost cleanup not captured | live 2026-10-20 [conflicting] |
 | `yyryJe` | ActOnSources (mind map JSON; legacy transforms) | `[src3,null*4,["interactive_mindmap",[["[CONTEXT]",instr]],lang],null,[2,null,[1]]]` | `[[json,null,[gen_ids]]]` | TL, JB, TMC, ROO, AGM, MOOD, ERS, PHO | M4Y removed after code 3 (payload was wrong); KAF exposes 14 legacy transform actions (dropped by TMC) | consensus |
 
 ### Studio artifacts
 
 | Id | Purpose | Request | Response | Sources agreeing | Conflicts | Status |
 |---|---|---|---|---|---|---|
-| `R7cb6c` | CreateArtifact (all Studio types) | `[FIRST, nb, [null,null,TYPE,src3, ...config at slot]]`; TYPE 1 audio @6, 2 report @7, 3 video @8, 4 quiz/flashcards/interactive mind map @9, 7 infographic @14, 8 slides @16, 9 data table @18, 11 interactive report @34 | `[[id,title,type,null,status,...]]`, status 1 = queued | type codes and slots: TL, JB, ROO, ARL, AGM, KIS (live capture), M4Y | FIRST = `[2]` (JB, ROO, ARL, AGM, MOOD, M4Y, ERS) vs `ARTIFACT_OPTS` = OPTS + `[[1,4,8,2,3,6]]` (TL, MOOD "observed on web UI") vs `[2,null,null,[1..[1]],[[2,1,3]]]` (ICE, MIS). Video style enum, slide enums, infographic 6th slot, quiz/flashcard pair order: see feature-matrix. MOOD puts several configs at slot 6 (wrong per KIS). PHO slides @13, ERS @14 (wrong). LKA flat (pre-2026) | conflicting |
-| `gArtLc` | ListArtifacts | `[FIRST, nb, 'NOT artifact.status = "ARTIFACT_STATUS_SUGGESTED"']` | row: `[0]` id `[1]` title `[2]` type `[4]` status (3 ready, 4 failed, 5 suggested) `[6][5]` audio media `[url,kind,mime]` `[7]` report `[8]` video `[14]` infographic `[15][0]` created `[16]` slides `[18]` data table `[21]` etag `[24]` xlsx | TL, JB, ROO, ARL, AGM, MOOD, LKA, ICE | video `[8][4]` (TL) vs `[8][3]` (JB, ROO); slides `[16][3]/[4]` PDF/PPTX (TL) vs `[16][0]/[3]` (JB, ROO); report `[7]` vs `[7][1][0]`; MOOD reads `[8]` as a string; status 1/2 naming differs; M4Y omits the filter; timestamps vary by type (KIS) | conflicting |
-| `v9rmvd` | GetArtifact (interactive HTML, mind-map tree) | `[artifact]` | HTML `[0][9][0]`; tree `[0][9][3]` | TL, JB, TMC, ARL, ICE, AGM, MOOD | JB "full" form adds OPTS + type list | consensus |
+| `R7cb6c` | CreateArtifact (all Studio types) | `[FIRST, nb, [null,null,TYPE,src3, ...config at slot]]`; TYPE 1 audio @6, 2 report @7, 3 video @8, 4 quiz/flashcards/interactive mind map @9, 7 infographic @14, 8 slides @16, 9 data table @18, 11 interactive report @34 | `[[id,title,type,null,status,...]]`, status 1 = queued | type codes and slots: TL, JB, ROO, ARL, AGM, KIS (live capture), M4Y | FIRST = `[2]` (JB, ROO, ARL, AGM, MOOD, M4Y, ERS) vs `ARTIFACT_OPTS` = OPTS + `[[1,4,8,2,3,6]]` (TL, MOOD "observed on web UI") vs `[2,null,null,[1..[1]],[[2,1,3]]]` (ICE, MIS). Video style enum, slide enums, infographic 6th slot, quiz/flashcard pair order: see feature-matrix. MOOD puts several configs at slot 6 (wrong per KIS). PHO slides @13, ERS @14 (wrong). LKA flat (pre-2026). **Live 2026-10-20 (Flashcards: "Fewer cards", "Hard", "Text only", a topic):** FIRST = `ARTIFACT_OPTS` with type list `[[1,4,8,10,14,2,3,6]]`; `[ARTIFACT_OPTS, nb, [null,null,4,srcs,null×5,[null,[1,null,topic,lang,null,null,[1,3,[1]]]]]]`: variant 1 = flashcards at `[9][1][0]`, quantity before difficulty (fewer 1, hard 3, matching KIS's enums), `[1]` = text only. Sources mix `[[sid]]` and notes `[null×6,[note_id,2]]`. Answer: the row, status 2 while generating. Other types and option values not captured | live 2026-10-20 (flashcards) [conflicting] |
+| `gArtLc` | ListArtifacts | `[FIRST, nb, 'NOT artifact.status = "ARTIFACT_STATUS_SUGGESTED"']` | row: `[0]` id `[1]` title `[2]` type `[4]` status (3 ready, 4 failed, 5 suggested) `[6][5]` audio media `[url,kind,mime]` `[7]` report `[8]` video `[14]` infographic `[15][0]` created `[16]` slides `[18]` data table `[21]` etag `[24]` xlsx | TL, JB, ROO, ARL, AGM, MOOD, LKA, ICE | video `[8][4]` (TL) vs `[8][3]` (JB, ROO); slides `[16][3]/[4]` PDF/PPTX (TL) vs `[16][0]/[3]` (JB, ROO); report `[7]` vs `[7][1][0]`; MOOD reads `[8]` as a string; status 1/2 naming differs; M4Y omits the filter; timestamps vary by type (KIS). **Live:** `[ARTIFACT_OPTS, nb, filter]` (2026-10-13, empty notebook) and `[ARTIFACT_OPTS, nb]` without filter (2026-10-20); flashcards row: `[2]` 4, `[3]` sources as sent, `[4]` 3 ready, `[9]` `["",[1,null,topic,lang,null,null,[1,3,[true]],null,true]]` (variant `[9][1][0]` 1 = flashcards), `[10]` updated, `[15]` created, `[17]` `[null,null,null,null,true]`, `[19]` 1, `[21]` a text, `[37]` `[true]` (38 slots). Other types not captured | live 2026-10-13, 2026-10-20 (flashcards rows) [conflicting] |
+| `v9rmvd` | GetArtifact (interactive HTML, mind-map tree; polled while generating) | `[artifact, ARTIFACT_OPTS with type list [[1,4,8,10,14,2,3,6,7]]]` (live 2026-10-20 = JB's "full" form) | the artifact row in gArtLc layout, wrapped: `[[row]]`; status 1 then 2 while a flashcards artifact generated, `[0][9][0]` `""` until then. HTML `[0][9][0]` and tree `[0][9][3]` for finished artifacts not captured | TL, JB, TMC, ARL, ICE, AGM, MOOD | short `[artifact]` (most upstreams) not seen live | live 2026-10-20 (request, generating row) [consensus] |
 | `V5N4be` | DeleteArtifact | | empty | id: all | `[[2],id]` (ROO, JB, ERS, PHO) vs `[[2],nb,id]` (AGM) vs `[[2],nb,[id]]` (MOOD) vs `[DefaultUserConfig,id]` (ICE); M4Y dropped after code 3 | conflicting |
 | `rc3d8d` | UpdateArtifact (rename) | `[[id,title],[["title"]]]` | `[1]` title | TL, JB, ARL | ICE `[id,title]`; AGM `[[2],nb,id,title]` | conflicting |
 | `Krh3pd` | ExportToDrive | `[null,artifact,content|null,title,1 docs/2 sheets]` | doc URL | TL, JB, AGM, MOOD | | consensus |
@@ -161,7 +164,7 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 | `zVGIdd` | CopyArtifacts (sync twin) | | | TL says dead | | stale |
 | `sqTeoe` | GetArtifactCustomizationChoices | | audio, video, slide, report presets | id: TL, TMC, ICE | `[OPTS]` (TL) vs `[ctx,null,mode]` (TMC) vs `[cfg,nb]` (ICE) | conflicting |
 | `ciyUvf` | GenerateReportSuggestions | `[[2],nb(,[[sid]..])]` | `[[ [title,desc,null,null,prompt,audience]..]]` | TL, TMC, ARL, AGM | | consensus |
-| `sODAg` | GetArtifactDeferredGenerationQuota | | | TL | | single-source |
+| `sODAg` | GetArtifactDeferredGenerationQuota (TL name) | `[]`, no options block | `[true]` | TL | Live 2026-10-20: seen once in the capture session that generated flashcards (the fixture has no timing); with no request body and a lone boolean answer, the best evidence is TL's reading, an account-level "deferred generation available" flag. Not used by sourcebolt (`EylDcb` is the quota pre-flight) | live 2026-10-20 [single-source] |
 | `AHyHrd` | CreateAudioOverview (legacy) | `[nb, audio_type, instructions]` | | TMC (`--direct-rpc` default path), PHO | superseded by `R7cb6c` | stale |
 | `VUsiyb` | GetAudioOverview (legacy) | `[nb]` | | TMC, PHO | | stale |
 | `sJDbic` | DeleteAudioOverview (legacy) | `[nb]` | | TMC | | stale |
@@ -195,7 +198,7 @@ A signed-out landing page has no tokens; TL v0.8.5 probes `/login` to tell "sign
 | `ZwVcOc` | GetOrCreateAccount | `[OPTS]`, `source-path=/` | limits `[0][1]` = `[?,500,300,500000,tier]`, language `[0][2][4][0]` | id: TL, TMC, ICE, ARL, AGM, M4Y | payloads `[OPTS]` (TL), `[null,[1,null*9,[1]]]` (ICE, AGM), `[DefaultUserConfig]` (ICE quota), `[HDR]` (ARL), `[null,1]` (M4Y warm-up), `[[ctx]]` (TMC) | conflicting |
 | `hT54vc` | MutateAccount (output language) | TL `[[null,[[null,null,null,null,[lang]]]]]`, `source-path=/` | settings | id: TL, ICE, AGM, ARL | ICE/AGM one more nesting level; ARL appends `HDR`; M4Y/JAC call it PREFERENCES and M4Y's chat-config guess failed | conflicting |
 | `SatQRc` | GetAccount (quota meter) | `[]` | | TL | | single-source |
-| `EylDcb` | ListQuotaSummary (5-hour and weekly windows, per-action cost) | TL `[null]` | `[1]` windows `[..,[4] type,[5] reset,[6] pct used,[7] pct left]` unordered | id: TL, JB, ARL | `[[2,null,[1],[1,null*9,[1,3]]]]` (JB) vs `[HDR]` (ARL) | conflicting |
+| `EylDcb` | ListQuotaSummary (5-hour and weekly windows, per-action cost) | `[HDR]` | `[1, windows, null, costs]`; window `[null×4, type (1 = 5 h, 2 = weekly), reset [s,ns], pct used (null when unused), pct left]`; costs `[[action, true, 6|null, n, 1, weight]..]` (24 actions, not decoded) | id: TL, JB, ARL | `[[2,null,[1],[1,null*9,[1,3]]]]` (JB) and `[HDR]` (ARL) are the same thing; TL `[null]` not seen. Live 2026-10-13 (unused) and 2026-10-20 (in use: both percentages) | live 2026-10-13, 2026-10-20 [conflicting] |
 | `gzAChb` | GetQuota | | | TL (not modelled) | ICE says quota parser used the wrong RPC; GetOrCreateAccount is the right one | single-source |
 
 ### Telemetry and low-value ids (do not implement)
@@ -221,13 +224,15 @@ Single-source, named by TMC's proto/bundle mapping (PHO declares the four "outli
 
 AGM calls the 9-element form "the newest shape (March 2026)"; TL and TMC (both maintained to Oct 2026) use it. **Prefer 9-element**; keep the 5-element form as a capture-verified fallback only if live testing shows the 9-element form rejected.
 
+**Live captures.** 2026-10-13: 9-element form, one source as `[[sid]]` inside the list, history `null`, an existing conversation id, `seq` 1. 2026-10-20 (a follow-up in an existing conversation): same form with history `[[answer,null,2],[question,null,1]]` (newest first), `seq` still 1, and notes as sources next to sources: `[[[sid]]]..` then `[null,null,null,[note_id,2]]..`. Both streams carry the requested conversation id at `row[2][0]`. The client sends `null` history (accepted on 2026-10-13); the web app's history is not required.
+
 Other chat conflicts:
 - Source nesting: `[[id]]` per source (ROO, ARL, AGM, ICE) vs `[[[id]]]` (TL depth 2 list of `[[sid]]`, TMC, M4Y, DOK, SAH). Empty list means "all" (TL) but the server then picks a subset (TMC README); LKA sends `nil`, JAC `[]`. Always send explicit ids.
 - History: oldest-first `[[answer,null,2],[query,null,1],...]` (JB `conversation.py:71-105`, AGM pairs), chronological `[query,null,1],[answer,null,2]` (M4Y, last 10), newest-first (ICE `history.unshift`). Server-side history via `hPTbtc`/`khqZz` makes local history optional (ARL sends the last 20 turns from `khqZz`; SAH sends null).
-- Conversation id: TL and SAH: the id in the stream is a per-stream session id, replaying it creates a ghost turn (TL #659); read the real id with `hPTbtc` after the first ask. JB, AGM, ROO read `first[2][0]` and migrate; M4Y reads `inner[10]`. ROO RPC path sends a fresh UUID each call (single-turn only).
+- Conversation id: TL and SAH: the id in the stream is a per-stream session id, replaying it creates a ghost turn (TL #659); read the real id with `hPTbtc` after the first ask. JB, AGM, ROO read `first[2][0]` and migrate; M4Y reads `inner[10]`. ROO RPC path sends a fresh UUID each call (single-turn only). Live 2026-10-13 and 2026-10-20: when the request names a conversation, the stream echoes that id at `row[2][0]`; asks with a null id are not captured.
 - Header `x-goog-ext-353267353-jspb: [null,null,null,282611]`: sent by TMC ("observed in HAR") and PHO; omitted by everyone else including TL. Unknown if required.
 - Response: chunks are cumulative (TL, TMC, ARL); answer vs thinking flag at the type block last element (1 answer, 2 thinking: JB, ROO, ARL, AGM, DOK, SAH, ERS); TL uses `isFinalResponse` at response `[4]`; heartbeats decode to `[]`. TMC diffs snapshots by longest common prefix and keeps `Full` because citations can be rewritten (`[2, 3]` -> `[2-5]`). "Longest text wins" without the type flag (LKA, M4Y, ICE) can return thinking text.
-- Citations: type block `[3]` passages; citation N = passage N-1; source UUID at `passage[1][5][0][0][0]`; cited text from `passage[1][4]`; offsets in UTF-16 code units (JB, ROO, ARL, SAH, ICE char offsets); TMC `SourceID` is a chunk handle, resolve titles via `ParentSourceID`. JBc's TECHNICAL_DEEP_DIVE describes a different nesting (`parsed[1]` list): older view.
+- Citations: type block `[3]` passages; citation N = passage N-1; markers at payload `[2]` are `[[null,start,end],[passage index..]]`, a list of indices, not a range (live: `[0,1]` and `[1,2]` match the type block's own citation list `row[4][0][1]`, a single-passage marker is `[0]`); source UUID at `passage[1][5][0][0][0]`; cited text from `passage[1][4]`; offsets in UTF-16 code units (JB, ROO, ARL, SAH, ICE char offsets); TMC `SourceID` is a chunk handle, resolve titles via `ParentSourceID`. JBc's TECHNICAL_DEEP_DIVE describes a different nesting (`parsed[1]` list): older view.
 - Errors: auth failure arrives as HTTP 200 with an error frame (TMC scans ints 16/277566/277567); rejection = null answer frame with `google.rpc.Status` and `UserDisplayableError` detail = rate limit/quota (SAH, TL); oversized query = `[3]` (TL).
 - Timeouts: TL 180 s, JB 120 s, TMC first chunk 5 min / idle 5 min / total 15 min with progress measured on parsed chunks, 1 MiB answer cap and repeat guard.
 
@@ -300,12 +305,12 @@ Request-options cohort
 7. `rLM1Ne` last arg `0` vs `1`.
 
 Sources
-8. `tGMBJ` delete: `[[[sid]],[2]]` vs `[[[sid]]]`.
+8. `tGMBJ` delete: `[[[sid]],[2]]` vs `[[[sid]]]`. **Settled 2026-10-20:** `[[[sid]],HDR]`.
 9. `FLmJqe` refresh shape; when `dtT1F` is needed.
-10. `tr032e` guide shape (`[[[[sid]]]]` vs `[sid,nb,[2]]`).
+10. `tr032e` guide shape (`[[[[sid]]]]` vs `[sid,nb,[2]]`). **Settled 2026-10-20:** `[[[[sid]]],HDR]`.
 11. `ozz5Z`: what the web UI sends it for (add URL v2, entitlement, UI config, log event).
 12. Upload start body: JSON with key order vs form-encoded; `o4cbdc` tail.
-13. Batch `izAoDd` with mixed valid/invalid URLs: which items are omitted.
+13. Batch `izAoDd` with mixed valid/invalid URLs: which items are omitted. **Partly 2026-10-20:** a valid YouTube item was omitted from the answer of a website + YouTube call but added; invalid URLs not captured.
 
 Research
 14. `Es3dTe` request shape.
@@ -313,29 +318,29 @@ Research
 16. `e3bVqc` status values for running / done / no results / cancelled (2 vs 6).
 
 Chat
-17. 9-element vs 5-element params; options block `[2,null,[1],[1]]` vs TMC's long form.
+17. 9-element vs 5-element params; options block `[2,null,[1],[1]]` vs TMC's long form. **Settled 2026-10-13 and 2026-10-20:** 9-element with the HDR block.
 18. Source nesting `[[id]]` vs `[[[id]]]`; behavior with empty list.
-19. History order and whether history is needed when `conversation_id` comes from `hPTbtc`.
-20. Where the real conversation id appears (`first[2][0]`, `inner[10]`, only via `hPTbtc`).
+19. History order and whether history is needed when `conversation_id` comes from `hPTbtc`. **Partly 2026-10-20:** the web app sends newest first (`[answer,null,2],[question,null,1]`); `null` history was accepted on 2026-10-13.
+20. Where the real conversation id appears (`first[2][0]`, `inner[10]`, only via `hPTbtc`). **Partly:** the stream echoes a requested id at `row[2][0]` (2026-10-13, 2026-10-20).
 21. Need for `x-goog-ext-353267353-jspb`.
-22. Citation positions and UTF-16 ranges in the current answer row.
-23. `J7Gthc` delete-history shape (`[[],conv,null,1]` vs `[nb,conv]`).
+22. Citation positions and UTF-16 ranges in the current answer row. **Partly:** markers list passage indices, not ranges (2026-10-13, 2026-10-20).
+23. `J7Gthc` delete-history shape (`[[],conv,null,1]` vs `[nb,conv]`). **Settled 2026-10-20:** `[HDR,conv,null,1]`.
 
 Studio
-24. `R7cb6c` first element (`[2]` vs `ARTIFACT_OPTS` vs ICE config).
+24. `R7cb6c` first element (`[2]` vs `ARTIFACT_OPTS` vs ICE config). **Settled 2026-10-20:** `ARTIFACT_OPTS` (flashcards).
 25. Video format and style enum values (TL vs ICE vs KIS).
 26. Slide deck format/length enum values (TL vs KIS); confirm slot 16.
 27. Infographic 6th slot (style vs constant 1).
-28. Quiz and flashcards quantity/difficulty order.
-29. `gArtLc` row positions: video media `[8][3]` vs `[8][4]`, slides PDF/PPTX, report markdown, data table, timestamps per type.
+28. Quiz and flashcards quantity/difficulty order. **Flashcards settled 2026-10-20:** `[quantity, difficulty, [1]]`, fewer 1, hard 3; quiz not captured.
+29. `gArtLc` row positions: video media `[8][3]` vs `[8][4]`, slides PDF/PPTX, report markdown, data table, timestamps per type. **Flashcards only, 2026-10-20:** variant `[9][1][0]`, created `[15]`, updated `[10]`.
 30. `V5N4be` delete shape; `rc3d8d` rename shape; `Rytqqe` semantics.
 31. Language: `hl` vs payload language for generation (ROO issue #34).
 32. `sqTeoe` payload.
 
 Notes, labels, account
-33. `AH0mwd` with and without trailing `[2]`; mind-map ghost cleanup via `cFji9` timestamp.
+33. `AH0mwd` with and without trailing `[2]`; mind-map ghost cleanup via `cFji9` timestamp. **Settled 2026-10-20:** trailing `HDR`, not `[2]`; mind maps not captured.
 34. `agX4Bc` vs `I3xc3c` for listing labels and collections.
-35. `ZwVcOc`, `hT54vc`, `EylDcb` payloads.
+35. `ZwVcOc`, `hT54vc`, `EylDcb` payloads. **`EylDcb` settled** (`[HDR]`, 2026-10-13 and 2026-10-20).
 
 Auth
 36. RotateCookies: which cookies come back from a plain Go client (PSIDTS or only SIDCC), body `[000,...]` vs `[0,...]`.

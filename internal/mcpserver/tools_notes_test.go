@@ -74,7 +74,7 @@ func TestNoteSaveCreateAndUpdate(t *testing.T) {
 	if res.IsError || !strings.Contains(text(res), "new1") {
 		t.Fatalf("create = %s", text(res))
 	}
-	if st.count("CYK0Xb") != 1 || st.count("cYAfTb") != 1 {
+	if st.count("CYK0Xb") != 1 || st.count("cYAfTb") != 0 { // one call creates with title and content
 		t.Fatalf("create calls: %d/%d", st.count("CYK0Xb"), st.count("cYAfTb"))
 	}
 	res = call(t, cs, "note_save", map[string]any{"notebook": idA, "note": "first", "content": "edited"})

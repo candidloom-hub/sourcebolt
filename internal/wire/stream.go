@@ -39,7 +39,7 @@ type Citation struct {
 
 const (
 	maxSegment       = 64 << 20 // one snapshot is ~200 KB live; this is a hostile-input cap
-	maxCitationRange = 1024
+	maxCitationRange = 1024     // passage indices read per citation marker
 	readBlock        = 32 << 10
 )
 
@@ -321,32 +321,45 @@ func parseSnapshot(p []byte) (Snapshot, bool) {
 	return s, true
 }
 
-// citations expands markers `[[null, start, end], [from, to)]` into one
-// Citation per number from+1 .. to; citation N reads passage N-1.
+// citations expands markers `[[null, start, end], [idx...]]` into one
+// Citation per passage index; citation N reads passage N-1. The second
+// element lists passage indices (live captures: [0,1] and [1,2] at two
+// markers match the type block's own list of passages 0,1 and 1,2; a
+// single-passage marker is [0]); it is not a [from, to) range. The same N
+// at another offset is a separate citation; exact duplicates (same N, same
+// offsets) are dropped. At most
+// maxCitationRange indices are read per marker.
 func citations(markers, passages [][]byte) []Citation {
 	var out []Citation
+	type key struct{ n, start, end int }
+	seen := map[key]bool{}
 	for _, m := range markers {
 		mc, ok := splitElems(m)
 		if !ok || len(mc) < 2 {
 			continue
 		}
 		pos, _ := splitElems(mc[0])
-		rng, ok := splitElems(mc[1])
-		if !ok || len(rng) < 2 {
+		idxs, ok := splitElems(mc[1])
+		if !ok {
 			continue
 		}
 		var start, end int
 		if len(pos) > 2 {
 			start, end = rawInt(pos[1]), rawInt(pos[2])
 		}
-		a, b := rawInt(rng[0]), rawInt(rng[1])
-		if a < 0 || b <= a {
-			continue
+		if len(idxs) > maxCitationRange {
+			idxs = idxs[:maxCitationRange]
 		}
-		if b-a > maxCitationRange {
-			b = a + maxCitationRange
-		}
-		for idx := a; idx < b; idx++ {
+		for _, raw := range idxs {
+			idx, ok := passageIndex(raw)
+			if !ok {
+				continue
+			}
+			k := key{idx + 1, start, end}
+			if seen[k] { // exact duplicate: same passage at the same offsets
+				continue
+			}
+			seen[k] = true
 			c := Citation{N: idx + 1, Start: start, End: end}
 			if idx < len(passages) {
 				c.SourceID = Str(passages[idx], 1, 5, 0, 0, 0)
@@ -356,6 +369,22 @@ func citations(markers, passages [][]byte) []Citation {
 		}
 	}
 	return out
+}
+
+// passageIndex parses one marker index: a whole number from 0 to 2^31.
+// Anything else (negative, fractional, not a number) is rejected so that it
+// is skipped, not read as passage 0. JSON null would unmarshal to 0, so
+// only a number literal is accepted.
+func passageIndex(v []byte) (int, bool) {
+	v = bytes.TrimSpace(v)
+	if len(v) == 0 || (v[0] != '-' && (v[0] < '0' || v[0] > '9')) {
+		return 0, false
+	}
+	var f float64
+	if json.Unmarshal(v, &f) != nil || f < 0 || f > 1<<31 || f != float64(int(f)) {
+		return 0, false
+	}
+	return int(f), true
 }
 
 func rawString(v []byte) string {

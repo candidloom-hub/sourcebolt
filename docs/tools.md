@@ -36,7 +36,7 @@ Every tool returns structured JSON. A failure comes back as a JSON error envelop
 | [`share_update`](#share_update) | default, all | Change notebook sharing: link visibility (public) and per-user roles (viewer, editor, remove). |
 | [`source_add`](#source_add) | minimal, default, all | Add sources to a notebook: public URLs (YouTube auto-detected) and pasted text, in one call. |
 | [`source_list`](#source_list) | default, all | List a notebook's sources with type and processing status; optionally filter by status. |
-| [`source_read`](#source_read) | minimal, default, all | Read a source's full text or markdown, paged by character offset (max_chars default 20000; see truncated and next_offset). |
+| [`source_read`](#source_read) | minimal, default, all | Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset). |
 | [`source_update`](#source_update) | default, all | Rename a source (title) and/or check whether it is up to date (check_freshness). |
 | [`studio_generate`](#studio_generate) | minimal, default, all | Generate a Studio artifact. |
 | [`studio_list`](#studio_list) | minimal, default, all | List a notebook's Studio artifacts (audio, reports, video, ...) with kind and status. |
@@ -169,13 +169,13 @@ Annotations: title: Chat job status, readOnly: true, idempotent: true, openWorld
 
 Profiles: default, all.
 
-Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Currently only kind=notebook can be deleted; other kinds return UNSUPPORTED_BY_TRANSPORT.
+Delete notebooks, sources, notes, artifacts, chat history, labels or collections. Without confirm:true it only returns a preview of what would be deleted and changes nothing. Items are matched strictly (exact id, unique id prefix or exact title) against a fresh list. source, note and chat_history need notebook; chat_history deletes the whole history of the given conversations; it reaches only the newest 20 conversations of a notebook, and its preview shows their created and updated times and, when the whole history can be read, the first question. Kinds artifact, label and collection are not available yet and return UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Delete, readOnly: false, destructive: true, idempotent: true, openWorld: false.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `ids` | null or array | yes | ids (or titles) of the items to delete |
+| `ids` | null or array | yes | ids (or exact titles) of the items to delete; for chat_history, conversation ids |
 | `kind` | string | yes | notebook, source, note, artifact, chat_history, label or collection |
 | `confirm` | boolean | no | must be true to delete; without it only a preview is returned |
 | `notebook` | string | no | notebook id, prefix or title; required for every kind except notebook |
@@ -246,7 +246,7 @@ Annotations: title: List notes, readOnly: true, idempotent: true, openWorld: fal
 
 Profiles: default, all.
 
-Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT. The payload shape is not live-verified.
+Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT.
 
 Annotations: title: Save note, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -448,7 +448,7 @@ Annotations: title: List sources, readOnly: true, idempotent: true, openWorld: f
 
 Profiles: minimal, default, all.
 
-Read a source's full text or markdown, paged by character offset (max_chars default 20000; see truncated and next_offset). Mode guide is not yet available.
+Read a source's full text, markdown, or guide (summary and keywords), paged by character offset (max_chars default 20000; see truncated and next_offset).
 
 Annotations: title: Read source, readOnly: true, idempotent: true, openWorld: false.
 
@@ -457,7 +457,7 @@ Annotations: title: Read source, readOnly: true, idempotent: true, openWorld: fa
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
 | `source` | string | yes | source id, id prefix or title |
 | `max_chars` | integer | no | max characters to return (default 20000, cap 200000) |
-| `mode` | string | no | fulltext (default) or markdown; guide is not yet available |
+| `mode` | string | no | fulltext (default), markdown, or guide (the source guide: summary as text plus keywords) |
 | `offset` | integer | no | character offset to start from |
 
 ### `source_update`
@@ -482,7 +482,7 @@ Annotations: title: Update source, readOnly: false, destructive: false, idempote
 
 Profiles: minimal, default, all.
 
-Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Generation itself is not available yet (the request payload still needs a live capture) and currently returns UNSUPPORTED_BY_TRANSPORT after the quota check.
+Generate a Studio artifact. Checks the account quota first and returns a QUOTA error when it is used up. Only kind flashcards is available: it needs instructions (the topic) and accepts flashcards.quantity fewer and flashcards.difficulty hard (the defaults; the only options pinned by a live capture). Flashcards are built from the notebook's sources only, not notes (the web app can add notes; that is not supported). Returns the new artifact as pending; poll studio_list for its status. Other kinds and options return UNSUPPORTED_BY_TRANSPORT after the quota check. Not retried after sending.
 
 Annotations: title: Generate studio artifact, readOnly: false, destructive: false, idempotent: false, openWorld: false.
 
@@ -490,9 +490,10 @@ Annotations: title: Generate studio artifact, readOnly: false, destructive: fals
 |---|---|---|---|
 | `kind` | string | yes | audio, video, mind_map, report, quiz, flashcards, slide_deck, infographic, data_table or interactive_report |
 | `notebook` | string | yes | notebook id, id prefix (6+ chars) or title |
-| `instructions` | string | no | focus or style instructions |
-| `language` | string | no | output language code |
-| `sources` | null or array | no | source ids, id prefixes or titles; default all sources |
+| `flashcards` | null or object | no | options for kind flashcards |
+| `instructions` | string | no | focus or style instructions; for flashcards the topic (required) |
+| `language` | string | no | output language code (default en) |
+| `sources` | null or array | no | source ids, id prefixes or titles; default all sources (notes cannot be used as sources) |
 
 ### `studio_list`
 

@@ -56,9 +56,15 @@ func chatTurnsParams(conv string, limit int, cursor string) []any {
 	return p
 }
 
-// ChatSessions lists the notebook's conversations (hPTbtc), newest first.
+// ChatSessionsPage is how many conversations ChatSessions asks for, as the
+// web app did (live 2026-10-13). hPTbtc paging is not pinned by a capture,
+// so older conversations are not listed.
+const ChatSessionsPage = 20
+
+// ChatSessions lists the notebook's newest ChatSessionsPage conversations
+// (hPTbtc), newest first.
 func (c *Client) ChatSessions(ctx context.Context, nb string) ([]Conversation, error) {
-	p, err := c.do(ctx, "chat.sessions", chatSessionsParams(nb, 20), callOpts{sourcePath: notebookPath(nb), idempotent: true, null: wire.NullAllowed})
+	p, err := c.do(ctx, "chat.sessions", chatSessionsParams(nb, ChatSessionsPage), callOpts{sourcePath: notebookPath(nb), idempotent: true, null: wire.NullAllowed})
 	if err != nil {
 		return nil, err
 	}

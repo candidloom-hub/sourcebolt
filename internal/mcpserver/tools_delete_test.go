@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/internal/cache"
@@ -191,14 +192,10 @@ func TestDeleteBlockedAndBadInput(t *testing.T) {
 	cs := connect(t, st, "default")
 	// Kinds that cannot be deleted yet fail before any preview or lookup.
 	for _, args := range []map[string]any{
-		{"kind": "note", "notebook": idA, "ids": []string{"first"}},
-		{"kind": "note", "notebook": idA, "ids": []string{"n1"}, "confirm": true},
-		{"kind": "source", "notebook": idA, "ids": []string{"s1"}},
-		{"kind": "source", "ids": []string{"x"}},
 		{"kind": "artifact", "notebook": idA, "ids": []string{"a1"}},
+		{"kind": "artifact", "notebook": idA, "ids": []string{"a1"}, "confirm": true},
 		{"kind": "label", "notebook": idA, "ids": []string{"L1"}},
 		{"kind": "collection", "ids": []string{"x"}},
-		{"kind": "chat_history", "notebook": idA, "ids": []string{"x"}},
 	} {
 		if e := envelope(t, call(t, cs, "delete", args)); e.Code != "UNSUPPORTED_BY_TRANSPORT" {
 			t.Fatalf("%v: envelope = %+v", args, e)
@@ -210,9 +207,68 @@ func TestDeleteBlockedAndBadInput(t *testing.T) {
 	for _, args := range []map[string]any{
 		{"kind": "bogus", "ids": []string{"x"}},
 		{"kind": "notebook", "ids": []string{}},
+		{"kind": "source", "ids": []string{"s1"}},
+		{"kind": "note", "notebook": idA, "ids": []string{}},
+		{"kind": "chat_history", "ids": []string{"conv-1"}, "confirm": true},
 	} {
 		if e := envelope(t, call(t, cs, "delete", args)); e.Code != "INVALID_ARGUMENT" {
 			t.Fatalf("%v: envelope = %+v", args, e)
+		}
+	}
+	if n := len(st.calls); n != 0 {
+		t.Fatalf("bad input made %d calls", n)
+	}
+}
+
+// TestDeleteNotebookItems covers the kinds live capture #2 pinned: source,
+// note and chat_history. Each previews without confirm and deletes with it,
+// resolving refs strictly within the notebook.
+func TestDeleteNotebookItems(t *testing.T) {
+	for _, tc := range []struct {
+		kind, wire, ref, id, title, loose string
+	}{
+		{"source", "tGMBJ", "DOC", "s1", "Doc", "Do"},
+		{"note", "AH0mwd", "first", "n1", "First", "fir"},
+		{"chat_history", "J7Gthc", "conv-1", "conv-1", "", "conv"},
+	} {
+		st := newStub()
+		st.payloads["cFji9"] = notesPayload
+		st.payloads["hPTbtc"] = `[[["conv-1",[1700000000,0],[1700000001,0]]]]`
+		st.payloads[tc.wire] = `[]`
+		cs := connect(t, st, "default")
+
+		var out DeleteOut
+		res := call(t, cs, "delete", map[string]any{"kind": tc.kind, "notebook": idA, "ids": []string{tc.ref}})
+		if err := json.Unmarshal([]byte(text(res)), &out); err != nil {
+			t.Fatalf("%s preview: %s", tc.kind, text(res))
+		}
+		if out.Status != "preview" || len(out.Items) != 1 || out.Items[0].ID != tc.id || out.Items[0].Title != tc.title {
+			t.Fatalf("%s preview = %s", tc.kind, text(res))
+		}
+		if st.count(tc.wire) != 0 {
+			t.Fatalf("%s: preview made a destructive call", tc.kind)
+		}
+		if e := envelope(t, call(t, cs, "delete", map[string]any{"kind": tc.kind, "notebook": idA, "ids": []string{tc.loose}, "confirm": true})); e.Code != "NOT_FOUND" {
+			t.Fatalf("%s: loose ref %q: envelope = %+v", tc.kind, tc.loose, e)
+		}
+		if st.count(tc.wire) != 0 {
+			t.Fatalf("%s: a loose ref reached the delete RPC", tc.kind)
+		}
+
+		res = call(t, cs, "delete", map[string]any{"kind": tc.kind, "notebook": idA, "ids": []string{tc.ref, tc.id}, "confirm": true})
+		out = DeleteOut{}
+		if err := json.Unmarshal([]byte(text(res)), &out); err != nil || out.Status != "deleted" || len(out.Items) != 1 || out.Items[0].Status != "deleted" {
+			t.Fatalf("%s confirm = %s", tc.kind, text(res))
+		}
+		if st.count(tc.wire) != 1 {
+			t.Fatalf("%s: delete calls = %d, want 1", tc.kind, st.count(tc.wire))
+		}
+		for _, c := range st.calls {
+			if c.ID == tc.wire {
+				if b, _ := json.Marshal(c.Params); !strings.Contains(string(b), `"`+tc.id+`"`) || c.SourcePath != "/notebook/"+idA {
+					t.Fatalf("%s: call %s path %s", tc.kind, b, c.SourcePath)
+				}
+			}
 		}
 	}
 }

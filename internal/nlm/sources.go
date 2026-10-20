@@ -68,7 +68,7 @@ func urlSpec(u string) []any {
 	return []any{nil, nil, []any{u}, nil, nil, nil, nil, nil, nil, nil, 1}
 }
 
-// youtubeSpec: shape: catalog consensus, not live-verified (URL at slot 7).
+// youtubeSpec: URL at slot 7, pinned by live capture #2 (izAoDd/live_2026-10-20_01.json).
 func youtubeSpec(u string) []any {
 	return []any{nil, nil, nil, nil, nil, nil, nil, []any{u}, nil, nil, 1}
 }
@@ -152,7 +152,8 @@ func matchRows(keys []string, rows []srcRow, positional bool) []*srcRow {
 // call is never resent. If the server answers code 3 or 9 (accepted, maybe
 // applied) the notebook is listed and specs are matched by URL or title:
 // matched ones report added, the rest pending. A spec absent from a
-// successful response failed. Drive specs return KindUnsupported before any
+// successful response is looked up in the notebook (reconcileOmitted).
+// Drive specs return KindUnsupported before any
 // call. With c.DOM set, a KindDrift that happened before the request was
 // sent adds the specs through the page instead (addSourcesDOM).
 func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) ([]AddOutcome, error) {
@@ -168,31 +169,102 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 		}
 		wireSpecs[i], keys[i] = w, k
 	}
+	// Snapshot the notebook's sources first: a spec settled by listing
+	// afterwards may only take a row that was not there before. A failed
+	// snapshot does not stop the add; matches then stay pending.
+	before, snapErr := c.listRows(ctx, nb)
+	var existed map[string]bool
+	if snapErr == nil {
+		existed = make(map[string]bool, len(before))
+		for _, r := range before {
+			existed[r.ID] = true
+		}
+	}
 	p, err := c.do(ctx, "sources.add", addSourcesParams(nb, wireSpecs), callOpts{
 		sourcePath: notebookPath(nb), idempotent: false, null: wire.NullAllowed, pending: pendingAdd,
 	})
 	if err != nil {
 		if te, ok := isDrift(err); ok && !te.Sent && c.DOM != nil {
-			return c.addSourcesDOM(ctx, nb, specs, keys), nil
+			return c.addSourcesDOM(ctx, nb, specs, keys, existed), nil
 		}
 		var te *transport.Error
 		if !errors.As(err, &te) || te.Kind != transport.KindPending {
 			return nil, err
 		}
-		return c.reconcileAdd(ctx, nb, keys, safety.Redact(te.Error())), nil
+		return c.reconcileAdd(ctx, nb, keys, existed, safety.Redact(te.Error())), nil
 	}
 	var rows []srcRow
+	answered := map[string]bool{}
 	for _, r := range wire.Elems(p, 0) {
-		rows = append(rows, parseSrcRow(r))
+		row := parseSrcRow(r)
+		rows = append(rows, row)
+		answered[row.ID] = true
 	}
 	out := make([]AddOutcome, len(specs))
+	var missing []int
 	for i, m := range matchRows(keys, rows, true) {
-		out[i] = AddOutcome{Index: i, Status: AddFailed, Error: "omitted from the server response"}
-		if m != nil {
-			out[i] = AddOutcome{Index: i, SourceID: m.ID, Status: AddAdded}
+		if m == nil {
+			missing = append(missing, i)
+			continue
 		}
+		out[i] = AddOutcome{Index: i, SourceID: m.ID, Status: AddAdded}
+	}
+	if len(missing) > 0 {
+		c.reconcileOmitted(ctx, nb, keys, missing, answered, existed, out)
 	}
 	return out, nil
+}
+
+// settleByListing matches specs against a fresh listing. Only rows absent
+// from the pre-add snapshot (existed; nil = no snapshot) count as the new
+// source. A spec whose only match is a row that may have existed before is
+// reported pending with oldMsg: the request was sent, but nothing proves a
+// new source. A spec with no match gets noneStatus and noneMsg.
+func settleByListing(keys []string, idx []int, rows []srcRow, existed map[string]bool, noneStatus, noneMsg, oldMsg string, out []AddOutcome) {
+	var fresh, old []srcRow
+	for _, r := range rows {
+		if existed != nil && !existed[r.ID] {
+			fresh = append(fresh, r)
+		} else {
+			old = append(old, r)
+		}
+	}
+	mk := make([]string, len(idx))
+	for j, i := range idx {
+		mk[j] = keys[i]
+	}
+	freshM, oldM := matchRows(mk, fresh, false), matchRows(mk, old, false)
+	for j, i := range idx {
+		switch {
+		case freshM[j] != nil:
+			out[i] = AddOutcome{Index: i, SourceID: freshM[j].ID, Status: AddAdded}
+		case oldM[j] != nil:
+			out[i] = AddOutcome{Index: i, Status: AddPending, Error: oldMsg}
+		default:
+			out[i] = AddOutcome{Index: i, Status: noneStatus, Error: noneMsg}
+		}
+	}
+}
+
+// reconcileOmitted settles specs that a successful izAoDd answer left out.
+// Live capture #2 (2026-10-20) added a website and a YouTube video in one
+// call and the answer listed only the website, although the video was
+// added. So the notebook is listed, every row the answer listed is
+// excluded, and each missing spec is matched by URL or title against rows
+// that are new since the snapshot: found = added, found only among older
+// rows = pending, not found = failed, listing failed = pending.
+func (c *Client) reconcileOmitted(ctx context.Context, nb string, keys []string, missing []int, answered, existed map[string]bool, out []AddOutcome) {
+	rows, err := c.listRows(ctx, nb)
+	if err != nil {
+		for _, i := range missing {
+			out[i] = AddOutcome{Index: i, Status: AddPending, Error: "omitted from the server response; listing the notebook failed: " + safety.Redact(err.Error())}
+		}
+		return
+	}
+	rows = slices.DeleteFunc(rows, func(r srcRow) bool { return answered[r.ID] })
+	settleByListing(keys, missing, rows, existed, AddFailed,
+		"omitted from the server response and not in the notebook",
+		"omitted from the server response; only a source that may have existed before the add matches, not counted as added", out)
 }
 
 // addSourcesDOM adds each spec through the DOM fallback, one at a time,
@@ -201,9 +273,9 @@ func (c *Client) AddSources(ctx context.Context, nb string, specs []SourceSpec) 
 // reports pending, one it never sent reports failed. Source ids of added
 // specs are read back from the notebook (best effort), only from rows that
 // were not there before: a source the notebook already had with the same
-// URL or title is not the new one. Without that snapshot ids stay empty.
-func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpec, keys []string) []AddOutcome {
-	old, snapErr := c.listRows(ctx, nb)
+// URL or title is not the new one. Without that snapshot (existed nil) ids
+// stay empty.
+func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpec, keys []string, existed map[string]bool) []AddOutcome {
 	out := make([]AddOutcome, len(specs))
 	var added []int
 	for i, s := range specs {
@@ -231,12 +303,8 @@ func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpe
 	if c.OnTransport != nil {
 		c.OnTransport(DOMTransport)
 	}
-	if snapErr != nil {
+	if existed == nil {
 		return out
-	}
-	existed := make(map[string]bool, len(old))
-	for _, r := range old {
-		existed[r.ID] = true
 	}
 	if rows, err := c.listRows(ctx, nb); err == nil {
 		rows = slices.DeleteFunc(rows, func(r srcRow) bool { return existed[r.ID] })
@@ -253,7 +321,10 @@ func (c *Client) addSourcesDOM(ctx context.Context, nb string, specs []SourceSpe
 	return out
 }
 
-func (c *Client) reconcileAdd(ctx context.Context, nb string, keys []string, cause string) []AddOutcome {
+// reconcileAdd settles an add the server answered pending (code 3 or 9):
+// specs found among rows new since the snapshot are added, the rest stay
+// pending.
+func (c *Client) reconcileAdd(ctx context.Context, nb string, keys []string, existed map[string]bool, cause string) []AddOutcome {
 	out := make([]AddOutcome, len(keys))
 	rows, err := c.listRows(ctx, nb)
 	if err != nil {
@@ -262,13 +333,13 @@ func (c *Client) reconcileAdd(ctx context.Context, nb string, keys []string, cau
 		}
 		return out
 	}
-	for i, m := range matchRows(keys, rows, false) {
-		if m == nil {
-			out[i] = AddOutcome{Index: i, Status: AddPending, Error: "server answered pending (" + cause + "); not yet in the notebook, not resent"}
-			continue
-		}
-		out[i] = AddOutcome{Index: i, SourceID: m.ID, Status: AddAdded}
+	idx := make([]int, len(keys))
+	for i := range idx {
+		idx[i] = i
 	}
+	settleByListing(keys, idx, rows, existed, AddPending,
+		"server answered pending ("+cause+"); not yet in the notebook, not resent",
+		"server answered pending ("+cause+"); only a source that may have existed before the add matches, not resent", out)
 	return out
 }
 

@@ -24,13 +24,19 @@ type NoteInput struct {
 // Live capture 2026-10-13 (cFji9): params [notebook_id, null, null, HDR].
 func listNotesParams(nb string) []any { return []any{nb, nil, nil, requestOptions()} }
 
-// shape: catalog consensus, not live-verified (CYK0Xb, blank note):
-// [nb, "", [1], null, "New Note"]. The title is ignored on create.
-func createNoteParams(nb string) []any { return []any{nb, "", []any{1}, nil, "New Note"} }
+// createNoteParams is pinned by live capture #2 (2026-10-20, CYK0Xb from the
+// "Copied text" flow, which now creates a note): [nb, content,
+// [1,null×5,1], null, title, null, HDR]. A chat answer saved as a note uses
+// kind 2 instead of 1 plus the answer's rich-text and citation structures at
+// [3] and [5], which the client does not keep (see rpc-catalog).
+func createNoteParams(nb, title, content string) []any {
+	return []any{nb, content, []any{1, nil, nil, nil, nil, nil, 1}, nil, title, nil, requestOptions()}
+}
 
-// shape: catalog consensus, not live-verified (cYAfTb): [nb, note, [[[content, title, [], 0]]]].
+// mutateNoteParams is pinned by live capture #2 (2026-10-20, cYAfTb title
+// edit): [nb, note, [[[content, title, [], 0, null, 1]]], HDR].
 func mutateNoteParams(nb, id, title, content string) []any {
-	return []any{nb, id, []any{[]any{[]any{content, title, []any{}, 0}}}}
+	return []any{nb, id, []any{[]any{[]any{content, title, []any{}, 0, nil, 1}}}, requestOptions()}
 }
 
 // ListNotes lists a notebook's notes (cFji9). Rows are [id,[id,content,meta,null,title]];
@@ -51,40 +57,45 @@ func (c *Client) ListNotes(ctx context.Context, nb string) ([]Note, error) {
 	return out, nil
 }
 
+// noteFromRow decodes one cFji9 row if it is a note. Live notes (2026-10-13,
+// 2026-10-20) have meta [kind, owner, updated, null, null, created, true]
+// with kind 1 (text note) or 2 (saved chat answer) and meta[3] null. The
+// catalog's note-backed mind maps are created with meta
+// [2,null,null,5,[[sid]..]]: a non-null meta[3], or a kind other than 1 or
+// 2, marks a row that is not a note, and it is skipped.
 func noteFromRow(r []byte) (Note, bool) {
 	id := wire.Str(r, 0)
 	if id == "" || len(wire.Elems(r, 1)) == 0 { // tombstone [id,null,2]
 		return Note{}, false
 	}
+	if m, ok := wire.At(r, 1, 2, 3); ok && string(m) != "null" {
+		return Note{}, false
+	}
+	if kind, ok := wire.Int(r, 1, 2, 0); ok && kind != 1 && kind != 2 {
+		return Note{}, false
+	}
 	return Note{ID: id, Content: wire.Str(r, 1, 1), Title: wire.Str(r, 1, 4), Updated: stamp(r, 1, 2, 2)}, true
 }
 
-// SaveNote creates a note (empty ID: CYK0Xb blank create, then cYAfTb to set
-// title and content) or rewrites an existing one (cYAfTb only). Neither call
-// is retried: a resent create would leave a second blank note.
+// SaveNote creates a note (empty ID: one CYK0Xb call with title and
+// content, answered by the new note row [[id, content, meta, null, title]])
+// or rewrites an existing one (cYAfTb). Neither call is retried: a resent
+// create would leave a second note.
 func (c *Client) SaveNote(ctx context.Context, nb string, n NoteInput) (Note, error) {
 	opts := callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed}
-	id := n.ID
-	if id == "" {
-		p, err := c.do(ctx, "notes.create", createNoteParams(nb), opts)
-		if err != nil {
-			return Note{}, err
+	if n.ID != "" {
+		if _, err := c.do(ctx, "notes.mutate", mutateNoteParams(nb, n.ID, n.Title, n.Content), opts); err != nil {
+			return Note{ID: n.ID}, err
 		}
-		if id = wire.Str(p, 0, 0); id == "" {
-			id = wire.Str(p, 0)
-		}
-		if id == "" {
-			return Note{}, &transport.Error{Kind: transport.KindDrift, RPC: "notes.create", Message: "create answered without a note id"}
-		}
+		return Note{ID: n.ID, Title: n.Title, Content: n.Content}, nil
 	}
-	if _, err := c.do(ctx, "notes.mutate", mutateNoteParams(nb, id, n.Title, n.Content), opts); err != nil {
-		return Note{ID: id}, err
+	p, err := c.do(ctx, "notes.create", createNoteParams(nb, n.Title, n.Content), opts)
+	if err != nil {
+		return Note{}, err
+	}
+	id := wire.Str(p, 0, 0)
+	if id == "" {
+		return Note{}, &transport.Error{Kind: transport.KindDrift, RPC: "notes.create", Message: "create answered without a note id"}
 	}
 	return Note{ID: id, Title: n.Title, Content: n.Content}, nil
-}
-
-// DeleteNotes is blocked: AH0mwd has conflicting shapes (with or without a
-// trailing [2]) and mind-map ghost cleanup needs a cFji9 timestamp step.
-func (c *Client) DeleteNotes(ctx context.Context, nb string, ids []string) error {
-	return blocked("notes.delete", "AH0mwd (trailing [2] conflict, mind-map ghost cleanup)")
 }

@@ -13,6 +13,14 @@ func artifactOptions() []any {
 	}
 }
 
+// artifactGetOptions is artifactOptions with type code 7 appended to the type
+// list, as the web app sent it on v9rmvd (live capture #2, 2026-10-20).
+func artifactGetOptions() []any {
+	o := artifactOptions()
+	o[4] = []any{[]any{1, 4, 8, 10, 14, 2, 3, 6, 7}}
+	return o
+}
+
 // studioChoicesParams is the full sqTeoe request: [options, null, 1]
 // (live capture 2026-10-13).
 func studioChoicesParams() []any { return []any{artifactOptions(), nil, 1} }

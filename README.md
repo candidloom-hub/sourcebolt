@@ -20,15 +20,15 @@ Your MCP client (Claude Code, Claude Desktop, Cursor, Codex, ...) gets tools to 
 |---|---|---|
 | Info | `server_info` | works |
 | Notebooks | `notebook_list`, `notebook_open`, `notebook_create`, `notebook_update` | works |
-| Sources | `source_add` (URLs, YouTube, pasted text), `source_list`, `source_read`, `source_update` (rename, freshness check) | works; Drive and file upload, source guide, refresh: coming soon |
+| Sources | `source_add` (URLs, YouTube, pasted text), `source_list`, `source_read` (text, markdown, source guide), `source_update` (rename, freshness check) | works; Drive and file upload, refresh: coming soon |
 | Chat | `chat_ask`, `chat_status`, `chat_history`, `chat_configure`, `chat_ask_many` (batch, opt-in) | works; `suggest` followups: coming soon |
 | Research | `research_start`, `research_status`, `research_import` | works; `discover` mode: coming soon |
 | Notes | `note_list`, `note_save` | works; save a chat turn as a note: coming soon |
 | Sharing | `share_status`, `share_update` | works, request shapes not yet live-verified; view level and artifact sharing: coming soon |
 | Labels | `label_list`, `label_update` | rename, emoji, add/remove sources; create and auto-label: coming soon |
-| Studio | `studio_list`, `studio_generate` | list works; **generation is coming soon** (needs a live capture; it checks quota, then returns `UNSUPPORTED_BY_TRANSPORT`) |
+| Studio | `studio_list`, `studio_generate` | list works; generation works for flashcards with the live-captured options (fewer cards, hard, a topic); other kinds and options: coming soon |
 | Account | `account_settings`, `auth_login`, `auth_logout` | quota read works; setting the language is not live-verified; `auth_*` over MCP only point you to the CLI by design |
-| Delete | `delete` | notebooks only, preview first, `confirm:true` to act; sources, notes, artifacts, chat history and labels: coming soon |
+| Delete | `delete` | notebooks, sources, notes and a conversation's chat history; preview first, `confirm:true` to act; artifacts, labels and collections: coming soon |
 | Jobs | `job_cancel` | works |
 
 "Coming soon" means the tool or option exists but returns an `UNSUPPORTED_BY_TRANSPORT` error until the wire format is pinned by a live capture (see [docs/live-capture.md](docs/live-capture.md)).

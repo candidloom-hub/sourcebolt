@@ -22,7 +22,7 @@ func TestSourceTextShapes(t *testing.T) {
 		params   string
 		want     string
 	}{
-		{"text", "synthetic_text", false, `[["` + readSID + `"],[2],[2]]`, "text-1\ntext-2"},
+		{"text", "synthetic_text", false, `[["` + readSID + `"],[2],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`, "text-1\ntext-2"},
 		{"markdown", "synthetic_markdown", true, `[["` + readSID + `"],[3],[3]]`, "# text-1"},
 	}
 	for _, tc := range cases {
@@ -57,11 +57,25 @@ func TestSourceTextFallsBackToHTML(t *testing.T) {
 	}
 }
 
-func TestSourceTextEmpty(t *testing.T) {
-	ft := newFake(synthFixture(t, "hizoJc", `[[["`+readSID+`"],"title-1"]]`))
-	got, err := New(ft).SourceText(context.Background(), readNB, readSID, false)
-	if err != nil || got != "" {
-		t.Fatalf("got %q, %v", got, err)
+// Review item 6: no text blocks (and no HTML) is drift naming hizoJc and
+// the mode, never an empty text.
+func TestSourceTextEmptyIsDrift(t *testing.T) {
+	for _, payload := range []string{
+		`[[["` + readSID + `"],"title-1"]]`,
+		`[[["` + readSID + `"],"title-1"],null,null,[[]]]`,
+	} {
+		for _, md := range []bool{false, true} {
+			ft := newFake(synthFixture(t, "hizoJc", payload))
+			got, err := New(ft).SourceText(context.Background(), readNB, readSID, md)
+			var te *transport.Error
+			mode := "2"
+			if md {
+				mode = "3"
+			}
+			if !errors.As(err, &te) || te.Kind != transport.KindDrift || !strings.Contains(te.Message, "hizoJc") || !strings.Contains(te.Message, "mode "+mode) || got != "" {
+				t.Fatalf("%s markdown=%v: got %q, %v", payload, md, got, err)
+			}
+		}
 	}
 }
 
@@ -121,27 +135,5 @@ func TestSourceFreshDriveTrue(t *testing.T) {
 	got, err := New(ft).SourceFresh(context.Background(), readNB, readSID)
 	if err != nil || !got {
 		t.Fatalf("got %v, %v", got, err)
-	}
-}
-
-func TestBlockedSourceRPCs(t *testing.T) {
-	ft := newFake()
-	c := New(ft)
-	_, _, gerr := c.SourceGuide(context.Background(), readNB, readSID)
-	rerr := c.RefreshSource(context.Background(), readNB, readSID)
-	for _, tc := range []struct {
-		err  error
-		item string
-	}{{gerr, "item 10"}, {rerr, "item 9"}} {
-		var te *transport.Error
-		if !errors.As(tc.err, &te) || te.Kind != transport.KindUnsupported {
-			t.Fatalf("err = %v, want KindUnsupported", tc.err)
-		}
-		if !strings.Contains(te.Message, "rpc-catalog") || !strings.Contains(te.Message, tc.item) {
-			t.Fatalf("message %q should name rpc-catalog %s", te.Message, tc.item)
-		}
-	}
-	if len(ft.calls) != 0 {
-		t.Fatal("blocked RPCs reached the transport")
 	}
 }

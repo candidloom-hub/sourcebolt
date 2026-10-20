@@ -138,10 +138,10 @@ func TestAddInvalidSpec(t *testing.T) {
 }
 
 func TestPendingReconciles(t *testing.T) {
-	ft := newFake(
-		synthFixture(t, "rLM1Ne", `[["T",[`+srcRowJSON("sid-A", "Page A", "https://example.com/a/")+`,`+srcRowJSON("sid-N", "Notes", "")+`],"`+nb1+`"]]`),
-		loadFixture(t, "VfAZjd", "guide"),
-	)
+	ft := newFake(loadFixture(t, "VfAZjd", "guide"))
+	// The notebook was empty before the add.
+	listingAfter(ft, synthFixture(t, "rLM1Ne", notebookRows()),
+		synthFixture(t, "rLM1Ne", `[["T",[`+srcRowJSON("sid-A", "Page A", "https://example.com/a/")+`,`+srcRowJSON("sid-N", "Notes", "")+`],"`+nb1+`"]]`))
 	ft.errs["izAoDd"] = &transport.Error{Kind: transport.KindPending, RPC: "sources.add", GRPCCode: 9}
 	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{
 		{URL: "https://example.com/a"},
@@ -176,7 +176,11 @@ func TestPendingListFails(t *testing.T) {
 }
 
 func TestPartialFailure(t *testing.T) {
-	ft := newFake(synthFixture(t, "izAoDd", `[[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`]]`))
+	ft := newFake(
+		synthFixture(t, "izAoDd", `[[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`]]`),
+		// The item missing from the answer is not in the notebook either.
+		synthFixture(t, "rLM1Ne", `[["T",[`+srcRowJSON("sid-2", "Two", "https://example.com/2")+`],"`+nb1+`"]]`),
+	)
 	out, err := New(ft).AddSources(context.Background(), nb1, []SourceSpec{
 		{URL: "https://example.com/1"},
 		{URL: "https://example.com/2"},
@@ -200,8 +204,9 @@ func TestNoRetryAfterSend(t *testing.T) {
 	if !errors.As(err, &te) || te.Kind != transport.KindTransport || out != nil {
 		t.Fatalf("out=%+v err=%v", out, err)
 	}
-	if len(ft.calls) != 1 {
-		t.Fatalf("calls = %d, want 1 (no reconcile list, no resend)", len(ft.calls))
+	// The snapshot listing before the add, then the add; no reconcile list, no resend.
+	if len(ft.calls) != 2 || ft.calls[0].ID != "rLM1Ne" || ft.calls[1].ID != "izAoDd" {
+		t.Fatalf("calls = %+v, want snapshot then one add", ft.calls)
 	}
 	if c, _ := ft.callFor("izAoDd"); c.Idempotent {
 		t.Fatal("add must be non-idempotent")

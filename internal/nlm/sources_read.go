@@ -3,6 +3,7 @@ package nlm
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"strings"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -12,11 +13,13 @@ import (
 // SourceText returns a source's full extracted text (markdown selects the
 // markdown variant). Paging is the caller's concern.
 //
-// shape: catalog consensus, not live-verified. Request [[sid],[2],[2]] for
-// text, [[sid],[3],[3]] for markdown. Response: [0]=[[sid],title,meta],
-// text blocks at [3][0], HTML at [4][1]. Each block's leaf strings are
+// Request: see sourceLoadParams (mode 2 pinned by live capture #2
+// (2026-10-20, hizoJc); mode 3 catalog-only).
+// Response: [0]=[[sid],title,meta],
+// text blocks at [3][0][0] (live #2; the catalog said [3][0]), HTML at
+// [4][1] (catalog only). Each block's leaf strings are
 // joined, blocks are separated by a newline; when there are no blocks the
-// HTML string is returned instead.
+// HTML string is returned instead; neither is KindDrift.
 func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) (string, error) {
 	if err := needSID(sid, "sources.load"); err != nil {
 		return "", err
@@ -32,7 +35,7 @@ func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) 
 		return "", &transport.Error{Kind: transport.KindDrift, RPC: "sources.load", Message: "response is not valid JSON"}
 	}
 	var blocks []string
-	for _, b := range root.At(3, 0).Elems() {
+	for _, b := range root.At(3, 0, 0).Elems() {
 		if s := leafText(b); s != "" {
 			blocks = append(blocks, s)
 		}
@@ -40,15 +43,25 @@ func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) 
 	if len(blocks) > 0 {
 		return strings.Join(blocks, "\n"), nil
 	}
-	return root.At(4, 1).Str(), nil
-}
-
-func sourceLoadParams(sid string, markdown bool) []any {
+	if html := root.At(4, 1).Str(); html != "" {
+		return html, nil
+	}
 	mode := 2
 	if markdown {
 		mode = 3
 	}
-	return []any{[]any{sid}, []any{mode}, []any{mode}}
+	return "", &transport.Error{Kind: transport.KindDrift, RPC: "sources.load",
+		Message: fmt.Sprintf("hizoJc mode %d answered no text blocks at [3][0][0] and no HTML", mode)}
+}
+
+// sourceLoadParams: mode 2 (text) is [[sid],[2],HDR], pinned by live
+// capture #2. Mode 3 (markdown) was not captured and keeps the catalog
+// shape [[sid],[3],[3]].
+func sourceLoadParams(sid string, markdown bool) []any {
+	if markdown {
+		return []any{[]any{sid}, []any{3}, []any{3}}
+	}
+	return []any{[]any{sid}, []any{2}, requestOptions()}
 }
 
 // leafText concatenates every string leaf under n, depth first.
@@ -113,11 +126,42 @@ func freshFromPayload(p jsontext.Value) (bool, error) {
 	return string(b) == "true", nil
 }
 
-// SourceGuide is blocked: tr032e has conflicting request shapes and no live
-// capture (rpc-catalog §10 item 10).
+// sourceGuideParams is pinned by live capture #2 (2026-10-20, tr032e):
+// [[[[sid]]], HDR].
+func sourceGuideParams(sid string) []any {
+	return []any{[]any{[]any{[]any{sid}}}, requestOptions()}
+}
+
+// SourceGuide reads a source's guide (tr032e): a summary and its keywords.
+// Response (live #2): [[[[[sid]], [summary], [[keyword..]], []]]], so the
+// summary is at [0][0][1][0] and the keywords at [0][0][2][0]. A response
+// without a summary is KindDrift.
 func (c *Client) SourceGuide(ctx context.Context, nb, sid string) (summary string, keywords []string, err error) {
-	return "", nil, &transport.Error{Kind: transport.KindUnsupported, RPC: "sources.guide",
-		Message: "source guide is blocked on a live capture of tr032e (rpc-catalog §10 item 10)"}
+	if err := needSID(sid, "sources.guide"); err != nil {
+		return "", nil, err
+	}
+	p, err := c.do(ctx, "sources.guide", sourceGuideParams(sid), callOpts{
+		sourcePath: notebookPath(nb), idempotent: true,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	root, err := wire.Parse(p)
+	if err != nil {
+		return "", nil, &transport.Error{Kind: transport.KindDrift, RPC: "sources.guide", Message: "response is not valid JSON"}
+	}
+	g := root.At(0, 0)
+	summary = g.At(1, 0).Str()
+	if summary == "" {
+		return "", nil, &transport.Error{Kind: transport.KindDrift, RPC: "sources.guide", Message: "guide answered without a summary"}
+	}
+	keywords = []string{}
+	for _, k := range g.At(2, 0).Elems() {
+		if s := k.Str(); s != "" {
+			keywords = append(keywords, s)
+		}
+	}
+	return summary, keywords, nil
 }
 
 // RefreshSource is blocked: FLmJqe and dtT1F have conflicting request shapes

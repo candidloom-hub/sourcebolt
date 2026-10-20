@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
@@ -124,23 +125,44 @@ func (c *Client) ListArtifacts(ctx context.Context, nb string) ([]Artifact, erro
 		if st == artifactSuggested {
 			continue
 		}
-		typ, _ := wire.Int(r, 2)
 		out = append(out, Artifact{
-			ID: id, Title: wire.Str(r, 1), Kind: KindFromTypeCode(typ),
+			ID: id, Title: wire.Str(r, 1), Kind: rowKind(r),
 			Status: st, MediaURLs: map[string]string{}, Created: stamp(r, 15),
 		})
 	}
 	return out, nil
 }
 
-// GetArtifact reads an artifact's interactive content (v9rmvd; catalog
-// consensus, not live-verified): params [artifact_id], HTML at [0][9][0],
-// mind-map tree at [0][9][3].
+// rowKind reads an artifact row's kind: the type code at [2], refined for
+// the shared code 4 by the variant at [9][1][0]. Only variant 1
+// (flashcards) is live-verified (capture #2: gArtLc, v9rmvd, R7cb6c);
+// other variants stay StudioInteractive.
+func rowKind(r []byte) StudioKind {
+	typ, _ := wire.Int(r, 2)
+	k := KindFromTypeCode(typ)
+	if k == StudioInteractive {
+		if v, _ := wire.Int(r, 9, 1, 0); v == flashcardsVariant {
+			return StudioFlashcards
+		}
+	}
+	return k
+}
+
+// getArtifactParams is pinned by live capture #2 (2026-10-20, v9rmvd):
+// [artifact_id, artifactGetOptions()]. The web app polled it while a
+// flashcards artifact generated; the answer is the artifact row (gArtLc
+// layout) wrapped in a list.
+func getArtifactParams(id string) []any { return []any{id, artifactGetOptions()} }
+
+// GetArtifact reads an artifact's interactive content (v9rmvd). The request
+// is live-verified; HTML at [0][9][0] and the mind-map tree at [0][9][3] are
+// catalog consensus (the captured row was still generating and had "" at
+// [0][9][0]).
 func (c *Client) GetArtifact(ctx context.Context, id string) (ArtifactContent, error) {
 	if id == "" {
 		return ArtifactContent{}, fmt.Errorf("nlm: artifact id is empty")
 	}
-	p, err := c.do(ctx, "studio.get", []any{id}, callOpts{idempotent: true, null: wire.NullAllowed})
+	p, err := c.do(ctx, "studio.get", getArtifactParams(id), callOpts{idempotent: true, null: wire.NullAllowed})
 	if err != nil {
 		return ArtifactContent{}, err
 	}
@@ -176,13 +198,113 @@ type StudioRequest struct {
 	SourceIDs    []string
 	Instructions string
 	Language     string
+	Quantity     string // flashcards: number of cards
+	Difficulty   string // flashcards
 }
 
-// Generate is blocked: R7cb6c has no live fixture and its first element,
-// per-kind config slots and enum values conflict between upstreams.
-func (c *Client) Generate(_ context.Context, _ string, r StudioRequest) (Artifact, error) {
-	return Artifact{}, &transport.Error{
-		Kind: transport.KindUnsupported, RPC: "studio.create",
-		Message: fmt.Sprintf("generating %q artifacts is not supported yet: the request needs a live capture (rpc-catalog §10 items 24-32)", r.Kind),
+// Flashcards options pinned by live capture #2 (2026-10-20): the UI choices
+// "Fewer cards" and "Hard" sent 1 and 3. Other values (standard/more cards,
+// easy/medium) have no live capture and are refused.
+const flashcardsVariant = 1
+
+var (
+	flashcardQuantities   = map[string]int{"fewer": 1}
+	flashcardDifficulties = map[string]int{"hard": 3}
+	// knownFlashcard* are the UI choices; a known but unpinned value is
+	// KindUnsupported, anything else KindInvalidArgument.
+	knownFlashcardQuantities   = map[string]bool{"fewer": true, "standard": true, "more": true}
+	knownFlashcardDifficulties = map[string]bool{"easy": true, "medium": true, "hard": true}
+)
+
+// Defaults for empty StudioRequest fields: the pinned flashcards options and
+// the language the capture sent.
+const (
+	defaultFlashcardQuantity   = "fewer"
+	defaultFlashcardDifficulty = "hard"
+	defaultStudioLanguage      = "en"
+)
+
+// flashcardsParams is pinned by live capture #2 (2026-10-20, R7cb6c,
+// Flashcards with "Fewer cards", "Hard", "Text only" and a topic):
+//
+//	[artifactOptions(), nb, [null, null, 4, [[[sid]]..], null×5,
+//	  [null, [1, null, topic, lang, null, null, [quantity, difficulty, [1]]]]]]
+//
+// Type 4 with variant 1 is flashcards; the config sits at slot 9. The
+// trailing [1] is the "Text only" choice, the only one captured. The web
+// app also listed notes as sources ([null×6,[note_id,2]]); that is not
+// proven for this client, so only sources are
+// sent here.
+func flashcardsParams(nb string, sources []string, topic, lang string, quantity, difficulty int) []any {
+	srcs := make([]any, len(sources))
+	for i, s := range sources {
+		srcs[i] = []any{[]any{s}}
 	}
+	cfg := []any{nil, []any{flashcardsVariant, nil, topic, lang, nil, nil, []any{quantity, difficulty, []any{1}}}}
+	return []any{artifactOptions(), nb, []any{nil, nil, 4, srcs, nil, nil, nil, nil, nil, cfg}}
+}
+
+// Generate starts one Studio artifact (R7cb6c, never retried) and returns
+// it as pending; poll ListArtifacts for its status. Only flashcards are
+// supported: their request is pinned by live capture #2. They need
+// Instructions (the topic; a request without one was not captured) and
+// accept only the captured options (Quantity "fewer", Difficulty "hard", the
+// defaults). Language defaults to "en". Empty SourceIDs means every source
+// of the notebook. Other kinds return KindUnsupported: their config slots
+// and enums conflict between upstreams and have no live capture.
+func (c *Client) Generate(ctx context.Context, nb string, r StudioRequest) (Artifact, error) {
+	if r.Kind != StudioFlashcards {
+		return Artifact{}, &transport.Error{
+			Kind: transport.KindUnsupported, RPC: "studio.create",
+			Message: fmt.Sprintf("generating %q artifacts is not supported yet: the request needs a live capture (rpc-catalog §10 items 24-32)", r.Kind),
+		}
+	}
+	q, d := r.Quantity, r.Difficulty
+	if q == "" {
+		q = defaultFlashcardQuantity
+	}
+	if d == "" {
+		d = defaultFlashcardDifficulty
+	}
+	if !knownFlashcardQuantities[q] {
+		return Artifact{}, invalidArg("studio.create", fmt.Sprintf("flashcards quantity must be fewer, standard or more, got %q", q))
+	}
+	if !knownFlashcardDifficulties[d] {
+		return Artifact{}, invalidArg("studio.create", fmt.Sprintf("flashcards difficulty must be easy, medium or hard, got %q", d))
+	}
+	qv, qok := flashcardQuantities[q]
+	dv, dok := flashcardDifficulties[d]
+	if !qok || !dok {
+		return Artifact{}, &transport.Error{Kind: transport.KindUnsupported, RPC: "studio.create",
+			Message: fmt.Sprintf("flashcards with quantity %q and difficulty %q are not supported yet: only quantity fewer and difficulty hard are pinned by a live capture", q, d)}
+	}
+	if strings.TrimSpace(r.Instructions) == "" {
+		return Artifact{}, &transport.Error{Kind: transport.KindUnsupported, RPC: "studio.create",
+			Message: "flashcards without instructions (a topic) are not supported yet: only a request with a topic is pinned by a live capture"}
+	}
+	lang := r.Language
+	if lang == "" {
+		lang = defaultStudioLanguage
+	}
+	sources := r.SourceIDs
+	if len(sources) == 0 {
+		ids, err := c.notebookSourceIDs(ctx, nb)
+		if err != nil {
+			return Artifact{}, err
+		}
+		if len(ids) == 0 {
+			return Artifact{}, invalidArg("studio.create", "notebook has no sources")
+		}
+		sources = ids
+	}
+	p, err := c.do(ctx, "studio.create", flashcardsParams(nb, sources, r.Instructions, lang, qv, dv), callOpts{sourcePath: notebookPath(nb), null: wire.NullAllowed})
+	if err != nil {
+		return Artifact{}, err
+	}
+	row, ok := wire.At(p, 0)
+	if !ok || wire.Str(row, 0) == "" {
+		return Artifact{}, &transport.Error{Kind: transport.KindDrift, RPC: "studio.create", Message: "create answered without an artifact id"}
+	}
+	code, _ := wire.Int(row, 4)
+	return Artifact{ID: wire.Str(row, 0), Title: wire.Str(row, 1), Kind: rowKind(row), Status: statusFromCode(code), MediaURLs: map[string]string{}}, nil
 }

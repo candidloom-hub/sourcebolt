@@ -38,7 +38,7 @@ func (s *server) registerNotes(m *mcp.Server) {
 
 	register(s, m, "core", &mcp.Tool{
 		Name:        "note_save",
-		Description: "Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT. The payload shape is not live-verified.",
+		Description: "Create a note, or update an existing one (note = id or title). from_turn (save a chat turn as a note) is not available yet and returns UNSUPPORTED_BY_TRANSPORT.",
 		Annotations: writeAnn("Save note", false, false, false),
 	}, s.noteSave)
 }
