@@ -25,8 +25,7 @@ A terminal is a window where you type commands.
 
 You should see a window with a blinking cursor.
 
-![Step 1: an empty PowerShell window and an empty Mac Terminal window](../assets/guides/claude-desktop/step1.png)
-<!-- screenshot: Windows PowerShell freshly opened from the Start menu, prompt visible, no commands typed yet; inset or side-by-side with an empty macOS Terminal window -->
+![Step 1: a new Windows PowerShell window waiting at its prompt, nothing typed yet (a Mac Terminal window looks similar)](../assets/term/powershell-new.svg)
 
 ### Step 2: Install sourcebolt
 
@@ -46,8 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 
 The installer downloads sourcebolt, checks that the file is genuine, and installs it for your user only. You should see a line saying sourcebolt was installed, with its version number.
 
-![Step 2: the installer finished and shows the installed version](../assets/guides/claude-desktop/step2.png)
-<!-- screenshot: terminal after the one-line installer ran: download and checksum lines, the "Installed: sourcebolt 0.x.y" line, and the question asking whether to run sourcebolt setup now -->
+![Step 2: the installer downloads sourcebolt, verifies its SHA-256 checksum, prints "Installed: sourcebolt 0.3.1", and asks whether to run sourcebolt setup now](../assets/term/install-windows.svg)
 
 ### Step 3: Connect Claude Desktop
 
@@ -61,8 +59,7 @@ sourcebolt setup
 
 Setup lists the AI apps it found on your computer. When it asks about **Claude Desktop**, answer yes. It saves a backup of Claude Desktop's settings before it changes them.
 
-![Step 3: sourcebolt setup asking whether to connect Claude Desktop](../assets/guides/claude-desktop/step3.png)
-<!-- screenshot: terminal running sourcebolt setup: the list of detected apps with Claude Desktop in it, the yes/no question for Claude Desktop answered "y", and the line confirming the backup was saved -->
+![Step 3: sourcebolt setup finds Claude Desktop, asks "Connect sourcebolt to Claude Desktop?", gets y, and prints where it saved the backup](../assets/term/setup-claude-desktop.svg)
 
 ### Step 4: Sign in to Google
 

@@ -28,8 +28,7 @@ Choose one way:
 
 You should see a window with a blinking cursor.
 
-![Step 1: an empty terminal window](../assets/guides/chatgpt-desktop/step1.png)
-<!-- screenshot: a fresh Windows PowerShell window opened from the Start menu, prompt visible, nothing typed yet -->
+![Step 1: a new Windows PowerShell window waiting at its prompt, nothing typed yet](../assets/term/powershell-new.svg)
 
 ### Step 2: Install sourcebolt
 
@@ -51,8 +50,7 @@ The installer downloads sourcebolt, checks that the file is genuine, and install
 
 When it asks whether to run setup now, type `n` and press Enter.
 
-![Step 2: the installer finished and shows the installed version](../assets/guides/chatgpt-desktop/step2.png)
-<!-- screenshot: terminal after the one-line installer ran: download and checksum lines, the "Installed: sourcebolt 0.x.y" line, and the setup question answered "n" -->
+![Step 2: the installer downloads sourcebolt, verifies its SHA-256 checksum, prints "Installed: sourcebolt 0.3.1", and the setup question is answered n](../assets/term/install-windows-no-setup.svg)
 
 ### Step 3: Sign in to Google
 

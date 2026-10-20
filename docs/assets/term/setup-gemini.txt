@@ -1,0 +1,9 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt setup
+Looking for AI apps on this computer...
+  found Gemini CLI
+
+Connect sourcebolt to Gemini CLI? [Y/n] y
+
+Connected Gemini CLI (C:\Users\you\.gemini\settings.json).
+  Backup: C:\Users\you\.gemini\settings.json.sourcebolt-backup-20261021-051221

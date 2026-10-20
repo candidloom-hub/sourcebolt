@@ -1,0 +1,9 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt setup
+Looking for AI apps on this computer...
+  found Windsurf
+
+Connect sourcebolt to Windsurf? [Y/n] y
+
+Connected Windsurf (C:\Users\you\AppData\Roaming\devin\mcp_config.json).
+  Backup: C:\Users\you\AppData\Roaming\devin\mcp_config.json.sourcebolt-backup-20261021-051219
