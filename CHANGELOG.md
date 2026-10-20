@@ -9,24 +9,27 @@ Shapes pinned by live capture #2 (2026-10-20); see `research/rpc-catalog.md` (ro
 ### Added
 
 - `studio_generate` kind `flashcards`: needs `instructions` (the topic) and accepts `flashcards.quantity` `fewer` and `flashcards.difficulty` `hard`, the only options the capture pinned (also the defaults). Language defaults to `en`, sources to every source of the notebook. The quota check still runs first.
-- `delete` kinds `source`, `note` and `chat_history` (a conversation's whole history; ids are conversation ids). Same preview and `confirm:true` gate as notebooks; refs are matched strictly against a fresh list of the notebook's items.
+- `delete` kinds `source`, `note` and `chat_history` (a conversation's whole history; ids are conversation ids). Same preview and `confirm:true` gate as notebooks; refs are matched strictly against a fresh list of the notebook's items. The `chat_history` preview shows each conversation's created and updated times and, when its whole history can be read, the first question; only the newest 20 conversations are reachable (an older id gets `UNSUPPORTED_BY_TRANSPORT`, not `NOT_FOUND`).
 - `source_read` mode `guide`: the source guide's summary as `text` plus `keywords`.
 - `studio_list` reports flashcards artifacts as kind `flashcards` instead of `interactive`.
 
 ### Changed
 
 - `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
-- Notebook rename, load-source, suggestion and artifact-read requests match the live web app (options block added, empty query slots dropped, full `v9rmvd` form).
+- Notebook rename, text load-source and artifact-read requests match the live web app (options block added, full `v9rmvd` form). Markdown load-source and chat suggestions were not captured and keep their earlier requests.
+- `note_list` (and so `note_save` and the note delete) skips rows that are not notes, such as note-backed mind maps.
+- `source_read` reports drift instead of returning empty text when an answer has no text blocks and no HTML.
+- `source_add` lists the notebook before adding, so that a source missing from the add answer is only reported added when its row is new; a match with a source that already existed is pending.
 
 ### Fixed
 
 - `source_read` returned a source's text as one run-on line: text blocks sit one level deeper than the research catalog said.
-- Chat citations: a marker lists passage indices, not a range. Answers citing a single passage had no citations, and answers whose markers cite several passages lost some.
+- Chat citations: a marker lists passage indices, not a range (checked against both live captures). Answers citing a single passage had no citations, and answers whose markers cite several passages lost some. Exact duplicates are dropped and malformed indices skipped.
 - `source_add`: an item missing from a successful add answer was reported failed although Google had added it (seen live with YouTube). It is now looked up in the notebook: found is added, not found is failed, a failed lookup is pending.
 
 ### Known limitations
 
-- Replaces the 0.1.0 list. Not available yet: Studio generation other than flashcards, and flashcards with other options (standard or more cards, easy or medium, no topic); artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`; saving a chat turn as a note (the save request carries the answer's rich-text and citation structures, which the client does not keep).
+- Replaces the 0.1.0 list. Not available yet: Studio generation other than flashcards, and flashcards with other options (standard or more cards, easy or medium, no topic) or with notes as sources; artifact, label and collection deletes; Drive and file sources; source refresh; followup suggestions; label create and auto-label; research `discover`; saving a chat turn as a note (the save request carries the answer's rich-text and citation structures, which the client does not keep).
 - Uncached `notebook_list` overhead: as listed for 0.1.0 (not re-measured for these changes).
 
 ## [0.1.0] - 2026-10-20
