@@ -51,7 +51,7 @@ Direct requests are faster and lighter than driving a web page, but they break w
 | Add web pages and pasted text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Add files or Google Drive | ❌ | ✅ | ✅ | ❌ | ⚠️ [^tmc-upload] | ✅ | ⚠️ [^pan-upload] |
 | Web research and import | ✅ | ✅ | ✅ | ❌ | ✅ | ⚠️ [^roo-research] | ⚠️ [^pan-research] |
-| Studio generation (audio, video, slides, ...) | ⚠️ [^sb-studio] | ✅ 10 kinds | ✅ 9 kinds | ⚠️ audio only | ✅ [^tmc-studio] | ✅ | ⚠️ [^pan-studio] |
+| Studio generation (audio, video, slides, ...) | ✅ 10 kinds [^sb-studio] | ✅ 10 kinds | ✅ 9 kinds | ⚠️ audio only | ✅ [^tmc-studio] | ✅ | ⚠️ [^pan-studio] |
 | Download Studio artifacts | ❌ | ✅ | ✅ | ⚠️ audio only | ? | ⚠️ [^roo-dl] | ⚠️ audio only |
 | Notes | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ? |
 | Sharing | ✅ | ✅ | ✅ | ❌ | ⚠️ audio only | ⚠️ public link | ? |
@@ -74,7 +74,7 @@ Direct requests are faster and lighter than driving a web page, but they break w
 
 ## Where others are ahead
 
-- **Studio and downloads.** notebooklm-py and gemini-notebook-mcp-cli generate and download most Studio kinds (audio, video, slides, infographics, reports, quizzes, flashcards, mind maps, data tables). sourcebolt does not yet.
+- **Studio options and downloads.** notebooklm-py and gemini-notebook-mcp-cli offer more Studio option values and download the results. sourcebolt generates all ten kinds but only with the option values a live capture confirmed, and does not download artifacts yet.
 - **Files and Drive.** notebooklm-py, gemini-notebook-mcp-cli and roomi-fields add local files and Drive documents.
 - **Breadth.** gemini-notebook-mcp-cli has 53 tools, including collections, cross-notebook queries, pipelines and exports to Google Docs and Sheets.
 - **Library use.** notebooklm-py is a full Python library with a large CLI and a REST server.
@@ -109,7 +109,7 @@ You can also run more than one: for example sourcebolt for daily questions and a
 [^pan-upload]: `upload_document` sends files to the Gemini API, not to NotebookLM ([notes](../research/notes/Pantheon-Security__notebooklm-mcp-secure.md)).
 [^roo-research]: Fast web research only; deep research is not wired up ([notes](../research/notes/roomi-fields__notebooklm-mcp.md)).
 [^pan-research]: `deep_research` uses the Gemini API, not NotebookLM's research.
-[^sb-studio]: v0.1.0 lists Studio artifacts and checks quota. Newer builds generate flashcards only. Other kinds return `UNSUPPORTED_BY_TRANSPORT` until their request formats are confirmed ([tools.md](tools.md#studio_generate)).
+[^sb-studio]: v0.1.0 lists Studio artifacts and checks quota. Newer builds generate every kind with the web app's defaults and the option values confirmed by live captures; other values return `UNSUPPORTED_BY_TRANSPORT` ([tools.md](tools.md#studio_generate)).
 [^tmc-studio]: MCP tools for audio, video, slide decks and app artifacts (mind map, canvas, prototype).
 [^pan-studio]: Audio, video and data tables through the page.
 [^roo-dl]: Downloads three media types.
