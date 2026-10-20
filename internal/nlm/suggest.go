@@ -12,7 +12,10 @@ import (
 // Which fields are set depends on the surface:
 //
 //	chat:          Title, Prompt
-//	report:        Title, Description, Prompt, Audience (1 general, 2 expert)
+//	report:        Title, Description, Prompt, Audience (1 or 2; live rows
+//	               have both, meaning per the catalog 1 general, 2 expert).
+//	               Title, Description and Prompt fit studio_generate's
+//	               report (title, description, instructions).
 //	studio_options: Group (0-3, position in the response), Code (type/preset
 //	               code, 0 when the row has none), Title, Description
 type Suggestion struct {
@@ -56,13 +59,12 @@ func chatSuggestParams(nb string, sources []string, query string) []any {
 	return promptSuggestParams(nb, sources, chatSuggestMode, query)
 }
 
-// shape: catalog consensus, not live-verified. [[2], nb(, [[sid]..])]
+// reportSuggestParams is pinned by live capture #3 (2026-10-20, ciyUvf
+// from the report dialog): [ARTIFACT_OPTS, nb, [[sid]..]] with every
+// source listed. The catalog's [[2], nb] form was the options block
+// misread.
 func reportSuggestParams(nb string, sources []string) []any {
-	p := []any{[]any{2}, nb}
-	if len(sources) > 0 {
-		p = append(p, sourceRefs(sources))
-	}
-	return p
+	return []any{artifactOptions(), nb, sourceRefs(sources)}
 }
 
 func sourceRefs(ids []string) []any {
@@ -90,6 +92,13 @@ func (c *Client) Suggest(ctx context.Context, nb, surface string, sources []stri
 		}
 		return out, nil
 	case "report":
+		if len(sources) == 0 {
+			ids, err := c.notebookSourceIDs(ctx, nb)
+			if err != nil {
+				return nil, err
+			}
+			sources = ids
+		}
 		p, err := c.do(ctx, "studio.report_suggestions", reportSuggestParams(nb, sources), opts)
 		if err != nil {
 			return nil, err
