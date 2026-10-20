@@ -64,6 +64,12 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - The repo is public: never commit absolute local paths, the owner's name, notebook ids or titles. Scrub before pushing.
 - Before tagging, dry-run `release.yml` (workflow_dispatch, publish inputs false) after any change to release actions or GoReleaser.
 - Race builds inflate allocation counts: alloc-budget tests skip under `-race` (`raceEnabled`).
+- npm: scoped platform packages need the npm org `candidloom-hub`; the npm account has staged publishing, so every publish waits for the owner's 2FA approval on npmjs.com (platform packages first, `sourcebolt` last).
+- Capture hook: check that request bodies are non-empty after the first UI action before doing the rest; ask the owner to disable autofill extensions first.
+- computer-use: IDEs and terminals are click-only (no typing); browsers are view-only. Crop app screenshots to the app window; blur names, emails, notebook titles.
+- Windows PowerShell 5.1 strips quotes from JSON args to native tools (`code --add-mcp`): use `--%` or edit the file.
+- Run `go test -short ./...` before every push; edit Go/Markdown with the Edit tool, not Python string replace.
+- Security-review shell installers before merge (piped-to-shell scripts).
 
 ## Architecture
 

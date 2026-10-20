@@ -226,6 +226,34 @@ func TestCtxCancel(t *testing.T) {
 	}
 }
 
+// TestCtxCancelBeatsBody: when the caller cancels while the answer is being
+// read, Do reports the cancel, not what the cut-short body decodes to (an
+// empty body reads as AUTH_REQUIRED, which would send the user to sign in).
+func TestCtxCancelBeatsBody(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := newFake(t, func(n int, w http.ResponseWriter, r *http.Request) {
+		// Headers first, so the client is already reading the body when
+		// the cancel lands; the body then ends empty.
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	})
+	tr, _ := newTransport(t, f)
+	if err := tr.Warm(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := tr.Do(ctx, listCall)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
+	}
+	var te *transport.Error
+	if !errors.As(err, &te) || !te.Sent {
+		t.Fatalf("want a *transport.Error with Sent set, got %#v", err)
+	}
+}
+
 // TestSentFlag: Error.Sent is true only when the request reached the
 // server, and survives a later failed re-bootstrap.
 func TestSentFlag(t *testing.T) {
