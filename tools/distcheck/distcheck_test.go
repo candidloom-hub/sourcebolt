@@ -94,7 +94,7 @@ func TestRegistryDocBlocksAreValid(t *testing.T) {
 
 func TestClaudePluginMarketplace(t *testing.T) {
 	var mk struct {
-		Name    string `json:"name"`
+		Name    string                `json:"name"`
 		Owner   struct{ Name string } `json:"owner"`
 		Plugins []struct {
 			Name   string `json:"name"`
