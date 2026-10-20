@@ -12,12 +12,12 @@ The work has three phases:
 2. **Synthesis.** Merge the findings into one feature matrix. Choose the stack and architecture.
 3. **Build and release.** Implement the server, test it against real NotebookLM, and publish it.
 
-## Current state (2026-10-14)
+## Current state (2026-10-20)
 
-- GitHub remote: candidloom-hub/sourcebolt, still private. Fresh repo created 2026-10-14 from history rewritten with git filter-repo (local path removed); the old repo is the private `candidloom-hub/sourcebolt-archive` (old PRs #1-#9, local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
-- `main` has P1 core and P2 tools. Branch `feat/release` (P5 docs, registry metadata) is pushed, not merged; PR candidloom-hub/sourcebolt#1. No tag yet, nothing published.
-- Release gate approved by the owner 2026-10-14: make repo public, merge feat/release, tag v0.1.0, publish. npm needs the owner's `NPM_TOKEN` secret; PyPI needs a trusted publisher set up by the owner.
-- Live capture #2 in progress; see `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
+- GitHub: candidloom-hub/sourcebolt is **public** (since 2026-10-14) with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (old PRs #1-#9, local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
+- `main` has P1-P3 tools, P4 transports and login, P5 packaging and docs, the backlog fixes (PR #8) and the design-call fixes (PR #13). In flight: B3 perf (PR #12), DOM fallback (branch `feat/dom-fallback`, plan `docs/superpowers/plans/2026-10-14-p4-task5-dom-fallback.md`).
+- Release: owner approved tag v0.1.0 and the GitHub release (2026-10-20). **On hold until the owner approves:** npm, PyPI (need the owner's `NPM_TOKEN` secret and a PyPI trusted publisher) and the MCP registry listing.
+- Live capture #2 approved 2026-10-20; see `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands
 
@@ -60,6 +60,9 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 - Live capture: in-page XHR hook via Claude in Chrome. Export via clipboard only from the focused tab; check the file starts with `{"log"`; skeletonize payloads over ~1 MB first. Page CSP blocks localhost and downloads are blocked.
 - Payloads with `)]}'` or apostrophes: write files with the Write tool, not heredocs or `node -e`.
 - Commands for the owner use `.\bin\sourcebolt.exe`, never bare `sourcebolt`.
+- The repo is public: never commit absolute local paths, the owner's name, notebook ids or titles. Scrub before pushing.
+- Before tagging, dry-run `release.yml` (workflow_dispatch, publish inputs false) after any change to release actions or GoReleaser.
+- Race builds inflate allocation counts: alloc-budget tests skip under `-race` (`raceEnabled`).
 
 ## Architecture
 
@@ -82,4 +85,4 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 
 ## Decisions pending (owner: user)
 
-- None open. Gates approved; remaining owner-only steps: `NPM_TOKEN` secret, PyPI trusted publisher, private vulnerability reporting.
+- Approve npm, PyPI and MCP registry publishing (on hold). Owner-only setup before that: `NPM_TOKEN` repo secret, PyPI trusted publisher.
