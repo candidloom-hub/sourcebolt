@@ -21,7 +21,7 @@ Shapes pinned by live captures #2, #3 and #3b (2026-10-20); see `research/rpc-ca
 - **Breaking:** `chat_configure` accepts mode `default`, `learning_guide` or `custom` and response_length `default`, `longer` or `shorter`, the values captures #3 and #3b saved; mode `default` with response_length `default` resets a notebook. Modes `concise` and `detailed` are removed.
 - `suggest` surface `report` no longer returns `audience`: the number has no verified meaning.
 - `suggest` surface `report` sends the live request (artifact options block and every source when none are given).
-- `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
+- `notebook_list` returns 20 notebooks by default instead of 50. `total` still counts every match; pass `offset` for the next page or a larger `limit` (pages come from the 30 s cache, so paging makes no extra Google call). Each listed notebook is sent twice (structured content and its JSON text fallback) and decoded by the client, so the smaller page cuts the cached call's overhead by about half (B3, see `bench/RESULTS.md`).- `note_save` creates a note in one call with its title and content, as the web app's "Copied text" flow does; updates send the live note-edit shape.
 - Notebook rename, text load-source and artifact-read requests match the live web app (options block added, full `v9rmvd` form). Markdown load-source and chat suggestions were not captured and keep their earlier requests.
 - `note_list` (and so `note_save` and the note delete) skips rows that are not notes, such as note-backed mind maps.
 - `source_read` reports drift instead of returning empty text when an answer has no text blocks and no HTML.

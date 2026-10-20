@@ -285,7 +285,7 @@ Annotations: title: List notebooks, readOnly: true, idempotent: true, openWorld:
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `limit` | integer | no | max notebooks to return (default 50) |
+| `limit` | integer | no | max notebooks to return (default 20) |
 | `offset` | integer | no | skip this many notebooks |
 | `query` | string | no | case-insensitive filter on notebook titles |
 | `refresh` | boolean | no | bypass the 30 s cache |

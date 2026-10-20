@@ -12,13 +12,13 @@ import (
 
 const (
 	listTTL      = 30 * time.Second
-	defaultLimit = 50
+	defaultLimit = 20
 )
 
 type NotebookListIn struct {
 	Query   string `json:"query,omitempty" jsonschema:"case-insensitive filter on notebook titles"`
 	Scope   string `json:"scope,omitempty" jsonschema:"mine, shared or all (default all)"`
-	Limit   int    `json:"limit,omitempty" jsonschema:"max notebooks to return (default 50)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"max notebooks to return (default 20)"`
 	Offset  int    `json:"offset,omitempty" jsonschema:"skip this many notebooks"`
 	Refresh bool   `json:"refresh,omitempty" jsonschema:"bypass the 30 s cache"`
 }
