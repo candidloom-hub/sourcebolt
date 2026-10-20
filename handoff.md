@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-21. v0.3.1 is tagged; the release run, npm, the MCP registry, winget and directory submissions follow (owner approved all four; PyPI and launch posts stay held).
+Updated 2026-10-21. v0.3.1 is released (GitHub, GHCR, Homebrew tap, Scoop bucket); npm, the MCP registry and directory submissions are in progress (owner approved; PyPI and launch posts stay held).
 
 # Goal — what we're actually building
 
@@ -17,7 +17,7 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
 - **v0.3.1:** tagged on the PR #34 merge commit. Same content as v0.3.0 plus the token fix.
 - Merged today: #29 (handoff, rpc cancel fix), #30 (installers), #31 (setup, squash), #32 (beginner guides), #33 (v0.3.0 prep, real-binary installer CI, macOS keyring timeout), #34 (v0.3.1).
 - Repo description and topics updated for directories (`gemini-cli-extension` topic feeds the Gemini gallery).
-- Fork `candidloom-hub/winget-pkgs` exists for the winget PR.
+- winget: microsoft/winget-pkgs#457468 (from the `candidloom-hub/winget-pkgs` fork). The owner signs the Microsoft CLA when its bot asks.
 - `mcp-publisher` v1.8.1 (checksum-verified) is in the session scratchpad; `mcp-publisher login github` needs a one-time device code from the owner.
 - Directory plan: `.superpowers/submissions-v0.3.0.md` (git-ignored).
 
