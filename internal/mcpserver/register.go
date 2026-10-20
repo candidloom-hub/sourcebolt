@@ -33,12 +33,25 @@ func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp
 	if tt.OutputSchema == nil {
 		tt.OutputSchema = outSchema
 	}
+	// Validate against the advertised schemas.
+	if s, ok := tt.InputSchema.(*jsonschema.Schema); ok {
+		inSchema = s
+	}
+	if s, ok := tt.OutputSchema.(*jsonschema.Schema); ok {
+		outSchema = s
+	}
 	// Resolving is over half of New's cost; most sessions call a few tools,
-	// so each schema is resolved on its tool's first call.
-	inResolved := sync.OnceValue(func() *jsonschema.Resolved { return resolveSchema(inSchema) })
-	outResolved := sync.OnceValue(func() *jsonschema.Resolved { return resolveSchema(outSchema) })
+	// so each schema is resolved on its tool's first call. A schema that
+	// does not resolve fails the call as a tool error (the server keeps
+	// serving); TestAdvertisedSchemasResolve keeps that out of releases.
+	inResolved := sync.OnceValues(func() (*jsonschema.Resolved, error) { return resolveSchema(inSchema) })
+	outResolved := sync.OnceValues(func() (*jsonschema.Resolved, error) { return resolveSchema(outSchema) })
 	return &tt, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		in, err := decodeArgs[In](req.Params.Arguments, inResolved())
+		ir, err := inResolved()
+		if err != nil {
+			return errorResult(fmt.Errorf("tool %s: input schema: %w", tt.Name, err)), nil
+		}
+		in, err := decodeArgs[In](req.Params.Arguments, ir)
 		if err != nil {
 			return errorResult(err), nil
 		}
@@ -55,7 +68,11 @@ func typedHandler[In, Out any](t *mcp.Tool, h func(ctx context.Context, req *mcp
 			if err := json.Unmarshal(b, &v); err != nil {
 				return nil, fmt.Errorf("validating tool output: %w", err)
 			}
-			if err := outResolved().Validate(&v); err != nil {
+			or, err := outResolved()
+			if err != nil {
+				return nil, fmt.Errorf("validating tool output: output schema: %w", err)
+			}
+			if err := or.Validate(&v); err != nil {
 				return nil, fmt.Errorf("validating tool output: %w", err)
 			}
 		}
@@ -80,14 +97,10 @@ func schemaFor[T any]() *jsonschema.Schema {
 	return s
 }
 
-// resolveSchema prepares s for validation. TestAdvertisedSchemasResolve resolves
-// every tool's schemas, so a failure here is a programming error.
-func resolveSchema(s *jsonschema.Schema) *jsonschema.Resolved {
-	r, err := s.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
-	if err != nil {
-		panic(fmt.Sprintf("resolve schema: %v", err))
-	}
-	return r
+// resolveSchema prepares s for validation. TestAdvertisedSchemasResolve
+// resolves every tool's schemas, so a failure here is a programming error.
+func resolveSchema(s *jsonschema.Schema) (*jsonschema.Resolved, error) {
+	return s.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
 }
 
 // decodeArgs validates raw arguments (absent means {}), applies schema

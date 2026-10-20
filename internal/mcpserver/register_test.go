@@ -2,10 +2,12 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/candidloom-hub/sourcebolt/bench/benchdata"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -78,6 +80,45 @@ func TestBadArgumentsRejected(t *testing.T) {
 type badOut struct{ N int }
 
 func (badOut) MarshalJSON() ([]byte, error) { return []byte(`{"N":"x"}`), nil }
+
+// Schemas are resolved on a tool's first call; one that cannot be resolved
+// must fail that call as a tool error, not panic and end the server.
+func TestUnresolvableSchemaIsToolError(t *testing.T) {
+	broken := &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
+		"n": {Type: "integer", Default: json.RawMessage(`"not a number"`)},
+	}}
+	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "v0"}, nil)
+	srv.AddTool(typedHandler(&mcp.Tool{Name: "broken", InputSchema: broken}, func(context.Context, *mcp.CallToolRequest, struct {
+		N int `json:"n"`
+	}) (struct{}, error) {
+		return struct{}{}, nil
+	}))
+	srv.AddTool(typedHandler(&mcp.Tool{Name: "ok"}, func(context.Context, *mcp.CallToolRequest, struct{}) (struct{}, error) {
+		return struct{}{}, nil
+	}))
+	ct, st := mcp.NewInMemoryTransports()
+	ctx := context.Background()
+	if _, err := srv.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "v0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	for range 2 {
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "broken"})
+		if err != nil || !res.IsError {
+			t.Fatalf("broken schema: res = %+v, err = %v", res, err)
+		}
+		if txt := res.Content[0].(*mcp.TextContent).Text; !strings.Contains(txt, "schema") {
+			t.Fatalf("error text = %q", txt)
+		}
+	}
+	if res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "ok"}); err != nil || res.IsError {
+		t.Fatalf("server stopped serving: res = %+v, err = %v", res, err)
+	}
+}
 
 // Under test, a result that does not match its schema is an error.
 func TestOutputValidatedUnderTest(t *testing.T) {
