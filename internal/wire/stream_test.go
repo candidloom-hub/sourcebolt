@@ -124,7 +124,7 @@ func TestStreamThinkingThenAnswer(t *testing.T) {
 }
 
 func TestStreamCitationsLastSnapshotWins(t *testing.T) {
-	snaps, err := drain(NewStreamDecoder(bytes.NewReader(streamFixture(t, "citations_rewrite.txt"))))
+	snaps, err := drain(NewStreamDecoder(bytes.NewReader(streamFixture(t, "citations_rewrite_list.txt"))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestStreamCitationsLastSnapshotWins(t *testing.T) {
 }
 
 func TestStreamEmojiUTF16Offsets(t *testing.T) {
-	snaps, err := drain(NewStreamDecoder(bytes.NewReader(streamFixture(t, "emoji_utf16.txt"))))
+	snaps, err := drain(NewStreamDecoder(bytes.NewReader(streamFixture(t, "emoji_utf16_list.txt"))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestStreamNonStreamBodies(t *testing.T) {
 // A reader that returns one byte per call proves segments are assembled across
 // arbitrary read boundaries, including mid-string and mid-escape.
 func TestStreamOneByteReads(t *testing.T) {
-	body := streamFixture(t, "emoji_utf16.txt")
+	body := streamFixture(t, "emoji_utf16_list.txt")
 	snaps, err := drain(NewStreamDecoder(oneByteReader{bytes.NewReader(body)}))
 	if err != nil || len(snaps) != 1 || snaps[0].Citations[0].Start != 7 {
 		t.Fatalf("snaps=%+v err=%v", snaps, err)

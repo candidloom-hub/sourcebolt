@@ -325,10 +325,14 @@ func parseSnapshot(p []byte) (Snapshot, bool) {
 // Citation per passage index; citation N reads passage N-1. The second
 // element lists passage indices (live captures: [0,1] and [1,2] at two
 // markers match the type block's own list of passages 0,1 and 1,2; a
-// single-passage marker is [0]); it is not a [from, to) range. At most
+// single-passage marker is [0]); it is not a [from, to) range. The same N
+// at another offset is a separate citation; exact duplicates (same N, same
+// offsets) are dropped. At most
 // maxCitationRange indices are read per marker.
 func citations(markers, passages [][]byte) []Citation {
 	var out []Citation
+	type key struct{ n, start, end int }
+	seen := map[key]bool{}
 	for _, m := range markers {
 		mc, ok := splitElems(m)
 		if !ok || len(mc) < 2 {
@@ -351,6 +355,11 @@ func citations(markers, passages [][]byte) []Citation {
 			if !ok {
 				continue
 			}
+			k := key{idx + 1, start, end}
+			if seen[k] { // exact duplicate: same passage at the same offsets
+				continue
+			}
+			seen[k] = true
 			c := Citation{N: idx + 1, Start: start, End: end}
 			if idx < len(passages) {
 				c.SourceID = Str(passages[idx], 1, 5, 0, 0, 0)
