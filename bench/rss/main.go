@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,18 +49,28 @@ func main() {
 	bin := flag.String("bin", "", "also measure this binary idle after initialize")
 	notebooks := flag.Int("notebooks", 100, "notebooks in the fake list")
 	check := flag.Bool("check", false, "exit 1 unless peak RSS < 25 MB")
+	idleRuns := flag.Int("idle-runs", 5, "spawns of -bin; the median is reported")
 	flag.Parse()
 	if !supported {
 		fmt.Printf("B2 skipped: RSS measurement is not implemented on %s\n", runtime.GOOS)
 		return
 	}
 	if *bin != "" {
-		b, err := idleBinary(*bin)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "idle binary:", err)
-			os.Exit(1)
+		// One spawn varies by about 3 MB on shared runners (page cache and
+		// fault-around decide how much of the binary is resident), so the
+		// idle figure is the median of several.
+		var peaks []int64
+		for range *idleRuns {
+			b, err := idleBinary(*bin)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "idle binary:", err)
+				os.Exit(1)
+			}
+			peaks = append(peaks, b)
 		}
-		fmt.Printf("binary idle (after initialize + tools/list): peak RSS %s\n", mb(b))
+		slices.Sort(peaks)
+		fmt.Printf("binary idle (after initialize + tools/list): peak RSS %s (median of %d; min %s, max %s)\n",
+			mb(peaks[len(peaks)/2]), len(peaks), mb(peaks[0]), mb(peaks[len(peaks)-1]))
 	}
 	before, after, err := listInProcess(*notebooks)
 	if err != nil {
