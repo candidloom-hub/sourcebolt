@@ -105,6 +105,19 @@ func TestNoteFormatFlags(t *testing.T) {
 	}
 }
 
+// An empty paragraph keeps its runs slot: the default style goes to [1],
+// never into [0].
+func TestNoteContentEmptyParagraph(t *testing.T) {
+	got, _ := json.Marshal(noteContent([]any{}))
+	if string(got) != `[[],[null,1]]` {
+		t.Fatalf("content = %s", got)
+	}
+	got, _ = json.Marshal(noteBlock([]any{0.0, 0.0, []any{}}))
+	if string(got) != `[0,0,[[],[null,1]]]` {
+		t.Fatalf("block = %s", got)
+	}
+}
+
 // The answer block stays out of the JSON a tool returns.
 func TestAnswerBlockNotSerialized(t *testing.T) {
 	a := liveAnswer(t, "live3_2026-10-20_01")

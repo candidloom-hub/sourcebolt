@@ -141,9 +141,10 @@ func noteBlock(v any) any {
 
 // noteContent re-encodes a paragraph [runs, style, null, meta].
 func noteContent(c []any) []any {
-	if len(c) > 0 {
-		c[0] = mapList(c[0], noteRun)
+	if len(c) == 0 {
+		c = append(c, []any{}) // the runs slot comes first
 	}
+	c[0] = mapList(c[0], noteRun)
 	if len(c) < 2 {
 		c = append(c, []any{nil, 1})
 	}
