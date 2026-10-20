@@ -1,0 +1,16 @@
+{
+  "chat.input": ["textarea.query-box-input", "textarea[aria-label=\"Query box\"]"],
+  "chat.submit": ["query-box .submit-button button", "button.submit-button", "button[aria-label=\"Submit\"]"],
+  "chat.bubble": [".to-user-container", ".chat-message-pair"],
+  "chat.bubble_text": [".message-text-content"],
+  "chat.done": [".message-actions"],
+  "chat.alert": ["[role=\"alert\"]", ".error-message", ".rate-limit-message"],
+  "sources.add": [".add-source-button", "icon:add", "button[aria-label=\"Add source\"]", "text:Add source"],
+  "sources.dialog": ["mat-dialog-container[role=\"dialog\"]:not([data-sb-promo])", "[role=\"dialog\"]:not([data-sb-promo])"],
+  "sources.type_link": ["icon:link_2", "icon:link", "text:Website"],
+  "sources.type_text": ["icon:content_paste", "text:Copied text"],
+  "sources.url_input": ["[role=\"dialog\"] input[type=\"url\"]", "[role=\"dialog\"] textarea"],
+  "sources.text_input": ["[role=\"dialog\"] textarea"],
+  "sources.insert": ["button.mdc-button--unelevated.mat-primary", "text:Insert"],
+  "sources.row": [".single-source-container"]
+}
