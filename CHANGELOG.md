@@ -4,7 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-10-21
+## [0.3.1] - 2026-10-21
+
+The first published 0.3 release. It has every change listed under 0.3.0: the v0.3.0 tag exists, but its release run failed before anything was published.
+
+### Fixed
+
+- Release packaging: the Homebrew, Scoop and winget `token` fields used `envOrDefault`, which GoReleaser does not allow there (tokens accept exactly `{{ .Env.NAME }}`). Snapshot and dry runs never expand tokens, so only a real tag failed. `go test ./tools/distcheck` now checks the form.
+
+## [0.3.0] - 2026-10-21 (not published)
 
 Installing for people who never used a terminal: one command, a guided setup that connects your AI apps, and sign-in in a normal browser window.
 
@@ -141,7 +149,8 @@ First public release: GitHub release binaries and GHCR images. npm, PyPI and MCP
 - Studio generation, deletes other than notebooks, Drive and file sources, source guide and refresh, followup suggestions, label create and auto-label, research `discover`, and saving a chat turn as a note are not available yet.
 - Uncached `notebook_list` (100 notebooks) measures about 2.3 ms p50 on the 2-CPU CI runner, above the 2 ms overhead target. Most of the remaining time is MCP JSON-RPC encoding and decoding, and the benchmark counts the client's share too (see `bench/RESULTS.md`).
 
-[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0

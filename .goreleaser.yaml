@@ -148,7 +148,7 @@ homebrew_casks:
       owner: candidloom-hub
       name: homebrew-tap
       branch: main
-      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
 
 # Scoop: scoop bucket add candidloom-hub https://github.com/candidloom-hub/scoop-bucket
 #        scoop install candidloom-hub/sourcebolt
@@ -167,7 +167,7 @@ scoops:
       owner: candidloom-hub
       name: scoop-bucket
       branch: main
-      token: '{{ envOrDefault "HOMEBREW_TAP_TOKEN" "" }}'
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
 
 # winget: would open a PR from the candidloom-hub/winget-pkgs fork to microsoft/winget-pkgs.
 # Upload is OFF (skip_upload: true) even when WINGET_PKGS_TOKEN is set: a PR to a public
@@ -201,7 +201,7 @@ winget:
       owner: candidloom-hub
       name: winget-pkgs
       branch: "sourcebolt-{{ .Version }}"
-      token: '{{ envOrDefault "WINGET_PKGS_TOKEN" "" }}'
+      token: '{{ .Env.WINGET_PKGS_TOKEN }}'
       pull_request:
         enabled: true
         draft: true
