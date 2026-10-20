@@ -14,10 +14,11 @@ The work has three phases:
 
 ## Current state (2026-10-20)
 
-- GitHub: candidloom-hub/sourcebolt is **public** (since 2026-10-14) with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (old PRs #1-#9, local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
-- `main` has P1-P3 tools, P4 transports and login, P5 packaging and docs, the backlog fixes (PR #8) and the design-call fixes (PR #13). In flight: B3 perf (PR #12), DOM fallback (branch `feat/dom-fallback`, plan `docs/superpowers/plans/2026-10-14-p4-task5-dom-fallback.md`).
-- Release: owner approved tag v0.1.0 and the GitHub release (2026-10-20). **On hold until the owner approves:** npm, PyPI (need the owner's `NPM_TOKEN` secret and a PyPI trusted publisher) and the MCP registry listing.
-- v0.1.0 released 2026-10-20. Live capture #2 done (PR #17). See `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
+- GitHub: candidloom-hub/sourcebolt is **public** with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
+- **v0.2.0 released 2026-10-20**: GitHub release with 6 platform binaries, SBOMs, a cosign-signed checksums.txt, 6 `.mcpb` bundles, and GHCR images `0.2.0` and `0.2.0-browser`. v0.1.0 is immutable in the Go proxy; never re-tag a published version.
+- In v0.2.0: every Studio type with captured defaults, chat settings, save answer as note, source/note/chat-history delete, DOM fallback plus `doctor --dom-check`, the perf program (all targets met on CI), the docs rewrite, and distribution (Claude Code plugin marketplace, MCPB, install links, registry-ready `server.json`).
+- **On hold until the owner approves:** npm and PyPI (the owner's `NPM_TOKEN` secret and a PyPI trusted publisher are needed), the MCP registry publish, marketplace and directory submissions, and launch posts. Donations are off (option C) until the owner says a page is live.
+- See `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands
 
@@ -85,4 +86,5 @@ CLI (`cmd/sourcebolt`): `serve` (stdio; `--http 127.0.0.1:PORT --token-file f` f
 
 ## Decisions pending (owner: user)
 
-- Approve npm, PyPI and MCP registry publishing (on hold). Owner-only setup before that: `NPM_TOKEN` repo secret, PyPI trusted publisher.
+- Approve npm, PyPI and MCP registry publishing, plus marketplace/directory submissions and launch posts (all on hold). Owner-only setup: the `NPM_TOKEN` repo secret and a PyPI trusted publisher.
+- Donations: GitHub Sponsors is pending a Stripe India business setup (PAN); the alternative is Open Collective.

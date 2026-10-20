@@ -6,15 +6,12 @@ Updated 2026-10-20.
 Build **sourcebolt**: one Go MCP server (official go-sdk v1.8.0, Go 1.27, Apache-2.0, free) for Google NotebookLM. It unites the features of every public NotebookLM MCP upstream and beats them on speed. It uses internal batchexecute RPC first, with a browser fallback. Distribution: GitHub release binaries, GHCR Docker, npm, PyPI and the MCP registry. Repo: candidloom-hub/sourcebolt (private until the release gate). Source of truth: `docs/plans/2026-10-14-architecture.md`, `docs/mission-prompt.md`.
 
 # Current state
-- Repo candidloom-hub/sourcebolt is **public**; private vulnerability reporting is on. History was rewritten with git filter-repo before going public; old private repo: candidloom-hub/sourcebolt-archive (local remote `archive`).
-- **main** has P1 to P5, the backlog fixes (PR #8), the design-call fixes (PR #13) and the Dependabot bumps (#7, #9, #10, #11). CI green.
-- Merged 2026-10-20:
-  - PR #12, B3 perf: CI p50 2.26 ms uncached, 1.00 ms cached; allocations −72%.
-  - PR #14, DOM fallback (P4 Task 5): reviewed, and all 10 review findings fixed.
-- Release: tag v0.1.0 and the GitHub release are approved (2026-10-20). **On hold until the owner approves:** npm, PyPI and the MCP registry listing.
-- Capture #2 done 2026-10-20: 40 sanitized fixtures (PR #17, merged). Pinned shapes enabled flashcards generation, source/note/chat-history delete and the source guide, and fixed six request builders, source text nesting and citation decoding. The owner still has to delete the capture notebooks ("sourcebolt capture 2d" and the capture #1 notebook).
-- v0.1.0 released 2026-10-20 (GitHub release with binaries, SBOMs and a cosign-signed checksums file; GHCR images `0.1.0` and `0.1.0-browser`).
-- Live verified (2026-10-14): `login --attach`, read tools on 9 notebooks (RTT p50 848 ms), notebook_create → source_add → chat_ask with citation (18.4 s).
+- **v0.2.0 is released (2026-10-20)** and verified: checksums, the cosign signature, the binary's version, the `.mcpb` manifest (30 tools), the GHCR images `0.2.0` and `0.2.0-browser`, and `go install @v0.2.0` through the proxy.
+- `main` is at the v0.2.0 tag commit. CI is green. There are no open PRs, agent worktrees or stale branches.
+- Live captures #2, #3 and #3b are done. The owner deletes the capture notebooks.
+- The DOM fallback was verified live with `doctor --dom-check` (5.2 s).
+- Performance (CI, 2 CPUs): `notebook_list` 0.758 ms uncached and 0.398 ms cached; cold start 8.2 ms; idle memory 16.2 MB; chat first progress +0.30 ms.
+- On hold until the owner approves: npm, PyPI, the MCP registry, marketplace and directory submissions (see `research/marketplaces.md` and `docs/launch-plan.md`), and launch posts. Donations are off (option C).
 
 # Files touched
 - `cmd/sourcebolt/{main,serve,call,login,status}.go`: CLI (serve/call/login/logout/status/doctor); help documents NOTEBOOKLM_BROWSER_FALLBACK=0.
@@ -61,8 +58,11 @@ Do NOT retry these.
 - **Base-then-head bench runs**: they drift. Use interleave.sh.
 
 # Next steps
-1. Optional, owner-gated: check the DOM fallback against the live NotebookLM page (force drift with NOTEBOOKLM_RPC_IDS).
-2. B3: the uncached path is still above 2 ms on CI; a smaller default page is the remaining lever.
-3. Next capture (when needed): other Studio types and flashcards options, saving a chat answer as a note, paging of the conversation list, the markdown mode of `source_read`. Method: see CLAUDE.md lessons.
-4. Release: in CHANGELOG.md, turn [Unreleased] into [0.1.0], tag v0.1.0 on main, check the draft GitHub release, then publish it. npm, PyPI and the registry stay on hold.
-5. Owner-only: the `NPM_TOKEN` secret and the PyPI trusted publisher (when npm and PyPI are approved); delete the capture notebooks.
+1. Owner-gated publishing, in this order, each only on an explicit go:
+   - `NPM_TOKEN` and the PyPI trusted publisher, then run `release.yml` with the publish inputs on;
+   - add the npm and PyPI blocks back to `server.json` (`docs/registry.md`), then `mcp-publisher publish`;
+   - directory submissions;
+   - launch posts.
+2. Owner hands-on checks: the `.mcpb` bundle in Claude Desktop, the Claude Code plugin, and the VS Code and Cursor install links.
+3. The next capture, if wanted: other Studio option values, Studio media URLs, the conversation-list paging trigger. A demo GIF for the README.
+4. Donations: an e-PAN plus sole proprietorship for Stripe India, or Open Collective. Then add `.github/FUNDING.yml`.
