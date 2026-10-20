@@ -106,6 +106,8 @@ irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1
 curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh   # macOS, Linux
 ```
 
+Installing through an AI agent such as Cline? Point it at [llms-install.md](llms-install.md): agent-ready steps, where you still sign in to Google yourself.
+
 | Channel | Status | How |
 |---|---|---|
 | GitHub release binary | Available | Windows, macOS and Linux, on x64 and ARM64. See below. |
