@@ -84,7 +84,7 @@ func TestSuggestReportLive3(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != 4 || got[0].Title != "text-73" || got[0].Description != "text-74" || got[0].Prompt != "text-75" ||
-		got[0].Audience != 2 || got[2].Audience != 1 || got[3].Prompt != "text-84" {
+		got[3].Prompt != "text-84" {
 		t.Fatalf("got %+v", got)
 	}
 	c, _ := ft.callFor("ciyUvf")

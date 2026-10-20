@@ -264,6 +264,19 @@ func TestSuggest(t *testing.T) {
 	}
 }
 
+// Report suggestions return title, description and prompt; the row's
+// last number (the catalog's "audience") has no verified meaning and is
+// not part of the tool output.
+func TestSuggestReportHasNoAudience(t *testing.T) {
+	tr := newChatStub()
+	tr.payloads["ciyUvf"] = `[[["T","D",null,[["s1"]],"P",2]]]`
+	cs := connectChat(t, tr, nil, nil)
+	res := call(t, cs, "suggest", map[string]any{"notebook": idA, "surface": "report", "sources": []string{"Doc"}})
+	if res.IsError || !strings.Contains(text(res), `"prompt":"P"`) || strings.Contains(text(res), "audience") {
+		t.Fatalf("suggest = %s", text(res))
+	}
+}
+
 func TestChatToolAnnotations(t *testing.T) {
 	cs := connectChat(t, newChatStub(), jobs.New(), nil)
 	res, err := cs.ListTools(context.Background(), nil)

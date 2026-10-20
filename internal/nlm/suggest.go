@@ -12,17 +12,16 @@ import (
 // Which fields are set depends on the surface:
 //
 //	chat:          Title, Prompt
-//	report:        Title, Description, Prompt, Audience (1 or 2; live rows
-//	               have both, meaning per the catalog 1 general, 2 expert).
-//	               Title, Description and Prompt fit studio_generate's
-//	               report (title, description, instructions).
+//	report:        Title, Description, Prompt; they fit studio_generate's
+//	               report (title, description, instructions). The row's
+//	               last number (1 or 2 live; "audience" per the catalog)
+//	               has no verified meaning and is not returned.
 //	studio_options: Group (0-3, position in the response), Code (type/preset
 //	               code, 0 when the row has none), Title, Description
 type Suggestion struct {
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
 	Prompt      string `json:"prompt,omitempty"`
-	Audience    int    `json:"audience,omitempty"`
 	Group       int    `json:"group,omitzero"`
 	Code        int    `json:"code,omitempty"`
 }
@@ -105,8 +104,7 @@ func (c *Client) Suggest(ctx context.Context, nb, surface string, sources []stri
 		}
 		var out []Suggestion
 		for _, r := range wire.Elems(p, 0) {
-			aud, _ := wire.Int(r, 5)
-			out = append(out, Suggestion{Title: wire.Str(r, 0), Description: wire.Str(r, 1), Prompt: wire.Str(r, 4), Audience: int(aud)})
+			out = append(out, Suggestion{Title: wire.Str(r, 0), Description: wire.Str(r, 1), Prompt: wire.Str(r, 4)})
 		}
 		return out, nil
 	case "studio_options":
