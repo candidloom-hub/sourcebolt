@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-21. The work was stopped on the owner's request, partway through the "beginner install" batch.
+Updated 2026-10-21. The beginner-install batch is code-complete: 4 PRs open, waiting for owner merges.
 
 # Goal — what we're actually building
 
@@ -24,30 +24,12 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
 
 **`main`** is at `ca650aa` (PR #28 merged: npm docs, and `server.json` lists npm). CI is green.
 
-**Unmerged branches** (pushed, no PRs yet):
+**Open PRs** (none merged; merging is the owner's call). Merge in this order:
 
-- **`feat/installers`** (494ccd7, +5 commits). Contents:
-  - `install.ps1`, `install.sh` and their offline tests;
-  - CI installer jobs;
-  - GoReleaser `homebrew_casks`, `scoops` and `winget`;
-  - winget manifests;
-  - `docs/install.md`.
-
-  Release dry run passed. The **security review says NOT merge-ready**: 2 bugs, 14 risks (list under Next steps).
-
-- **`feat/setup-wizard`** (origin 684c1ee, +7). Contents:
-  - `sourcebolt setup` (detects Claude Desktop, Claude Code, Cursor, VS Code, Windsurf and Gemini CLI; backup, merge, `--undo`, `--dry-run`);
-  - `sourcebolt login` with no flags (a plain browser window with a debugging port).
-
-  **Live-tested**: login worked against real Google in 18 s, and `setup --dry-run` detected 5 apps correctly. The local worktree `.claude/worktrees/agent-a4e9190a087ec6574` has 2 **unpushed** commits on top: `7090063` (AUTH_REQUIRED guidance says "Run: sourcebolt login") and `c7455f9` (WIP: npx/temp executable detection, unfinished, tests may fail).
-
-- **`docs/beginner-guides`** (ba262bb, +3). Contents:
-  - `docs/install-with-ai.md` (prompts for 7 apps);
-  - `docs/guides/*.md` (7 apps, 42 screenshot slots, no images yet);
-  - README "Install in 2 minutes";
-  - `docs/index.md` links.
-
-  Its `--client` names are guesses until setup merges.
+1. **#29 `docs/handoff-2026-10-21`**: this handoff and the CLAUDE.md lessons, plus `fix(rpc)`: a call cancelled while its body is read reports `context.Canceled`, not AUTH_REQUIRED (this was the flaky `TestCtxCancel` under -race).
+2. **#30 `feat/installers`** (ecef9ef): `install.ps1` and `install.sh` with offline tests and CI jobs; GoReleaser Homebrew cask and Scoop (auto-push on tag, owner approved 2026-10-21); winget generated but `skip_upload: true` always; third-party actions pinned to SHAs; `docs/install.md`. Two security reviews; every finding fixed failing-test-first and mutation-checked. Tests: sh 27/27, PowerShell 5.1 19/19. The release dry run passed on 4a74eaa.
+3. **#31 `feat/setup-wizard`** (0ce6bbc): `sourcebolt setup`, no-flags `login`, npx/temp-exe detection (a362634), `--help` exits 0 on every subcommand (the installers need this). **Squash-merge**: WIP commit c7455f9 does not build on its own.
+4. **#32 `docs/beginner-guides`** (ba5fb40): install-with-AI prompts, 7 app guides, README block. Client ids are now the real ones (`gemini`, not `gemini-cli`); the uninstall step uses the installer.
 
 **Owner-side state:**
 - npm org `candidloom-hub` exists. The npm account has **staged publishing**: every publish needs a 2FA approval on npmjs.com (platform packages first, `sourcebolt` last).
@@ -113,32 +95,13 @@ Repo: candidloom-hub/sourcebolt (public). Source of truth: `docs/plans/2026-10-1
 
 # Next steps — exactly what to do next
 
-1. **feat/installers**: fix the security review findings, then PR and merge.
-   - **Bug, `.goreleaser.yaml:194,203`**: the winget block auto-opens a PR to microsoft/winget-pkgs whenever `WINGET_PKGS_TOKEN` is set. Set `skip_upload: true` (winget submission is on hold).
-   - **Bug, `install.sh:195`**: the rc-block removal can truncate the rc file when the END marker is missing. Require both markers, write to a mktemp file next to it, then `mv` it into place.
-   - **Owner question (raised by the review)**: confirm Homebrew and Scoop may auto-publish on tag. If not, set `skip_upload: true`.
-   - **Risks**:
-     - Wrap `install.sh` in `main "$@"`.
-     - Validate the version against `^v\d+\.\d+\.\d+(-[\w.]+)?$` in both installers.
-     - Make both installers refuse non-HTTPS URLs (`--proto-redir '=https'`; same check in the wget branch and in PowerShell).
-     - Escape or validate INSTALL_DIR before writing it into the rc file.
-     - Guard purge and uninstall paths: never empty, `/`, `$HOME`, USERPROFILE or APPDATA; never `--dir ""`.
-     - `install.ps1`: handle a Read-Host failure (non-interactive), preserve the PATH registry value kind, and roll back the binary on a failed upgrade.
-     - Pin `sigstore/cosign-installer` and `goreleaser-action` to commit SHAs.
-     - Print "integrity only" when cosign is absent.
-     - Verify the winget SHA-256 values against `checksums.txt`.
-2. **feat/setup-wizard**:
-   - In the worktree, finish `c7455f9`: when `os.Executable()` is in an npx/npm cache or a temp dir, write the installed binary path if it exists, else `npx -y sourcebolt serve`, else refuse.
-   - Push `7090063` and the fix.
-   - Rebase on main after installers merges; mutation-check; PR; merge.
-3. **docs/beginner-guides**:
-   - Rebase. Replace the guessed `--client` names and installer messages with the real ones (`Installed: sourcebolt <version>`; uninstall lines from `docs/install.md`).
-   - Fix the stale `.mcpb` line in `docs/install-links.md`.
-   - Terminal screenshots: render them from real command output (exact text, no personal data).
-   - App-UI screenshots: the owner types one question per app while you capture. Blur notebook titles, email and name; crop to the app window.
-4. **v0.3.0** (owner go):
+1. **Owner merges** #29, #30, #31 (squash), #32, in that order. Re-run CI on each PR after the one before it merges.
+2. **Screenshots** (after v0.3.0 is out, so the real installer and `setup` output exist):
+   - Terminal: render from real command output, with exact text and no personal data.
+   - App UI: the owner types one question per app while you capture. Blur notebook titles, email and name; crop to the app window.
+3. **v0.3.0**** (owner go):
    - CHANGELOG section and version bumps (`server.json`, the plugin, `gemini-extension.json`, install links via `tools/installlinks`, README).
    - Release dry run, tag, verify, publish the draft promptly (casks and scoop point at it).
    - Then the npm publish run, and tell the owner to approve the staged versions.
-5. **Held items, each only on an explicit owner go**: PyPI (trusted publisher), MCP registry (`mcp-publisher publish`), the winget PR, directory submissions (`research/marketplaces.md`), launch posts (`docs/launch-plan.md`), and moving npm to trusted publishing before `NPM_TOKEN` expires.
-6. **Owner checks**: delete the capture-3 test notebook; decide whether to keep the VS Code and Cursor sourcebolt entries added for screenshots.
+4. **Held items, each only on an explicit owner go**: PyPI (trusted publisher), MCP registry (`mcp-publisher publish`), the winget PR, directory submissions (`research/marketplaces.md`), launch posts (`docs/launch-plan.md`), and moving npm to trusted publishing before `NPM_TOKEN` expires.
+5. **Owner checks**: delete the capture-3 test notebook; decide whether to keep the VS Code and Cursor sourcebolt entries added for screenshots.
