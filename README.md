@@ -2,193 +2,224 @@
 
 <!-- mcp-name: io.github.candidloom-hub/sourcebolt -->
 
-A fast MCP server for Google NotebookLM, written in Go. One static binary, no runtime, starts in about 10 ms.
+[![Release](https://img.shields.io/github/v/release/candidloom-hub/sourcebolt)](https://github.com/candidloom-hub/sourcebolt/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-> **Independent project.** sourcebolt is not affiliated with, endorsed by or sponsored by Google. "NotebookLM" is a trademark of Google LLC. NotebookLM has no public consumer API; sourcebolt uses the same internal web calls the NotebookLM site makes. See [Limits and risk](#limits-and-risk) before you rely on it.
+**Let your AI assistant use your Google NotebookLM notebooks: one small, fast program, nothing else to install.**
 
-Status: pre-release. No version has been published yet (see [Install](#install)).
+[Quick start](#quick-start) · [Install](#install) · [Connect your app](#connect-your-ai-app) · [Tools](#what-your-assistant-can-do) · [FAQ](#faq) · [Docs](docs/index.md)
+
+> **Independent project.** sourcebolt is not made by, endorsed by or sponsored by Google. "NotebookLM" is a trademark of Google LLC. NotebookLM has no public API for personal accounts, so sourcebolt uses the same internal web calls the NotebookLM website makes. Read [Limits and risk](#limits-and-risk) before you rely on it.
 
 ## What it does
 
-Your MCP client (Claude Code, Claude Desktop, Cursor, Codex, ...) gets tools to work with your own NotebookLM notebooks: list and open notebooks, add sources, ask questions with citations, run research, keep notes, manage sharing, and list Studio artifacts. The full, generated reference with every parameter is in [docs/tools.md](docs/tools.md).
+sourcebolt is an MCP server. MCP (Model Context Protocol) is the standard way AI apps such as Claude, Cursor, VS Code and Codex call outside tools. Once sourcebolt is connected, you can ask your assistant things like:
 
-### Tools
+- "List my NotebookLM notebooks."
+- "Add these three articles to my *Thesis* notebook."
+- "Ask the *Thesis* notebook what the sources say about sample size, with citations."
+- "Research recent work on battery recycling and import the best sources."
 
-31 tools with `--tools all`, 30 by default, 8 with `--tools minimal`.
+The assistant calls sourcebolt, sourcebolt talks to NotebookLM with your own Google session, and the answer comes back with citations from your sources.
 
-| Group | Tools | State |
-|---|---|---|
-| Info | `server_info` | works |
-| Notebooks | `notebook_list`, `notebook_open`, `notebook_create`, `notebook_update` | works |
-| Sources | `source_add` (URLs, YouTube, pasted text), `source_list`, `source_read` (text, markdown, source guide), `source_update` (rename, freshness check) | works; Drive and file upload, refresh: coming soon |
-| Chat | `chat_ask`, `chat_status`, `chat_history`, `chat_configure`, `chat_ask_many` (batch, opt-in) | works; `suggest` followups: coming soon |
-| Research | `research_start`, `research_status`, `research_import` | works; `discover` mode: coming soon |
-| Notes | `note_list`, `note_save` | works; save a chat turn as a note: coming soon |
-| Sharing | `share_status`, `share_update` | works, request shapes not yet live-verified; view level and artifact sharing: coming soon |
-| Labels | `label_list`, `label_update` | rename, emoji, add/remove sources; create and auto-label: coming soon |
-| Studio | `studio_list`, `studio_generate` | list works; generation works for flashcards with the live-captured options (fewer cards, hard, a topic); other kinds and options: coming soon |
-| Account | `account_settings`, `auth_login`, `auth_logout` | quota read works; setting the language is not live-verified; `auth_*` over MCP only point you to the CLI by design |
-| Delete | `delete` | notebooks, sources, notes and a conversation's chat history; preview first, `confirm:true` to act; artifacts, labels and collections: coming soon |
-| Jobs | `job_cancel` | works |
+![sourcebolt answering a question from a NotebookLM notebook inside an AI assistant](docs/assets/demo.gif)
 
-"Coming soon" means the tool or option exists but returns an `UNSUPPORTED_BY_TRANSPORT` error until the wire format is pinned by a live capture (see [docs/live-capture.md](docs/live-capture.md)).
+## Key numbers
 
-Other behavior: pasted/URL sources are checked against private-network addresses before they are sent; destructive tools preview before they act; long chat answers can run detached (`wait=false`, then `chat_status`); progress notifications are sent for long calls.
+Measured on a Windows laptop (Intel Core i7-12650H, 16 GB RAM). Method and raw data: [bench/RESULTS.md](bench/RESULTS.md) and [docs/performance.md](docs/performance.md).
+
+| What | Result |
+|---|---|
+| Start-up time (start to ready) | 10.3 ms median |
+| Program size | 10.06 MB, one file |
+| Memory while idle | 12.4 MB |
+| sourcebolt's own work per call, cached (100 notebooks) | 1.6 ms median |
+| A real `notebook_list` call to Google | 848 ms median (Google's time dominates) |
+
+## Quick start
+
+1. **Install.** Download the file for your system from the [latest release](https://github.com/candidloom-hub/sourcebolt/releases) and put `sourcebolt` on your `PATH`. Step-by-step commands are in [Install](#install).
+2. **Sign in.** Start Brave or Chrome with a debugging port, sign in to NotebookLM in that window, then run:
+
+   ```bash
+   sourcebolt login --attach http://127.0.0.1:9222
+   ```
+
+   You should see `Saved profile "default" for notebook.google.com (N notebooks visible).` The browser commands for each system are in [docs/getting-started.md](docs/getting-started.md#step-2-sign-in).
+3. **Check it.**
+
+   ```bash
+   sourcebolt doctor
+   ```
+
+   Every line should start with `ok`.
+4. **Connect your AI app.** For Claude Code:
+
+   ```bash
+   claude mcp add sourcebolt -- sourcebolt serve
+   ```
+
+   Other apps: [Connect your AI app](#connect-your-ai-app).
+5. **Ask a question.** In your app, type: *"Use sourcebolt to list my NotebookLM notebooks, then ask the first one for a one-paragraph summary with citations."*
+
+The full walkthrough with expected output is in [docs/getting-started.md](docs/getting-started.md).
 
 ## Install
 
-The latest release is [v0.1.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0).
+The current release is [v0.1.0](https://github.com/candidloom-hub/sourcebolt/releases/tag/v0.1.0).
 
-| Channel | Command | Availability |
+| Channel | Status | How |
 |---|---|---|
-| GitHub release binary | download the archive for your OS/arch from the [Releases page](https://github.com/candidloom-hub/sourcebolt/releases), check `checksums.txt` (signed with cosign; see the release notes) | available |
-| Go | `go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest` | available |
-| Docker | `docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0` (browser fallback image: tag `0.1.0-browser`; images are tagged by version, there is no `latest`) | available |
-| npm | `npx sourcebolt serve` | not published yet |
-| PyPI | `pipx run sourcebolt serve` or `uvx sourcebolt serve` | not published yet |
+| GitHub release binary | Available | Windows, macOS and Linux, on x64 and ARM64. See below. |
+| `go install` | Available | Needs Go 1.27 or newer. |
+| Docker (GHCR) | Available | `ghcr.io/candidloom-hub/sourcebolt:0.1.0`. Images are tagged by version only; there is no `latest` tag. |
+| npm (`npx`) | Not published yet | |
+| PyPI (`pipx`, `uvx`) | Not published yet | |
 
-Build from source (Go 1.27):
+### Release binary
 
-```bash
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/sourcebolt ./cmd/sourcebolt
-bin/sourcebolt --version
-```
-
-The Docker image has no OS keyring, so the profile key is stored in a `0600` file inside the `/config` volume. Sign in on the host and mount the config, or use `login --import -` inside the container.
-
-## Connect your client
-
-Sign in first (next section), then register the server. `sourcebolt` must be on your `PATH`; otherwise use the full path to the binary.
-
-**Claude Code**
-
-```bash
-claude mcp add sourcebolt -- sourcebolt serve
-```
-
-**Claude Desktop** (`claude_desktop_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "sourcebolt": { "command": "sourcebolt", "args": ["serve"] }
-  }
-}
-```
-
-**Cursor** (`.cursor/mcp.json` or `~/.cursor/mcp.json`)
-
-```json
-{
-  "mcpServers": {
-    "sourcebolt": { "command": "sourcebolt", "args": ["serve"] }
-  }
-}
-```
-
-**Codex** (`~/.codex/config.toml`)
-
-```toml
-[mcp_servers.sourcebolt]
-command = "sourcebolt"
-args = ["serve"]
-```
-
-Add `"--tools", "minimal"` to `args` for hosts with small tool budgets. Only the Claude Code command was run against a real CLI while writing this; the other snippets follow each client's documented format and were not tested against the clients.
-
-Streamable HTTP (loopback only, bearer token required):
-
-```bash
-sourcebolt serve --http 127.0.0.1:8787 --token-file token.txt   # token: 16+ characters
-```
-
-## Sign in
-
-sourcebolt needs your Google session cookies. It never asks for your password and no tool types credentials. Details and storage layout: [docs/auth.md](docs/auth.md).
-
-### Recommended: `login --attach`
-
-Start a Chromium-based browser (Brave or Chrome) with a debugging port and a dedicated profile directory, sign in to NotebookLM in that window yourself, then attach. Use a dedicated `--user-data-dir` under the sourcebolt config dir: Chrome refuses remote debugging on its default profile, and a dedicated one keeps your daily browser out of it.
-
-Windows (PowerShell, Brave; for Chrome use `C:\Program Files\Google\Chrome\Application\chrome.exe`):
+**Windows (PowerShell).** This puts `sourcebolt.exe` in a folder in your user profile and adds that folder to your `PATH`. For an ARM64 PC, replace `amd64` with `arm64`.
 
 ```powershell
-& "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
+$dir = "$env:LOCALAPPDATA\Programs\sourcebolt"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest https://github.com/candidloom-hub/sourcebolt/releases/download/v0.1.0/sourcebolt_0.1.0_windows_amd64.zip -OutFile "$env:TEMP\sourcebolt.zip"
+Expand-Archive "$env:TEMP\sourcebolt.zip" -DestinationPath $dir -Force
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
 ```
 
-macOS:
+Open a new terminal, then run `sourcebolt --version`. It prints `sourcebolt 0.1.0`.
+
+**macOS and Linux (bash).** Set `OS` to `darwin` or `linux` and `ARCH` to `amd64` or `arm64`.
 
 ```bash
-"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" --remote-debugging-port=9222 --user-data-dir="$HOME/Library/Application Support/sourcebolt/browser/attach"
+OS=linux ARCH=amd64
+curl -fsSLO "https://github.com/candidloom-hub/sourcebolt/releases/download/v0.1.0/sourcebolt_0.1.0_${OS}_${ARCH}.tar.gz"
+tar -xzf "sourcebolt_0.1.0_${OS}_${ARCH}.tar.gz" sourcebolt
+mkdir -p ~/.local/bin && mv sourcebolt ~/.local/bin/
+sourcebolt --version
 ```
 
-Linux:
+If `sourcebolt` is not found, add `~/.local/bin` to your `PATH`. Each release has a `checksums.txt` with a keyless cosign signature and a CycloneDX SBOM (software bill of materials) per archive; [docs/security.md](docs/security.md#verify-a-download) shows how to check them.
+
+### Go
 
 ```bash
-brave-browser --remote-debugging-port=9222 --user-data-dir="$HOME/.config/sourcebolt/browser/attach"
+go install github.com/candidloom-hub/sourcebolt/cmd/sourcebolt@latest
 ```
 
-Sign in at https://notebook.google.com in that window, open NotebookLM, then in another terminal:
+### Docker
 
 ```bash
-sourcebolt login --attach http://127.0.0.1:9222
-sourcebolt status
-sourcebolt doctor
+docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.1.0
 ```
 
-`login` makes one real call (list notebooks) to check the cookies and saves them only if it works. Close the debugging browser afterwards; the debugging port gives control of that browser to anything on your machine that can reach it.
+The image has no OS keyring, so the profile key is kept in a file inside the `/config` volume. Protect that volume like a password. The `0.1.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [docs/auth.md](docs/auth.md#docker).
 
-### Alternatives
+## Connect your AI app
 
-- `sourcebolt login --browser` opens a browser on a dedicated profile and waits for you to sign in. Google may block it with a "this browser may not be secure" page, because a browser started by automation exposes `navigator.webdriver`. That happened in our own test; prefer `--attach`.
-- `sourcebolt login --import cookies.txt` imports a Netscape `cookies.txt`, a JSON export or a `Cookie:` header (`--format netscape|json|header`, `-` reads stdin). Export every google.com cookie, including the plain `SID`, `HSID` and `APISID` ones.
+Sign in first. All apps start the same command: `sourcebolt serve`. If `sourcebolt` is not on your `PATH`, use the full path to the program instead (on Windows, for example `C:\\Users\\you\\AppData\\Local\\Programs\\sourcebolt\\sourcebolt.exe` inside JSON).
 
-Cookies are stored AES-256-GCM encrypted in `<config dir>/profiles/<name>.profile`. The 32-byte key lives in the OS keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service), or in a `0600` key file when no keyring is available. `sourcebolt logout` deletes a profile.
+| App | Works locally? | Setup |
+|---|---|---|
+| Claude Code | Yes | `claude mcp add sourcebolt -- sourcebolt serve` |
+| Claude Desktop | Yes | Add to `claude_desktop_config.json` (below) |
+| Cursor | Yes | Add to `~/.cursor/mcp.json` (below) |
+| VS Code (Copilot agent mode) | Yes | `code --add-mcp '{"name":"sourcebolt","type":"stdio","command":"sourcebolt","args":["serve"]}'` |
+| Windsurf | Yes | Add to its `mcp_config.json` (below) |
+| Codex CLI and IDE | Yes | `codex mcp add sourcebolt -- sourcebolt serve` |
+| Gemini CLI | Yes | `gemini mcp add -s user sourcebolt sourcebolt serve` |
+| ChatGPT desktop app | Yes, as a local (STDIO) server | Settings, MCP servers; it shares the Codex configuration |
+| ChatGPT on the web | No | Needs a public HTTPS server. sourcebolt runs only on your computer, by design. |
 
-## How requests are sent
+The JSON format used by Claude Desktop, Cursor and Windsurf:
 
-1. **Internal RPC first.** The Go binary calls NotebookLM's web endpoint (`batchexecute`) directly over HTTP/2 with your cookies. This is the fast path.
-2. **Headless browser fallback.** If the RPC path fails in a way the fallback policy allows (for example Google rejects the direct request), the call is replayed through a headless Chromium-based browser on a dedicated profile under the config dir, started lazily on first use and stopped when the server exits. It needs a Chromium-based browser installed (or the `-browser` Docker image).
-3. `--no-browser-fallback` (or `NOTEBOOKLM_BROWSER_FALLBACK=0`) turns the fallback off. `server_info` reports which transport served the last call.
+```json
+{
+  "mcpServers": {
+    "sourcebolt": { "command": "sourcebolt", "args": ["serve"] }
+  }
+}
+```
 
-Environment: `NOTEBOOKLM_PROFILE`, `NOTEBOOKLM_HOST`, `NOTEBOOKLM_CONFIG_DIR`, `NOTEBOOKLM_RPC_IDS`, `NOTEBOOKLM_BROWSER_FALLBACK`, `SOURCEBOLT_BROWSER`.
+File locations, VS Code JSON, Codex TOML, the HTTP mode and which snippets were tested: [docs/clients.md](docs/clients.md).
 
-Command-line summary (`sourcebolt --help`): `serve`, `call <tool> '<json>'` (run any MCP tool in-process, handy for scripts), `login`, `logout`, `status`, `doctor`, `--version`.
+Small tool budget? Add `"--tools", "minimal"` to `args` to expose only the 8 core tools.
 
-## Performance
+## What your assistant can do
 
-From [bench/RESULTS.md](bench/RESULTS.md), measured 2026-10-14 on Windows 11, Intel Core i7-12650H (16 threads), 16 GB RAM, Go 1.27.0 windows/amd64, a laptop with other programs running. Variance there is high (20 to 50 percent on millisecond benchmarks); read these as order of magnitude. All data is synthetic and no Google traffic was involved.
+Grouped by task. Every tool, option and state is in the generated reference, [docs/tools.md](docs/tools.md).
 
-| Metric | Result |
+| Task | Tools |
 |---|---|
-| Cold start to `initialize` | p50 10.3 ms, p95 12.6 ms |
-| Memory | 12.4 MB idle binary; 19.9 MB peak in-process after listing 100 notebooks (includes a test client and fake server) |
-| Decode a 40 KB notebook-list response | 475 us median, 93 allocations |
-| Tool call overhead excluding Google (100 notebooks) | cached p50 1.6 ms; uncached p50 9.6 ms (misses the 2 ms target; an optimization is tracked) |
-| Connection reuse | 100% after the first request, one TLS handshake, HTTP/2 |
-| Binary size | 10.06 MB stripped |
+| Find and open notebooks | `notebook_list`, `notebook_open`, `notebook_create`, `notebook_update` |
+| Add and read sources (web pages, YouTube, pasted text) | `source_add`, `source_list`, `source_read`, `source_update` |
+| Ask questions with citations | `chat_ask`, `chat_status`, `chat_history`, `chat_configure`, `suggest` |
+| Find new sources on the web | `research_start`, `research_status`, `research_import` |
+| Keep notes | `note_list`, `note_save` |
+| Studio (audio, reports, flashcards, ...) | `studio_list`, `studio_generate` |
+| Sharing, labels, account | `share_status`, `share_update`, `label_list`, `label_update`, `account_settings` |
+| Clean up | `delete` (always previews first), `job_cancel` |
 
-Real calls are dominated by Google: a live `notebook_list` round trip measured p50 848 ms, p95 1.04 s (10 calls, one account). The browser fallback and streamed-chat timings have not been measured.
+Some options are not available yet, for example Drive and file uploads and most Studio kinds. They return a clear `UNSUPPORTED_BY_TRANSPORT` error instead of failing silently. [SKILL.md](SKILL.md) tells an agent which tool to use when.
+
+## How it works
+
+1. **Direct calls first.** sourcebolt sends NotebookLM's own internal web requests (called RPC, remote procedure calls) over HTTP/2 with your session cookies. This is the fast path.
+2. **Browser fallback.** If Google rejects the direct request, sourcebolt can repeat it inside a headless Chrome-family browser on a separate profile. It needs Brave, Chrome or Edge installed (or the `-browser` Docker image).
+3. **Page fallback.** If Google changes the format of the chat or add-source request, sourcebolt can type into the NotebookLM page itself and read the answer (the "DOM" fallback, named after the page structure it drives).
+
+Turn the browser paths off with `--no-browser-fallback`. `server_info` shows which path served the last call. Details: [docs/auth.md](docs/auth.md#browser-fallback).
+
+## FAQ
+
+**Is this an official Google product?** No. It is an independent open-source project.
+
+**Does sourcebolt see my Google password?** No. You sign in yourself, in a normal browser window. sourcebolt keeps only the session cookies, encrypted on your disk.
+
+**Can the AI read my cookies?** No tool accepts or returns cookies or passwords. Sign-in works only from the command line.
+
+**Does it send my data anywhere else?** No. It talks only to NotebookLM. URLs you add as sources are fetched by Google, not by your computer.
+
+**Is it free?** Yes. Apache-2.0, no paid tier.
+
+More answers: [docs/faq.md](docs/faq.md). Something broken? [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Limits and risk
 
-- **Unofficial.** NotebookLM has no stable public API for consumer accounts. sourcebolt uses internal calls that Google can change at any time, which will break tools until the wire format is re-captured.
-- **Terms of Service.** Automating a Google web app with your session may violate Google's terms and could lead to rate limiting or account action. You use sourcebolt at your own risk; the authors give no warranty (see the license).
-- **Quotas are Google's.** Notebook, source, chat and Studio limits are enforced by Google per account. Quota failures are returned as errors; sourcebolt does not bypass them.
-- Requires a Google account that can open NotebookLM. The default host is `notebook.google.com`.
-- Use a throwaway notebook with public content while you evaluate it.
+- **Unofficial.** Google can change NotebookLM's internal calls at any time. Tools may break until sourcebolt is updated.
+- **Terms of Service.** Automating a Google web app with your session may break Google's terms and could lead to rate limits or account action. You use sourcebolt at your own risk; there is no warranty (see the license).
+- **Google's quotas apply.** Limits on notebooks, sources, chats and Studio are set by Google per account. sourcebolt reports them as errors and does not bypass them.
+- **Try it safely first.** Use a test notebook with public content while you evaluate it.
 
 ## Documentation
 
-- [docs/tools.md](docs/tools.md) - generated tool reference
-- [docs/auth.md](docs/auth.md) - sign-in flows, storage, logout, doctor
-- [docs/security.md](docs/security.md) - threat model and reporting vulnerabilities
-- [SKILL.md](SKILL.md) - agent skill: which tool to use when
-- [CHANGELOG.md](CHANGELOG.md)
+Start at [docs/index.md](docs/index.md). Highlights:
+
+- [Getting started](docs/getting-started.md) · [Connect your AI app](docs/clients.md) · [Troubleshooting](docs/troubleshooting.md) · [FAQ](docs/faq.md)
+- [Tool reference](docs/tools.md) · [Sign-in and storage](docs/auth.md) · [Security](docs/security.md) · [Performance](docs/performance.md)
+- [Why sourcebolt](docs/why-sourcebolt.md) · [Comparison with other NotebookLM servers](docs/comparison.md) · [Changelog](CHANGELOG.md)
+
+## Sponsor
+
+sourcebolt is free. If it saves you time, you can support its upkeep through [GitHub Sponsors](https://github.com/sponsors/candidloom-hub).
+
+## Contributing
+
+Bug reports and pull requests are welcome on [GitHub Issues](https://github.com/candidloom-hub/sourcebolt/issues). Before you open one:
+
+- Run `sourcebolt --version` and `sourcebolt doctor` and include the output. Remove any cookies or tokens first.
+- For code changes, run `go vet ./...` and `go test ./...`.
+- `docs/tools.md` is generated. Change the tool descriptions in code, then run `go run ./tools/gendocs > docs/tools.md`.
+- Report security problems privately, as described in [docs/security.md](docs/security.md#reporting-a-vulnerability).
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Credits
 
-sourcebolt is written from scratch. No source code from other projects has been copied; designs and wire-format knowledge were learned, with thanks, from these MIT- or Apache-2.0-licensed projects (see [NOTICE](NOTICE) and `research/notes/`). Projects with no license or a copyleft license were read for behavior only and nothing from them was used.
+sourcebolt is written from scratch. No source code from other projects was copied. Designs and knowledge of the NotebookLM wire format were learned, with thanks, from these MIT- or Apache-2.0-licensed projects (see [NOTICE](NOTICE) and `research/notes/`). Projects with no license or a copyleft license were read for behavior only, and nothing from them was used.
 
 | Project | License | What we learned from it |
 |---|---|---|
@@ -196,7 +227,3 @@ sourcebolt is written from scratch. No source code from other projects has been 
 | [tmc/nlm](https://github.com/tmc/nlm) | MIT | Go wire-protocol modeling and lossless round-trip testing |
 | [jacob-bd/gemini-notebook-mcp-cli](https://github.com/jacob-bd/gemini-notebook-mcp-cli) | MIT | MCP tool surface, internal API reference |
 | [LocalKinAI/notebooklm-go](https://github.com/LocalKinAI/notebooklm-go) | Apache-2.0 | Go client and auth flow ideas |
-
-## License
-
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
