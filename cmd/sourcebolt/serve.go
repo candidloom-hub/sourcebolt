@@ -28,8 +28,8 @@ func cmdServe(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	httpAddr := fs.String("http", "", "serve streamable HTTP on this loopback address instead of stdio")
 	tokenFile := fs.String("token-file", "", "file holding the bearer token required in HTTP mode")
 	noBrowser := fs.Bool("no-browser-fallback", false, "do not fall back to a headless browser when the rpc transport fails (also NOTEBOOKLM_BROWSER_FALLBACK=0)")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	defer runtimecfg.Apply()() // the server's GC setting; benchmarks apply the same
 	cfg, err := app.ConfigFromEnv()

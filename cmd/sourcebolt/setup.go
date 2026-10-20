@@ -86,8 +86,8 @@ func cmdSetup(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	dry := fs.Bool("dry-run", false, "print what would change and change nothing")
 	noLogin := fs.Bool("no-login", false, "do not open the browser to sign in")
 	undo := fs.Bool("undo", false, "put back each app's config from its newest sourcebolt backup")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	for _, id := range only {
 		if !slices.Contains(setup.IDs, id) {

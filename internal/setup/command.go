@@ -140,5 +140,5 @@ func ServerCommand(exe string, env Env) (string, []string, error) {
 			return "npx", append([]string(nil), npxArgs...), nil
 		}
 	}
-	return "", nil, fmt.Errorf("%w: this copy runs from a temporary or npm-managed folder (%s), which apps cannot keep using, and npx was not found. Install sourcebolt first (see docs/getting-started.md, Step 1), then run setup again from the installed program", ErrNotInstalled, exe)
+	return "", nil, fmt.Errorf("%w: this copy runs from a temporary or npm-managed folder (%s), which apps cannot keep using, and npx was not found. Install sourcebolt first (https://github.com/candidloom-hub/sourcebolt/blob/main/docs/install.md), then run setup again from the installed program", ErrNotInstalled, exe)
 }

@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +40,18 @@ func main() {
 	code := run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 	stop()
 	os.Exit(code)
+}
+
+// parseFlags parses a subcommand's flags. When it returns ok=false the caller exits with code:
+// 0 when the user asked for help (-h, --help), 2 for a usage error.
+func parseFlags(fs *flag.FlagSet, args []string) (code int, ok bool) {
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0, false
+		}
+		return 2, false
+	}
+	return 0, true
 }
 
 // run is the testable entry point. Exit codes: 0 ok, 1 failure, 2 usage.

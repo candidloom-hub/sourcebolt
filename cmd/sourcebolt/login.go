@@ -43,8 +43,8 @@ func cmdLogin(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	format := fs.String("format", "", "netscape, json or header (auto-detected when empty)")
 	profile := fs.String("profile", "", "profile name (default $NOTEBOOKLM_PROFILE or \"default\")")
 	host := fs.String("host", "", "NotebookLM host (default notebook.google.com)")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
 	}
 	methods := 0
 	for _, set := range []bool{*useBrowser, *attach != "", *importFrom != ""} {
