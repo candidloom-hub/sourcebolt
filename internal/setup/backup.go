@@ -115,6 +115,45 @@ func Restore(path string) (string, error) {
 	return from, os.Remove(from)
 }
 
+// RestoreEntry undoes only the entry name under key: it puts back the entry
+// the newest backup had, or removes it when the backup had none, and keeps
+// the rest of the current file. It is for files the app keeps rewriting
+// (Claude Code's ~/.claude.json), where restoring the whole file would lose
+// the app's newer state. The used backup is deleted.
+func RestoreEntry(path, key, name string) (string, error) {
+	from, err := LatestBackup(path)
+	if err != nil {
+		return "", err
+	}
+	var old []byte
+	if !strings.HasSuffix(from, absentSuffix) {
+		if old, err = os.ReadFile(from); err != nil {
+			return "", err
+		}
+	}
+	cur, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	e, had, err := LookupRaw(old, key, name)
+	if err != nil {
+		return "", err
+	}
+	var out []byte
+	if had {
+		out, _, err = Merge(cur, key, name, e)
+	} else {
+		out, err = Remove(cur, key, name)
+	}
+	if err != nil {
+		return "", err
+	}
+	if err := writeFile(path, out); err != nil {
+		return "", err
+	}
+	return from, os.Remove(from)
+}
+
 // writeFile replaces path through a temp file in the same dir, so a crash
 // never leaves a half-written config. It keeps the old file's mode.
 func writeFile(path string, data []byte) error {

@@ -179,6 +179,40 @@ func TestBackupAndRestore(t *testing.T) {
 	}
 }
 
+// RestoreEntry undoes only the sourcebolt entry, for files the app itself
+// keeps rewriting (~/.claude.json): later changes to other keys survive.
+func TestRestoreEntry(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".claude.json")
+	os.WriteFile(p, []byte(`{"n": 1, "mcpServers": {"sourcebolt": {"command": "old", "args": ["serve"], "env": {"K": "v"}}}}`), 0o600)
+	Backup(p, time.Now())
+	os.WriteFile(p, []byte(`{"n": 2, "mcpServers": {"sourcebolt": {"command": "new", "args": ["serve"]}, "x": {}}}`), 0o600)
+	if _, err := RestoreEntry(p, "mcpServers", "sourcebolt"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	m := decode(t, got)
+	s := m["mcpServers"].(map[string]any)
+	old := s["sourcebolt"].(map[string]any)
+	if m["n"] != 2.0 || s["x"] == nil || old["command"] != "old" || old["env"] == nil {
+		t.Fatalf("after undo: %s", got)
+	}
+	if _, err := LatestBackup(p); !errors.Is(err, ErrNoBackup) {
+		t.Fatalf("backup not used up: %v", err)
+	}
+
+	// The entry was new: undo removes it and keeps the file.
+	Backup(p, time.Now())
+	os.WriteFile(p, []byte(`{"n": 3, "mcpServers": {"x": {}, "sourcebolt": {"command": "c"}}}`), 0o600)
+	os.WriteFile(p+".sourcebolt-backup-29990101-000000", []byte(`{"n": 0}`), 0o600)
+	if _, err := RestoreEntry(p, "mcpServers", "sourcebolt"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != `{"n": 3, "mcpServers": {"x": {}}}` {
+		t.Fatalf("after undo: %s", got)
+	}
+}
+
 // A config file that did not exist before setup is removed again by undo.
 func TestBackupOfMissingFile(t *testing.T) {
 	dir := t.TempDir()

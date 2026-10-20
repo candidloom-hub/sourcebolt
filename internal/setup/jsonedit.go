@@ -109,25 +109,34 @@ func servers(doc []byte, key string) (rootStart, rootEnd int, rootMs []member, o
 
 // Lookup returns the entry name under the top-level key, if any.
 func Lookup(doc []byte, key, name string) (Entry, bool, error) {
-	doc = bytes.TrimPrefix(doc, bom)
-	if len(bytes.TrimSpace(doc)) == 0 {
-		return Entry{}, false, nil
-	}
-	_, _, _, obj, ok, err := servers(doc, key)
+	raw, ok, err := LookupRaw(doc, key, name)
 	if err != nil || !ok {
 		return Entry{}, false, err
 	}
+	var e Entry
+	_ = json.Unmarshal(raw, &e)
+	return e, true, nil
+}
+
+// LookupRaw returns the entry's JSON text, with every field it has.
+func LookupRaw(doc []byte, key, name string) (json.RawMessage, bool, error) {
+	doc = bytes.TrimPrefix(doc, bom)
+	if len(bytes.TrimSpace(doc)) == 0 {
+		return nil, false, nil
+	}
+	_, _, _, obj, ok, err := servers(doc, key)
+	if err != nil || !ok {
+		return nil, false, err
+	}
 	ms, err := objectMembers(doc, obj.valStart, obj.valEnd)
 	if err != nil {
-		return Entry{}, false, err
+		return nil, false, err
 	}
 	m, ok := find(ms, name)
 	if !ok {
-		return Entry{}, false, nil
+		return nil, false, nil
 	}
-	var e Entry
-	_ = json.Unmarshal(doc[m.valStart:m.valEnd], &e)
-	return e, true, nil
+	return json.RawMessage(doc[m.valStart:m.valEnd]), true, nil
 }
 
 // marshalAt formats v for a member at the given depth (1 = member of the
@@ -165,7 +174,7 @@ func insert(doc []byte, start, end int, ms []member, name string, value []byte, 
 
 // Merge adds (or replaces) the entry name under the top-level key, and
 // keeps every other byte of the file. existed reports a replaced entry.
-func Merge(doc []byte, key, name string, e Entry) (out []byte, existed bool, err error) {
+func Merge(doc []byte, key, name string, e any) (out []byte, existed bool, err error) {
 	hadBOM := bytes.HasPrefix(doc, bom)
 	doc = bytes.TrimPrefix(doc, bom)
 	if len(bytes.TrimSpace(doc)) == 0 {
@@ -177,7 +186,7 @@ func Merge(doc []byte, key, name string, e Entry) (out []byte, existed bool, err
 		return nil, false, err
 	}
 	if !ok {
-		out = insert(doc, rs, re, rootMs, key, marshalAt(map[string]Entry{name: e}, indent, 1), indent, 0)
+		out = insert(doc, rs, re, rootMs, key, marshalAt(map[string]any{name: e}, indent, 1), indent, 0)
 	} else {
 		ms, err := objectMembers(doc, obj.valStart, obj.valEnd)
 		if err != nil {
