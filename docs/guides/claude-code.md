@@ -23,8 +23,7 @@ Choose one way:
 
 You should see a window with a blinking cursor. Use a new window, not the one where Claude Code is running.
 
-![Step 1: an empty terminal window](../assets/guides/claude-code/step1.png)
-<!-- screenshot: a fresh Windows PowerShell window opened from the Start menu, prompt visible, nothing typed yet -->
+![Step 1: a new Windows PowerShell window waiting at its prompt, nothing typed yet](../assets/term/powershell-new.svg)
 
 ### Step 2: Install sourcebolt
 
@@ -44,8 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 
 The installer downloads sourcebolt, checks that the file is genuine, and installs it for your user only. You should see a line saying sourcebolt was installed, with its version number.
 
-![Step 2: the installer finished and shows the installed version](../assets/guides/claude-code/step2.png)
-<!-- screenshot: terminal after the one-line installer ran: download and checksum lines, the "Installed: sourcebolt 0.x.y" line, and the question asking whether to run sourcebolt setup now -->
+![Step 2: the installer downloads sourcebolt, verifies its SHA-256 checksum, prints "Installed: sourcebolt 0.3.1", and asks whether to run sourcebolt setup now](../assets/term/install-windows.svg)
 
 ### Step 3: Connect Claude Code
 
@@ -53,8 +51,7 @@ The installer asks whether to run setup now. Type `y` and press Enter. (Missed i
 
 Setup lists the AI apps it found. When it asks about **Claude Code**, answer yes. It saves a backup of Claude Code's settings before it changes them.
 
-![Step 3: sourcebolt setup asking whether to connect Claude Code](../assets/guides/claude-code/step3.png)
-<!-- screenshot: terminal running sourcebolt setup: the list of detected apps with Claude Code in it, the yes/no question for Claude Code answered "y", and the backup confirmation line -->
+![Step 3: sourcebolt setup finds Claude Code, asks "Connect sourcebolt to Claude Code?", gets y, and prints where it saved the backup](../assets/term/setup-claude-code.svg)
 
 ### Step 4: Sign in to Google
 

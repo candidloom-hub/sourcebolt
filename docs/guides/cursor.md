@@ -24,8 +24,7 @@ Choose one way:
 
 You should see a window with a blinking cursor.
 
-![Step 1: an empty terminal window](../assets/guides/cursor/step1.png)
-<!-- screenshot: a fresh Windows PowerShell window opened from the Start menu, prompt visible, nothing typed yet -->
+![Step 1: a new Windows PowerShell window waiting at its prompt, nothing typed yet](../assets/term/powershell-new.svg)
 
 ### Step 2: Install sourcebolt
 
@@ -45,8 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 
 The installer downloads sourcebolt, checks that the file is genuine, and installs it for your user only. You should see a line saying sourcebolt was installed, with its version number.
 
-![Step 2: the installer finished and shows the installed version](../assets/guides/cursor/step2.png)
-<!-- screenshot: terminal after the one-line installer ran: download and checksum lines, the "Installed: sourcebolt 0.x.y" line, and the question asking whether to run sourcebolt setup now -->
+![Step 2: the installer downloads sourcebolt, verifies its SHA-256 checksum, prints "Installed: sourcebolt 0.3.1", and asks whether to run sourcebolt setup now](../assets/term/install-windows.svg)
 
 ### Step 3: Connect Cursor
 
@@ -54,8 +52,7 @@ The installer asks whether to run setup now. Type `y` and press Enter. (Missed i
 
 Setup lists the AI apps it found. When it asks about **Cursor**, answer yes. It saves a backup of Cursor's MCP settings file before it changes it.
 
-![Step 3: sourcebolt setup asking whether to connect Cursor](../assets/guides/cursor/step3.png)
-<!-- screenshot: terminal running sourcebolt setup: the list of detected apps with Cursor in it, the yes/no question for Cursor answered "y", and the backup confirmation line -->
+![Step 3: sourcebolt setup finds Cursor, asks "Connect sourcebolt to Cursor?", gets y, and prints where it saved the backup](../assets/term/setup-cursor.svg)
 
 ### Step 4: Sign in to Google
 
