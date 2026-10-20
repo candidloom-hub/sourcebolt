@@ -8,6 +8,20 @@ import (
 	"testing"
 )
 
+// A hostile marker cannot expand into more than maxCitationRange citations.
+func TestCitationsIndexCap(t *testing.T) {
+	idx := make([]int, 3000)
+	for i := range idx {
+		idx[i] = i
+	}
+	list, _ := json.Marshal(idx)
+	marker := []byte(`[[null,1,2],` + string(list) + `]`)
+	got := citations([][]byte{marker}, nil)
+	if len(got) != maxCitationRange || got[len(got)-1].N != maxCitationRange {
+		t.Fatalf("citations = %d", len(got))
+	}
+}
+
 // TestStreamLive2 decodes the chat stream of live capture #2 (2026-10-20):
 // a follow-up in an existing conversation. Its one marker,
 // [[null,18,175],[0]], cites a single passage: the marker's second element
