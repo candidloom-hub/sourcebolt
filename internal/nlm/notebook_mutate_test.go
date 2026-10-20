@@ -45,7 +45,7 @@ func TestCreateNotebookWithTitleRenamesAndVerifies(t *testing.T) {
 	if nb.ID != mutNB || nb.Title != "My plan" {
 		t.Fatalf("nb = %+v", nb)
 	}
-	want := `["` + mutNB + `",[[null,null,null,[null,"My plan"]]]]`
+	want := `["` + mutNB + `",[[null,null,null,[null,"My plan"]]],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`
 	if p := paramsJSON(t, ft, "s0tc2d"); !sameJSON(t, []byte(p), []byte(want)) {
 		t.Fatalf("rename params %s", p)
 	}

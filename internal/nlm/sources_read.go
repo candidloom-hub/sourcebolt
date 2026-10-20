@@ -12,9 +12,11 @@ import (
 // SourceText returns a source's full extracted text (markdown selects the
 // markdown variant). Paging is the caller's concern.
 //
-// shape: catalog consensus, not live-verified. Request [[sid],[2],[2]] for
-// text, [[sid],[3],[3]] for markdown. Response: [0]=[[sid],title,meta],
-// text blocks at [3][0], HTML at [4][1]. Each block's leaf strings are
+// Request [[sid],[mode],HDR]: mode 2 (text) is pinned by live capture #2
+// (2026-10-20, hizoJc); mode 3 (markdown) is catalog-only, and the catalog's
+// third element [mode] was the HDR block. Response: [0]=[[sid],title,meta],
+// text blocks at [3][0][0] (live #2; the catalog said [3][0]), HTML at
+// [4][1] (catalog only). Each block's leaf strings are
 // joined, blocks are separated by a newline; when there are no blocks the
 // HTML string is returned instead.
 func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) (string, error) {
@@ -32,7 +34,7 @@ func (c *Client) SourceText(ctx context.Context, nb, sid string, markdown bool) 
 		return "", &transport.Error{Kind: transport.KindDrift, RPC: "sources.load", Message: "response is not valid JSON"}
 	}
 	var blocks []string
-	for _, b := range root.At(3, 0).Elems() {
+	for _, b := range root.At(3, 0, 0).Elems() {
 		if s := leafText(b); s != "" {
 			blocks = append(blocks, s)
 		}
@@ -48,7 +50,7 @@ func sourceLoadParams(sid string, markdown bool) []any {
 	if markdown {
 		mode = 3
 	}
-	return []any{[]any{sid}, []any{mode}, []any{mode}}
+	return []any{[]any{sid}, []any{mode}, requestOptions()}
 }
 
 // leafText concatenates every string leaf under n, depth first.

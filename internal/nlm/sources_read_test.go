@@ -22,8 +22,8 @@ func TestSourceTextShapes(t *testing.T) {
 		params   string
 		want     string
 	}{
-		{"text", "synthetic_text", false, `[["` + readSID + `"],[2],[2]]`, "text-1\ntext-2"},
-		{"markdown", "synthetic_markdown", true, `[["` + readSID + `"],[3],[3]]`, "# text-1"},
+		{"text", "synthetic_text", false, `[["` + readSID + `"],[2],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`, "text-1\ntext-2"},
+		{"markdown", "synthetic_markdown", true, `[["` + readSID + `"],[3],[2,null,[1],[1,null,null,null,null,null,null,null,null,null,[1,3]]]]`, "# text-1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
