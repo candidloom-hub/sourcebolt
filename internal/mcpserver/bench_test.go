@@ -25,6 +25,10 @@ func (t benchTransport) Do(context.Context, transport.Call) (transport.Result, e
 
 func benchSession(b *testing.B) *mcp.ClientSession {
 	b.Helper()
+	// Measure the production path: no test-only output validation.
+	prev := validateOutput
+	validateOutput = false
+	b.Cleanup(func() { validateOutput = prev })
 	// 100 notebooks built from the live wXbhsf row structure (synthetic ids).
 	tr := benchTransport{payload: benchdata.ListPayload(100)}
 	srv := New(Deps{NLM: nlm.New(tr), Cache: cache.New(nil), Profile: "default", Host: "notebook.google.com"}, "default")
