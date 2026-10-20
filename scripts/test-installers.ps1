@@ -193,6 +193,31 @@ try {
         Ok 'refuses to purge the user profile folder'
     } else { Bad 'refuses to purge the user profile folder' }
 
+    # 12b. ... nor a folder above it, nor a spelling of it with a trailing '\' or '\.'
+    foreach ($target in @((Split-Path -Parent $fakeProfile), "$fakeProfile\", "$fakeProfile\.")) {
+        $script:envOverride = @{ USERPROFILE = $fakeProfile; NOTEBOOKLM_CONFIG_DIR = $target }
+        $code = Invoke-Installer @('-Uninstall', '-Purge', '-Yes')
+        $script:envOverride = $null
+        if ($code -ne 0 -and (Test-Path -LiteralPath (Join-Path $fakeProfile 'keep-me')) -and $script:out -match 'refusing to delete') {
+            Ok "refuses to purge '$(Split-Path -Leaf $target)' (profile spelling or parent)"
+        } else { Bad "refuses to purge '$target'" }
+    }
+
+    # 12c. a drive-relative install folder is refused
+    if ((Invoke-Installer @('-Version', 'v1.0.0', '-InstallDir', 'C:relative\sb')) -ne 0 -and $script:out -match 'cannot be used as the install folder') {
+        Ok 'refuses a drive-relative install folder'
+    } else { Bad 'refuses a drive-relative install folder' }
+
+    # 12d. through iex inside another script, a failure sets $LASTEXITCODE and never exits the caller
+    $caller = Join-Path $work 'caller.ps1'
+    [IO.File]::WriteAllText($caller, ('$env:SOURCEBOLT_DOWNLOAD_BASE = "http://example.invalid"' + "`n" +
+            "Get-Content -Raw -LiteralPath '$installer' | Invoke-Expression`n" + '"caller still running: $LASTEXITCODE"' + "`n"))
+    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    $o = (& $Shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $caller 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    $ErrorActionPreference = $old
+    $script:out = $o
+    if ($o -match 'caller still running: 1') { Ok 'iex inside a script reports failure without exiting the caller' } else { Bad 'iex inside a script reports failure without exiting the caller' }
+
     # 13. without cosign the output says the check is integrity only
     if ((Invoke-Installer @('-Version', 'v1.0.0')) -eq 0 -and $script:out -match 'integrity only') {
         Ok "says 'integrity only' when cosign is absent"

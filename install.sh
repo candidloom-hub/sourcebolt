@@ -35,6 +35,8 @@ REPO="candidloom-hub/sourcebolt"
 MARK_BEGIN="# >>> added by sourcebolt installer >>>"
 MARK_END="# <<< added by sourcebolt installer <<<"
 TMP=""
+NEWBIN=""
+BACKUP=""
 
 say() { printf '%s\n' "$*"; }
 step() { printf '  - %s\n' "$*"; }
@@ -42,7 +44,13 @@ die() {
 	printf '\nsourcebolt was NOT installed: %s\n' "$*" >&2
 	exit 1
 }
-cleanup() { if [ -n "$TMP" ] && [ -d "$TMP" ]; then rm -rf "$TMP"; fi; }
+cleanup() {
+	if [ -n "$TMP" ] && [ -d "$TMP" ]; then rm -rf "$TMP"; fi
+	# A failure halfway through an upgrade: the old binary is still in place, so its backup
+	# and any half-copied new binary can go.
+	if [ -n "$NEWBIN" ]; then rm -f "$NEWBIN"; fi
+	if [ -n "$BACKUP" ] && [ -e "${INSTALL_DIR}/sourcebolt" ]; then rm -f "$BACKUP"; fi
+}
 
 usage() {
 	cat <<'EOF'
@@ -154,26 +162,33 @@ check_install_dir() {
 	*) die "'${INSTALL_DIR}' cannot be used as the install folder: it must be a full path starting with /." ;;
 	esac
 	case "$INSTALL_DIR" in
-	*'"'* | *'$'* | *'`'* | *'\'* | *"$nl"*) die "'${INSTALL_DIR}' cannot be used as the install folder: it contains a quote, \$, backtick, backslash or line break." ;;
+	*'"'* | *'$'* | *'`'* | *\\* | *"$nl"*) die "'${INSTALL_DIR}' cannot be used as the install folder: it contains a quote, \$, backtick, backslash or line break." ;;
 	esac
 	INSTALL_DIR="${INSTALL_DIR%/}"
 }
 
-# Refuses to recursively delete a folder that is clearly not sourcebolt's own.
+# Refuses to recursively delete a folder that is clearly not sourcebolt's own: the home folder,
+# any folder above it, the shared config folders, or a folder directly under /. Paths are
+# compared after resolving symlinks, "..", and doubled or trailing slashes.
 check_purge_dir() {
-	d="${1%/}"
-	case "$d" in
-	"" | "$HOME" | "${XDG_CONFIG_HOME:-${HOME}/.config}" | "${HOME}/.config" | "${HOME}/Library/Application Support" | "${HOME}/Library")
-		die "refusing to delete '${1}': it is not a sourcebolt data folder. Check NOTEBOOKLM_CONFIG_DIR."
-		;;
+	case "$1" in
 	/*) ;;
 	*) die "refusing to delete '${1}': it is not a full path. Check NOTEBOOKLM_CONFIG_DIR." ;;
 	esac
-	# Any folder directly under / (or / itself) is a system folder.
+	d="$(cd "$1" 2>/dev/null && pwd -P)" || die "refusing to delete '${1}': it could not be resolved. Check NOTEBOOKLM_CONFIG_DIR."
+	h="$(cd "$HOME" 2>/dev/null && pwd -P)" || h="${HOME%/}"
 	case "${d#/}" in
 	*/*) ;;
 	*) die "refusing to delete '${1}': it is a system folder. Check NOTEBOOKLM_CONFIG_DIR." ;;
 	esac
+	case "$h/" in
+	"$d"/*) die "refusing to delete '${1}': it is your home folder or a folder above it. Check NOTEBOOKLM_CONFIG_DIR." ;;
+	esac
+	for shared in "${XDG_CONFIG_HOME:-${HOME}/.config}" "${HOME}/.config" "${HOME}/Library/Application Support" "${HOME}/Library"; do
+		s="$(cd "$shared" 2>/dev/null && pwd -P)" || continue
+		[ "$d" = "$s" ] && die "refusing to delete '${1}': it is a shared settings folder, not a sourcebolt data folder. Check NOTEBOOKLM_CONFIG_DIR."
+	done
+	return 0
 }
 
 check_version() {
@@ -229,7 +244,7 @@ path_for_rc() {
 
 add_path_block() { # add_path_block <file>
 	f="$1"
-	if [ -f "$f" ] && grep -qF "$MARK_BEGIN" "$f"; then
+	if [ -f "$f" ] && grep -qxF "$MARK_BEGIN" "$f"; then
 		step "PATH already set up in ${f}"
 		return 0
 	fi
@@ -263,8 +278,19 @@ remove_path_blocks() {
 			step "could not create a temporary file next to ${f}; left it unchanged"
 			continue
 		}
-		cp -p "$f" "$tmp"
-		if ! awk -v b="$MARK_BEGIN" -v e="$MARK_END" '$0 == b {skip = 1; next} skip && $0 == e {skip = 0; next} !skip {print}' "$f" >"$tmp"; then
+		if ! cp -p "$f" "$tmp"; then
+			rm -f "$tmp"
+			step "could not copy ${f}; left it unchanged"
+			continue
+		fi
+		# Lines inside a block are held back and dropped only when its end marker comes; a start
+		# marker that is never closed gets its lines printed back at the end of the file.
+		if ! awk -v b="$MARK_BEGIN" -v e="$MARK_END" '
+			!skip && $0 == b { skip = 1; held = $0; next }
+			skip && $0 == e { skip = 0; held = ""; next }
+			skip { held = held "\n" $0; next }
+			{ print }
+			END { if (skip) print held }' "$f" >"$tmp"; then
 			rm -f "$tmp"
 			step "could not rewrite ${f}; left it unchanged"
 			continue
@@ -289,6 +315,10 @@ uninstall() {
 	else
 		step "no sourcebolt binary in ${INSTALL_DIR} (nothing to remove)"
 	fi
+	# Leftovers of an upgrade that was cut off.
+	for left in "${INSTALL_DIR}"/.sourcebolt.old.* "${INSTALL_DIR}"/.sourcebolt.new.*; do
+		if [ -f "$left" ] && [ ! -L "$left" ]; then rm -f "$left"; fi
+	done
 	data="$(config_dir)"
 	if [ "$PURGE" = 1 ]; then
 		if [ ! -d "$data" ]; then
@@ -317,6 +347,7 @@ setup_tools() {
 	elif command -v wget >/dev/null 2>&1; then
 		# wget cannot refuse an HTTPS-to-HTTP redirect; the URLs it is given are checked to be
 		# https:// above, and GitHub never redirects to plain HTTP.
+		step "curl not found: using wget, which cannot refuse a redirect to plain HTTP (install curl for the strictest download)"
 		fetch() {
 			case "$1" in https://*) ;; *) return 1 ;; esac
 			wget -q -O "$2" "$1"
@@ -403,7 +434,9 @@ download_and_verify() {
 install_binary() {
 	mkdir -p "${TMP}/x"
 	tar -xzf "${TMP}/${ARCHIVE}" -C "${TMP}/x" sourcebolt || die "could not unpack ${ARCHIVE}."
-	[ -f "${TMP}/x/sourcebolt" ] || die "${ARCHIVE} does not contain a sourcebolt binary."
+	if [ -L "${TMP}/x/sourcebolt" ] || [ ! -f "${TMP}/x/sourcebolt" ]; then
+		die "${ARCHIVE} does not contain a sourcebolt binary."
+	fi
 	chmod 0755 "${TMP}/x/sourcebolt"
 	if [ "$OS" = darwin ] && command -v xattr >/dev/null 2>&1; then
 		xattr -d com.apple.quarantine "${TMP}/x/sourcebolt" 2>/dev/null || true
@@ -411,19 +444,25 @@ install_binary() {
 
 	mkdir -p "$INSTALL_DIR" || die "could not create ${INSTALL_DIR}."
 	BIN="${INSTALL_DIR}/sourcebolt"
-	backup=""
+	# Temporary files next to the target get unpredictable names from mktemp (a shared folder
+	# could otherwise hold a planted symlink), and cleanup removes whatever is left of them.
 	if [ -e "$BIN" ]; then
 		# Keep the old binary until the new one has run, so a broken upgrade can be undone.
-		backup="${INSTALL_DIR}/.sourcebolt.old.$$"
-		cp -p "$BIN" "$backup" || die "could not back up ${BIN}."
+		BACKUP="$(mktemp "${INSTALL_DIR}/.sourcebolt.old.XXXXXX")" || die "could not write to ${INSTALL_DIR}."
+		cp -p "$BIN" "$BACKUP" || die "could not back up ${BIN}."
 	fi
 	# Copy next to the target, then rename: atomic, and safe while an old copy is running.
-	cp "${TMP}/x/sourcebolt" "${INSTALL_DIR}/.sourcebolt.new.$$" || die "could not write to ${INSTALL_DIR}."
-	mv -f "${INSTALL_DIR}/.sourcebolt.new.$$" "$BIN" || die "could not replace ${BIN}."
+	NEWBIN="$(mktemp "${INSTALL_DIR}/.sourcebolt.new.XXXXXX")" || die "could not write to ${INSTALL_DIR}."
+	cp "${TMP}/x/sourcebolt" "$NEWBIN" || die "could not write to ${INSTALL_DIR}."
+	chmod 0755 "$NEWBIN"
+	mv -f "$NEWBIN" "$BIN" || die "could not replace ${BIN}."
+	NEWBIN=""
+	backup="$BACKUP"
 
 	if ! installed_version="$("$BIN" --version 2>/dev/null)"; then
 		if [ -n "$backup" ]; then
 			mv -f "$backup" "$BIN"
+			BACKUP=""
 			die "the new binary did not run (${BIN} --version); restored the previous version."
 		fi
 		rm -f "$BIN"
@@ -431,6 +470,7 @@ install_binary() {
 	fi
 	if [ -n "$backup" ]; then
 		rm -f "$backup"
+		BACKUP=""
 		step "upgraded ${BIN}"
 	else
 		step "installed ${BIN}"

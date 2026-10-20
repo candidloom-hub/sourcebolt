@@ -174,6 +174,16 @@ if run_installer --uninstall && [ ! -e "$BINDIR/sourcebolt" ] && [ -f "$WORK/con
 	ok "uninstall removes the binary and the PATH blocks, keeps other lines and the data"
 else bad "uninstall removes the binary and the PATH blocks, keeps other lines and the data"; fi
 
+# 11b. uninstall also removes leftovers of a cut-off upgrade, and upgrades leave none
+run_installer --version v1.0.0 >/dev/null 2>&1 || true
+run_installer --version v1.1.0 >/dev/null 2>&1 || true
+leftover_after_upgrade="$(find "$BINDIR" -name '.sourcebolt.*' | wc -l | tr -d ' ')"
+: >"$BINDIR/.sourcebolt.old.Ab12Cd"
+: >"$BINDIR/.sourcebolt.new.Ef34Gh"
+if [ "$leftover_after_upgrade" = 0 ] && run_installer --uninstall && [ -z "$(find "$BINDIR" -name '.sourcebolt.*')" ]; then
+	ok "upgrades leave no temp files, and uninstall removes leftovers"
+else bad "upgrades leave no temp files, and uninstall removes leftovers"; fi
+
 # 12. --purge without a terminal and without --yes keeps the data
 if run_installer --uninstall --purge </dev/null && [ -f "$WORK/config/profile" ]; then
 	ok "--purge without confirmation keeps the data"
@@ -239,6 +249,27 @@ if run_installer --uninstall && cmp -s "$H/.bashrc" "$WORK/bashrc-before" && gre
 	ok "uninstall leaves a startup file with an unmatched marker untouched"
 else bad "uninstall leaves a startup file with an unmatched marker untouched"; fi
 rm -f "$H/.bashrc"
+
+# 19b. a closed block is removed, but a later unclosed start keeps every line after it
+printf 'a\n# >>> added by sourcebolt installer >>>\nx\n# <<< added by sourcebolt installer <<<\nb\n# >>> added by sourcebolt installer >>>\nc\nd\n' >"$H/.bashrc"
+if run_installer --uninstall && [ "$(tr '\n' ' ' <"$H/.bashrc")" = 'a b # >>> added by sourcebolt installer >>> c d ' ]; then
+	ok "uninstall keeps the lines after an unclosed start marker"
+else
+	bad "uninstall keeps the lines after an unclosed start marker"
+	sed 's/^/     > /' "$H/.bashrc"
+fi
+rm -f "$H/.bashrc"
+
+# 18b. --purge refuses the home folder written with a trailing slash, and its parent folder
+echo keep >"$H/keep-me"
+for d in "$H/" "$(dirname "$H")"; do
+	if env PATH="$WORK/shim:$PATH" HOME="$H" SHELL=/bin/sh NOTEBOOKLM_CONFIG_DIR="$d" SOURCEBOLT_INSTALL_DIR="$BINDIR" \
+		sh "$INSTALLER" --uninstall --purge --yes >"$WORK/out" 2>&1; then
+		bad "refuses to purge '$d' (installer exited 0)"
+	elif [ -f "$H/keep-me" ] && grep -q 'refusing to delete' "$WORK/out"; then
+		ok "refuses to purge a home spelling or parent ($(basename "$d"))"
+	else bad "refuses to purge '$d'"; fi
+done
 
 # 20. without cosign the output says the check is integrity only
 if run_installer --version v1.0.0 && grep -q 'integrity only' "$WORK/out"; then

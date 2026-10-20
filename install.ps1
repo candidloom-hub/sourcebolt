@@ -36,8 +36,14 @@ param(
 )
 
 # Run as a script file (powershell -File install.ps1) we may set the process exit code; through
-# `irm | iex` we must never call `exit`, because that would close the user's PowerShell window.
-$sourceboltRunAsFile = [bool]$PSCommandPath -and ($PSCommandPath -like '*.ps1')
+# `irm | iex` we must never call `exit`, because that would close the user's PowerShell window
+# (or end the caller's script). Under iex, $PSCommandPath and $MyInvocation describe the caller,
+# so only a script file that is itself install.ps1 counts.
+$sourceboltRunAsFile = $false
+try {
+    $sourceboltRunAsFile = ($MyInvocation.MyCommand.CommandType -eq 'ExternalScript') -and
+        ([IO.Path]::GetFileName($MyInvocation.MyCommand.Path) -ieq 'install.ps1')
+} catch { }
 
 $sourceboltState = @{ Failed = $false }
 & {
@@ -75,14 +81,23 @@ $sourceboltState = @{ Failed = $false }
         if ($url -notmatch '^(https|file)://') { Fail "downloads must use HTTPS (got '$url'). Only HTTPS downloads are allowed." }
     }
 
-    # Refuses to recursively delete a folder that is clearly not sourcebolt's own.
+    function Get-FullDir([string]$p) {
+        try { return [IO.Path]::GetFullPath($p).TrimEnd('\', '.').TrimEnd('\') } catch { return '' }
+    }
+
+    # Refuses to recursively delete a folder that is clearly not sourcebolt's own: a drive root,
+    # or any of the profile, AppData and system folders, or a folder above one of them. Both
+    # sides are compared as full paths, so 'C:\Users\me\' and 'C:\Users\me\.' match too.
     function Assert-SafeToPurge([string]$p) {
-        $full = try { [IO.Path]::GetFullPath($p).TrimEnd('\') } catch { '' }
+        $full = Get-FullDir $p
+        $isRoot = $full -and ([IO.Path]::GetPathRoot($full + '\').TrimEnd('\') -ieq $full)
+        if (-not $full -or $isRoot) { Fail "refusing to delete '$p': it is a drive root or not a full path. Check NOTEBOOKLM_CONFIG_DIR." }
         $danger = @($env:USERPROFILE, $env:APPDATA, $env:LOCALAPPDATA, $env:HOME, $env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
-            Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') }
-        $isRoot = $full -and ([IO.Path]::GetPathRoot($full).TrimEnd('\') -ieq $full)
-        if (-not $full -or $isRoot -or @($danger | Where-Object { $_ -ieq $full }).Count -gt 0) {
-            Fail "refusing to delete '$p': it is not a sourcebolt data folder. Check NOTEBOOKLM_CONFIG_DIR."
+            Where-Object { $_ } | ForEach-Object { Get-FullDir $_ } | Where-Object { $_ }
+        foreach ($d in $danger) {
+            if ($d -ieq $full -or $d.StartsWith($full + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                Fail "refusing to delete '$p': it is your profile, AppData or a system folder, or a folder above one of them. Check NOTEBOOKLM_CONFIG_DIR."
+            }
         }
     }
 
@@ -150,7 +165,8 @@ $sourceboltState = @{ Failed = $false }
 
         # The folder goes into the user PATH, where ';' separates entries and '"' is not allowed.
         $dirOk = $false
-        try { $dirOk = [IO.Path]::IsPathRooted($dir) -and ($dir -notmatch '[;"]') -and ([IO.Path]::GetPathRoot($dir).TrimEnd('\') -ine $dir.TrimEnd('\')) } catch { }
+        # Only a full path: 'C:\x' or '\\server\share\x', not drive-relative 'C:x' or '\x'.
+        try { $dirOk = ($dir -match '^([A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\)') -and ($dir -notmatch '[;"]') -and ([IO.Path]::GetPathRoot($dir).TrimEnd('\') -ine $dir.TrimEnd('\')) } catch { }
         if (-not $dirOk) { Fail "'$dir' cannot be used as the install folder. Use a full path of its own, with no ';' or '`"'." }
 
         # ---------------------------------------------------------------- uninstall
@@ -283,7 +299,11 @@ $sourceboltState = @{ Failed = $false }
             # Keep the old copy until the new one has run, so a broken upgrade can be undone.
             $restore = {
                 Remove-Item -LiteralPath $exe -Force -ErrorAction SilentlyContinue
-                if ($hadOld) { Move-Item -LiteralPath $old -Destination $exe -Force }
+                if ($hadOld) {
+                    try { Move-Item -LiteralPath $old -Destination $exe -Force } catch {
+                        Fail "the new program did not install, and the previous version could not be put back. It is saved as $old; rename it to sourcebolt.exe."
+                    }
+                }
             }
             try { Copy-Item -LiteralPath $newExe -Destination $exe -Force } catch {
                 & $restore
@@ -329,8 +349,9 @@ $sourceboltState = @{ Failed = $false }
             if ($noSetup) {
                 Say "Next step: run 'sourcebolt setup' to sign in and connect your AI apps."
             } elseif (Confirm-Yes "Run 'sourcebolt setup' now to sign in and connect your AI apps?" $true) {
-                & $exe setup | Out-Host
-                if ($LASTEXITCODE -ne 0) { Say "Setup did not finish. You can run 'sourcebolt setup' again at any time." }
+                # Start-Process keeps setup on the real console, so its questions show at once.
+                $p = Start-Process -FilePath $exe -ArgumentList 'setup' -NoNewWindow -Wait -PassThru
+                if ($p.ExitCode -ne 0) { Say "Setup did not finish. You can run 'sourcebolt setup' again at any time." }
             } else {
                 Say "Next step: run 'sourcebolt setup' to sign in and connect your AI apps."
             }
