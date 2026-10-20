@@ -134,6 +134,7 @@ func unquote(v jsontext.Value) jsontext.Value {
 		return nil
 	}
 	cur := bytes.TrimSpace(v)
+	fresh := false // cur no longer points into the caller's body
 	for i := 0; i < maxUnquote && len(cur) > 0 && cur[0] == '"'; i++ {
 		s, err := jsontext.AppendUnquote(make([]byte, 0, len(cur)), cur)
 		if err != nil {
@@ -144,10 +145,13 @@ func unquote(v jsontext.Value) jsontext.Value {
 			}
 			s = []byte(str)
 		}
-		cur = escapeControl(bytes.TrimSpace(s))
+		cur, fresh = escapeControl(bytes.TrimSpace(s)), true
 	}
 	if isNull(cur) {
 		return nil
+	}
+	if !fresh {
+		cur = bytes.Clone(cur) // the body buffer may be reused (rpc pools it)
 	}
 	return jsontext.Value(cur)
 }

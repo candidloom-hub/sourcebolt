@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -244,11 +245,18 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 	if e := t.statusErr(c, resp); e != nil {
 		return nil, e
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
-	if err != nil {
+	// The body is read into a pooled buffer: wire.Decode copies everything
+	// it returns, so the buffer is free again when this call returns.
+	buf := bodyPool.Get().(*bytes.Buffer)
+	defer putBody(buf)
+	buf.Reset()
+	if n := resp.ContentLength; n > 0 && n <= maxBody {
+		buf.Grow(int(n) + bytes.MinRead)
+	}
+	if _, err := buf.ReadFrom(io.LimitReader(resp.Body, maxBody)); err != nil {
 		return nil, t.fail(c, transport.KindTransport, ctx.Err() == nil, err)
 	}
-	frames, tr, err := wire.Decode(raw)
+	frames, tr, err := wire.Decode(buf.Bytes())
 	if tr.FSID != "" {
 		t.setFSID(tr.FSID)
 	}
@@ -260,6 +268,15 @@ func (t *Transport) once(ctx context.Context, c transport.Call) (_ []byte, err e
 		return nil, t.wireErr(err, c)
 	}
 	return payload, nil
+}
+
+var bodyPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
+// putBody returns buf to the pool unless an unusually large answer grew it.
+func putBody(buf *bytes.Buffer) {
+	if buf.Cap() <= 1<<20 {
+		bodyPool.Put(buf)
+	}
 }
 
 // statusErr classifies a non-200 HTTP status; nil means 200 OK.

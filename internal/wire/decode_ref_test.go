@@ -203,6 +203,45 @@ func decodeSeeds() [][]byte {
 	return append(seeds, body)
 }
 
+// Callers may reuse the body buffer once Decode returns (rpc pools it), so
+// nothing Decode returns may point into it.
+func TestDecodeResultsDoNotAliasBody(t *testing.T) {
+	for _, s := range decodeSeeds() {
+		body := bytes.Clone(s)
+		frames, tr, err := Decode(body)
+		if err != nil {
+			continue
+		}
+		want := make([]Frame, len(frames))
+		for i, f := range frames {
+			want[i] = f
+			want[i].Payload = bytes.Clone(f.Payload)
+			if f.Status != nil {
+				st := *f.Status
+				if st.Details != nil {
+					st.Details = make([]jsontext.Value, 0, len(f.Status.Details))
+				}
+				for _, d := range f.Status.Details {
+					st.Details = append(st.Details, bytes.Clone(d))
+				}
+				want[i].Status = &st
+			}
+		}
+		wantTr := tr
+		for i := range body {
+			body[i] = 'X'
+		}
+		for i, f := range frames {
+			if !bytes.Equal(f.Payload, want[i].Payload) || !reflect.DeepEqual(f.Status, want[i].Status) || f.ID != want[i].ID {
+				t.Fatalf("%q: frame %d changed when the body was overwritten", s, i)
+			}
+		}
+		if tr != wantTr {
+			t.Fatalf("%q: trailers changed", s)
+		}
+	}
+}
+
 func TestDecodeMatchesRef(t *testing.T) {
 	for _, s := range decodeSeeds() {
 		checkDecodeMatchesRef(t, s)
