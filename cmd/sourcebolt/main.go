@@ -15,6 +15,8 @@ import (
 const usage = `sourcebolt - fast MCP server for Google NotebookLM
 
 Usage:
+  sourcebolt setup  [--yes] [--client name]... [--dry-run] [--no-login]   (start here: connects your AI apps and signs you in)
+  sourcebolt setup  --undo [--client name]...
   sourcebolt serve  [--profile p] [--tools default|minimal|all] [--http 127.0.0.1:PORT --token-file f] [--no-browser-fallback]
   sourcebolt call   <tool> '<json args>'
   sourcebolt login  [--timeout 10m] [--browser-path exe] [--profile p] [--host h]   (opens a browser; you sign in)
@@ -27,7 +29,7 @@ Usage:
   sourcebolt --version
 
 Environment: NOTEBOOKLM_PROFILE, NOTEBOOKLM_HOST, NOTEBOOKLM_CONFIG_DIR, NOTEBOOKLM_RPC_IDS,
-             SOURCEBOLT_BROWSER (browser executable for login --browser),
+             SOURCEBOLT_BROWSER (browser program for login and setup),
              NOTEBOOKLM_BROWSER_FALLBACK=0 (disable the headless browser fallback)
 `
 
@@ -58,6 +60,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return cmdCall(ctx, rest, stdout, stderr)
 	case "login":
 		return cmdLogin(ctx, rest, stdin, stdout, stderr)
+	case "setup":
+		return cmdSetup(ctx, rest, stdin, stdout, stderr)
 	case "logout":
 		return cmdLogout(rest, stdout, stderr)
 	case "status":

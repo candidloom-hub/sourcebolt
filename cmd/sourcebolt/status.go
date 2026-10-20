@@ -47,7 +47,7 @@ func cmdStatus(stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "config dir: %s\nactive profile: %s\n", cfg.ConfigDir, cfg.Profile)
 	if len(names) == 0 {
-		fmt.Fprintln(stdout, "no profiles; run: sourcebolt login --import <cookies file>")
+		fmt.Fprintln(stdout, "no profiles; run: sourcebolt login")
 		return 0
 	}
 	for _, n := range names {
@@ -110,7 +110,7 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	check("profile "+cfg.Profile, err)
 	if err == nil {
 		if !rt.Profile.Jar.Valid() {
-			check("cookies", errors.New("no valid session; run: sourcebolt login --import <cookies file>"))
+			check("cookies", errors.New("no valid session; run: sourcebolt login"))
 		} else {
 			wctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			start := time.Now()
