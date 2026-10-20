@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Sign in from an environment variable, for containers that cannot run `login` (Docker MCP Toolkit, `docker run`): `NOTEBOOKLM_COOKIES` holds a cookie export (Netscape, JSON or `Cookie:` header, as `login --import`), or `NOTEBOOKLM_COOKIES_FILE` names a file holding one (a Docker secret). The same required-cookie check applies, errors never show values, the cookies stay in memory (never saved, rotations included), the variables are removed from the environment after reading, and a set variable wins over a saved profile. `status` and `doctor` report the source. See `docs/auth.md`.
+
 ## [0.3.1] - 2026-10-21
 
 The first published 0.3 release. It has every change listed under 0.3.0: the v0.3.0 tag exists, but its release run failed before anything was published.

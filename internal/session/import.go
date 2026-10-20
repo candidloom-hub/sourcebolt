@@ -2,6 +2,7 @@ package session
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -97,6 +98,32 @@ func ImportHeader(s string, h Host) (*Jar, error) {
 		j.Add(Cookie{Name: name, Value: value, Domain: domain, Path: "/"})
 	}
 	return nonEmpty(j)
+}
+
+// ParseExport reads a cookie export in format "netscape", "json" or
+// "header". An empty format is detected: a leading "[" is JSON, a tab is
+// Netscape, anything else is a Cookie header.
+func ParseExport(raw []byte, format string, h Host) (*Jar, error) {
+	if format == "" {
+		t := bytes.TrimSpace(raw)
+		switch {
+		case bytes.HasPrefix(t, []byte("[")):
+			format = "json"
+		case bytes.Contains(t, []byte("\t")):
+			format = "netscape"
+		default:
+			format = "header"
+		}
+	}
+	switch format {
+	case "json":
+		return ImportJSON(bytes.NewReader(raw))
+	case "netscape":
+		return ImportNetscape(bytes.NewReader(raw))
+	case "header":
+		return ImportHeader(strings.TrimSpace(string(raw)), h)
+	}
+	return nil, fmt.Errorf("unknown --format %q", format)
 }
 
 // unixAuto converts seconds or milliseconds since the epoch.
