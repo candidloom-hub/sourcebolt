@@ -46,6 +46,10 @@ func cmdServe(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if err != nil {
 		return fail(stderr, err)
 	}
+	if rt.ProfileErr != nil {
+		// Serve anyway: an MCP client shows tool errors, not stderr.
+		fmt.Fprintf(stderr, "sourcebolt: profile %q could not be read (%v); tools report AUTH_REQUIRED until you run: sourcebolt login\n", cfg.Profile, rt.ProfileErr)
+	}
 	// Stops the fallback browser and detached jobs on every exit path
 	// (stdio and HTTP).
 	defer rt.Close()
@@ -56,7 +60,7 @@ func cmdServe(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	go func() {
 		wctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
-		_ = rt.Transport.Warm(wctx)
+		_ = rt.Warm(wctx)
 	}()
 
 	if *httpAddr != "" {

@@ -402,6 +402,10 @@ func (t *Transport) setFSID(fsid string) {
 	}
 }
 
+// ReloadIfNewer adopts the saved profile when another process (a fresh
+// `sourcebolt login`) saved a newer revision, and drops cached tokens.
+func (t *Transport) ReloadIfNewer() { t.reloadIfNewer() }
+
 // reloadIfNewer adopts a profile saved by another process (a fresh
 // `sourcebolt login`) and drops cached tokens.
 func (t *Transport) reloadIfNewer() {

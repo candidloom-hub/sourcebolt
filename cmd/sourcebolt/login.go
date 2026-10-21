@@ -163,16 +163,18 @@ func saveProfile(cfg app.Config, h session.Host, jar *session.Jar, notebooks int
 		return fail(stderr, err)
 	}
 	if replaced {
-		fmt.Fprintf(stdout, "Replaced profile %q: its encryption key was missing from the OS keyring, so the old session could not be read.\n", p.Name)
+		fmt.Fprintf(stdout, "Replaced profile %q: the old session could not be read (its encryption key was missing or did not match, or the file was damaged).\n", p.Name)
 	}
 	fmt.Fprintf(stdout, "Saved profile %q for %s (%d notebooks visible).\n", p.Name, p.Host, notebooks)
 	return 0
 }
 
 // prepareSave returns the revision a new login must save over. A profile
-// that exists but whose encryption key is gone (keyring entry and key file
-// both missing) can never be read again; it is deleted so the new login
-// can be saved, and replaced is true. Other load errors are returned.
+// that exists but can never be read again (keyring entry and key file both
+// missing, a key that does not decrypt it, or a damaged file) is deleted
+// so the new login can be saved, and replaced is true. Other load errors
+// (a locked or unanswering keyring, file permissions) are returned: the
+// key may still be there.
 func prepareSave(store session.Store, name string) (rev int64, replaced bool, err error) {
 	old, err := store.Load(name)
 	if err == nil {
@@ -182,7 +184,7 @@ func prepareSave(store session.Store, name string) (rev int64, replaced bool, er
 	if lerr != nil || !slices.Contains(names, name) {
 		return 0, false, nil // no profile yet
 	}
-	if !errors.Is(err, fs.ErrNotExist) {
+	if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, session.ErrUndecryptable) {
 		return 0, false, fmt.Errorf("profile %q exists but cannot be read (%w); run: sourcebolt logout --profile %s, then log in again", name, err, name)
 	}
 	if derr := store.Delete(name); derr != nil {

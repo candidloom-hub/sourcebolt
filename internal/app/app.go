@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/candidloom-hub/sourcebolt/internal/transport"
 	"github.com/candidloom-hub/sourcebolt/internal/transport/browser"
 	"github.com/candidloom-hub/sourcebolt/internal/transport/rpc"
+	"github.com/candidloom-hub/sourcebolt/internal/wire"
 )
 
 // Config comes from flags and environment.
@@ -100,6 +102,12 @@ type Runtime struct {
 	// CookieSource names the environment variable the cookies came from
 	// (EnvCookies or EnvCookiesFile); empty for a saved profile.
 	CookieSource string
+	// ProfileErr is why the saved profile could not be read (wrong or
+	// missing key, corrupt file); nil otherwise. The server still starts
+	// and tool calls report AUTH_REQUIRED until `sourcebolt login`
+	// replaces the profile.
+	ProfileErr error
+	gate       *profileGate // set with ProfileErr
 
 	// The fallback browser launcher is created on first use but owned
 	// here, so Close can stop a headless browser that would otherwise
@@ -185,6 +193,17 @@ func (l *lazyDOM) AddText(ctx context.Context, nb, title, content string) error 
 	return d.AddText(ctx, nb, title, content)
 }
 
+// Warm fetches page tokens ahead of the first tool call. While the saved
+// profile cannot be read it sends nothing and returns the auth error.
+func (rt *Runtime) Warm(ctx context.Context) error {
+	if rt.gate != nil {
+		if err := rt.gate.check(); err != nil {
+			return err
+		}
+	}
+	return rt.Transport.Warm(ctx)
+}
+
 // Close cancels running detached jobs and stops the fallback browser (if
 // one was ever launched). It is idempotent and safe on a runtime that
 // never used the browser.
@@ -236,11 +255,14 @@ func Build(c Config) (*Runtime, error) {
 
 	store := c.Store()
 	p, err := store.Load(c.Profile)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	var profileErr error
+	if err != nil {
+		// The server starts either way, so an MCP client sees tools and an
+		// AUTH_REQUIRED that says what to do instead of "connection closed".
+		if !errors.Is(err, fs.ErrNotExist) || profileExists(store, c.Profile) {
+			profileErr = err // saved but unreadable: wrong or missing key, damaged file, locked keyring
+		}
 		p = &session.Profile{Name: c.Profile, Host: session.HostDefault, Jar: session.NewJar()}
-	case err != nil:
-		return nil, err
 	}
 	if c.Host != "" {
 		p.Host = c.Host
@@ -248,7 +270,85 @@ func Build(c Config) (*Runtime, error) {
 	if p.Host == "" {
 		p.Host = session.HostDefault
 	}
-	return ForProfile(p, store, opts...), nil
+	rt := ForProfile(p, store, opts...)
+	if profileErr != nil {
+		rt.ProfileErr = profileErr
+		g := &profileGate{rt: rt, store: store, name: c.Profile, err: profileErr, next: rt.Active}
+		rt.gate, rt.Active = g, g
+		dom := rt.Deps.NLM.DOM
+		rt.Deps.NLM = nlm.New(g)
+		rt.Deps.NLM.DOM = dom
+	}
+	return rt, nil
+}
+
+func profileExists(store session.Store, name string) bool {
+	names, err := store.List()
+	return err == nil && slices.Contains(names, name)
+}
+
+// profileGate stands in front of the transports while the saved profile
+// cannot be read. Each call retries the load: while it fails the call gets
+// AUTH_REQUIRED without anything being sent; once `sourcebolt login` has
+// replaced the profile, the rpc transport adopts it and the gate opens for
+// good.
+type profileGate struct {
+	rt    *Runtime
+	store session.Store
+	name  string
+
+	mu   sync.Mutex
+	err  error // nil once open
+	next transport.Transport
+}
+
+// check returns the auth error while the profile is still unreadable.
+func (g *profileGate) check() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.err == nil {
+		return nil
+	}
+	if _, err := g.store.Load(g.name); err != nil {
+		g.err = err
+		return g.authErr(err)
+	}
+	g.err = nil
+	g.rt.Transport.ReloadIfNewer()
+	return nil
+}
+
+// authErr names the failure without cookie values or key material (store
+// errors carry neither) and says how to fix it.
+func (g *profileGate) authErr(err error) error {
+	return &transport.Error{
+		Kind:  transport.KindAuth,
+		RPC:   "session.load",
+		Cause: fmt.Errorf("the saved profile %q could not be read (%v); run: sourcebolt login to replace it", g.name, err),
+	}
+}
+
+func (g *profileGate) Name() string { return g.next.Name() }
+
+func (g *profileGate) Supports(rpc string) bool { return g.next.Supports(rpc) }
+
+func (g *profileGate) Do(ctx context.Context, c transport.Call) (transport.Result, error) {
+	if err := g.check(); err != nil {
+		return transport.Result{}, err
+	}
+	return g.next.Do(ctx, c)
+}
+
+// Stream keeps chat working through the gate (nlm needs a Streamer).
+func (g *profileGate) Stream(ctx context.Context, nb string, params any, onSnap func(wire.Snapshot)) (wire.Snapshot, error) {
+	if err := g.check(); err != nil {
+		return wire.Snapshot{}, err
+	}
+	st, ok := g.next.(nlm.Streamer)
+	if !ok {
+		return wire.Snapshot{}, &transport.Error{Kind: transport.KindUnsupported, RPC: "chat.ask", Transport: g.next.Name(), Message: "transport cannot stream chat answers"}
+	}
+	return st.Stream(ctx, nb, params, onSnap)
 }
 
 // Option customizes ForProfile.
