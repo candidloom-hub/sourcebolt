@@ -7,13 +7,13 @@
     "url": "https://github.com/candidloom-hub/sourcebolt",
     "source": "github"
   },
-  "version": "0.3.1",
+  "version": "0.3.2",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "sourcebolt",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "runtimeHint": "npx",
       "packageArguments": [
         {
@@ -27,14 +27,14 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/candidloom-hub/sourcebolt:0.3.1",
+      "identifier": "ghcr.io/candidloom-hub/sourcebolt:0.3.2",
       "runtimeHint": "docker",
       "runtimeArguments": [
         {
           "type": "named",
           "name": "--mount",
           "value": "type=volume,src=sourcebolt-config,dst=/config",
-          "description": "Keeps the encrypted sign-in profile in a named Docker volume. Sign in once with: docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.1 login --import - < cookies.txt"
+          "description": "Keeps the encrypted sign-in profile in a named Docker volume. Sign in once with: docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.2 login --import - < cookies.txt"
         }
       ],
       "transport": {

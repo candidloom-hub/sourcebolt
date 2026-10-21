@@ -34,7 +34,7 @@ macOS and Linux:
 curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh -s -- --no-setup
 ```
 
-The output ends with a line like `Installed: sourcebolt 0.3.1`. The program is installed at:
+The output ends with a line like `Installed: sourcebolt 0.3.2`. The program is installed at:
 
 - Windows: `%LOCALAPPDATA%\Programs\sourcebolt\sourcebolt.exe`, for example `C:\Users\you\AppData\Local\Programs\sourcebolt\sourcebolt.exe`
 - macOS and Linux: `~/.local/bin/sourcebolt`, for example `/Users/you/.local/bin/sourcebolt` or `/home/you/.local/bin/sourcebolt`
@@ -45,7 +45,7 @@ Work out the **absolute** path (expand `%LOCALAPPDATA%` or `~`) and check it run
 "<full path to sourcebolt>" --version
 ```
 
-It prints `sourcebolt 0.3.1` or newer. Use this full path in the next steps: a new `PATH` entry only reaches terminals and apps started after the install.
+It prints `sourcebolt 0.3.2` or newer. Use this full path in the next steps: a new `PATH` entry only reaches terminals and apps started after the install.
 
 ### Option B: npm (needs Node.js 18 or newer)
 
@@ -55,7 +55,7 @@ Nothing to install up front; npm downloads the right program the first time:
 npx -y sourcebolt --version
 ```
 
-It prints `sourcebolt 0.3.1` or newer.
+It prints `sourcebolt 0.3.2` or newer.
 
 ## Step 3: Add sourcebolt to Cline's MCP settings
 
