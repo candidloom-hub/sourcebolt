@@ -139,7 +139,7 @@ Example with the file form (bash):
 docker run -i --rm \
   -v "$HOME/.sourcebolt-secrets/cookies.txt:/run/secrets/notebooklm_cookies:ro" \
   -e NOTEBOOKLM_COOKIES_FILE=/run/secrets/notebooklm_cookies \
-  ghcr.io/candidloom-hub/sourcebolt:0.3.1 doctor
+  ghcr.io/candidloom-hub/sourcebolt:0.3.2 doctor
 ```
 
 `doctor` should print `ok    cookies from NOTEBOOKLM_COOKIES_FILE (in memory, not saved)` and a working token bootstrap. For client configs, see [clients.md](clients.md#docker).

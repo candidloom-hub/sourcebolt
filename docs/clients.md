@@ -224,7 +224,7 @@ Any app above can start the Docker image instead of the program. Sign in first (
   "mcpServers": {
     "sourcebolt": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-v", "sourcebolt-config:/config", "ghcr.io/candidloom-hub/sourcebolt:0.3.1"]
+      "args": ["run", "-i", "--rm", "-v", "sourcebolt-config:/config", "ghcr.io/candidloom-hub/sourcebolt:0.3.2"]
     }
   }
 }
@@ -243,7 +243,7 @@ The container can also sign in from a cookie export you hand it, so you never ru
         "run", "-i", "--rm",
         "-v", "/home/you/.sourcebolt-secrets/cookies.txt:/run/secrets/notebooklm_cookies:ro",
         "-e", "NOTEBOOKLM_COOKIES_FILE=/run/secrets/notebooklm_cookies",
-        "ghcr.io/candidloom-hub/sourcebolt:0.3.1"
+        "ghcr.io/candidloom-hub/sourcebolt:0.3.2"
       ]
     }
   }
@@ -253,7 +253,7 @@ The container can also sign in from a cookie export you hand it, so you never ru
 Or keep the variable in an env file that only you can read and pass `--env-file`:
 
 ```json
-"args": ["run", "-i", "--rm", "--env-file", "/home/you/.sourcebolt-secrets/sourcebolt.env", "ghcr.io/candidloom-hub/sourcebolt:0.3.1"]
+"args": ["run", "-i", "--rm", "--env-file", "/home/you/.sourcebolt-secrets/sourcebolt.env", "ghcr.io/candidloom-hub/sourcebolt:0.3.2"]
 ```
 
 where `sourcebolt.env` holds one line, `NOTEBOOKLM_COOKIES=SID=...; __Secure-1PSIDTS=...; OSID=...` (the `Cookie:` header form; an env file cannot hold a multi-line `cookies.txt`).

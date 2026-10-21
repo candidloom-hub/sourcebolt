@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-21
+
+One sign-in for every app on Windows (the data folder moves out of AppData, so apps from the Microsoft Store see the same profile as the terminal), sign-in from an environment variable for containers and the Docker MCP Toolkit, npm trusted publishing, and a `status --help` fix.
+
 ### Added
 
 - Sign in from an environment variable, for containers that cannot run `login` (Docker MCP Toolkit, `docker run`): `NOTEBOOKLM_COOKIES` holds a cookie export (Netscape, JSON or `Cookie:` header, as `login --import`), or `NOTEBOOKLM_COOKIES_FILE` names a file holding one (a Docker secret). The same required-cookie check applies, errors never show values, the cookies stay in memory (never saved, rotations included), the variables are removed from the environment after reading, and a set variable wins over a saved profile. `status` and `doctor` report the source. See `docs/auth.md`.
@@ -169,7 +173,8 @@ First public release: GitHub release binaries and GHCR images. npm, PyPI and MCP
 - Studio generation, deletes other than notebooks, Drive and file sources, source guide and refresh, followup suggestions, label create and auto-label, research `discover`, and saving a chat turn as a note are not available yet.
 - Uncached `notebook_list` (100 notebooks) measures about 2.3 ms p50 on the 2-CPU CI runner, above the 2 ms overhead target. Most of the remaining time is MCP JSON-RPC encoding and decoding, and the benchmark counts the client's share too (see `bench/RESULTS.md`).
 
-[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/candidloom-hub/sourcebolt/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/candidloom-hub/sourcebolt/compare/v0.1.0...v0.2.0
