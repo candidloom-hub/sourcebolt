@@ -1,7 +1,7 @@
 {
   "name": "sourcebolt",
   "displayName": "sourcebolt (NotebookLM)",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Unofficial MCP server for Google NotebookLM: notebooks, sources, cited chat, research, notes. Runs the sourcebolt binary from your PATH.",
   "author": {
     "name": "candidloom-hub",
