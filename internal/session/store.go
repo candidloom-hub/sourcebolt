@@ -4,13 +4,16 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -128,15 +131,6 @@ type fileStore struct {
 // NewFileStore stores each profile as an AES-256-GCM encrypted file in dir.
 func NewFileStore(dir string, kr Keyring) Store { return &fileStore{dir: dir, kr: kr} }
 
-// DefaultDir is <user config dir>/sourcebolt/profiles.
-func DefaultDir() (string, error) {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, "sourcebolt", "profiles"), nil
-}
-
 type diskProfile struct {
 	Host    Host      `json:"host"`
 	Cookies []Cookie  `json:"cookies"`
@@ -200,7 +194,7 @@ func (s *fileStore) Load(name string) (*Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	key, inFile, err := s.getKey(name)
+	key, inFile, _, err := s.getKey(name, blob)
 	if err != nil {
 		return nil, err
 	}
@@ -242,9 +236,10 @@ func (s *fileStore) save(p *Profile) error {
 		return err
 	}
 	defer unlock()
+	blob, readErr := os.ReadFile(s.path(p.Name, profileExt))
 	_, statErr := os.Stat(s.path(p.Name, profileExt))
 	exists := statErr == nil
-	key, inFile, err := s.getKey(p.Name)
+	key, inFile, legacy, err := s.getKey(p.Name, blob)
 	if err != nil && !exists {
 		// Mint a key only for a brand-new profile. For an existing profile a
 		// missing or unreadable key must never be replaced: that would make
@@ -254,7 +249,7 @@ func (s *fileStore) save(p *Profile) error {
 	if err != nil {
 		return err
 	}
-	if blob, err := os.ReadFile(s.path(p.Name, profileExt)); err == nil {
+	if readErr == nil {
 		cur, err := decrypt(key, blob)
 		if err != nil {
 			return err
@@ -263,12 +258,18 @@ func (s *fileStore) save(p *Profile) error {
 			return ErrStaleRevision
 		}
 	}
+	if legacy {
+		// Move the key to this folder's own entry. The legacy entry stays:
+		// another folder may still use it. On failure the legacy entry keeps
+		// working, so the save goes on.
+		_ = s.kr.Set(keyringService, s.keyUser(p.Name), base64.StdEncoding.EncodeToString(key))
+	}
 	dp := diskProfile{Host: p.Host, Cookies: p.Jar.All(), Rev: p.Rev + 1, Updated: time.Now().UTC()}
-	blob, err := encrypt(key, dp)
+	out, err := encrypt(key, dp)
 	if err != nil {
 		return err
 	}
-	if err := writeAtomic(s.path(p.Name, profileExt), blob); err != nil {
+	if err := writeAtomic(s.path(p.Name, profileExt), out); err != nil {
 		return err
 	}
 	p.Rev, p.Updated, p.KeyInFile = dp.Rev, dp.Updated, inFile
@@ -279,7 +280,14 @@ func (s *fileStore) Delete(name string) error {
 	if err := pathName(name); err != nil {
 		return err
 	}
-	_ = s.kr.Delete(keyringService, name)
+	derr := s.kr.Delete(keyringService, s.keyUser(name))
+	// The legacy entry is shared by every folder; remove it only when it is
+	// this profile's key (it decrypts this folder's file).
+	if blob, err := os.ReadFile(s.path(name, profileExt)); err == nil && !errors.Is(derr, ErrKeyringTimeout) {
+		if _, ok := s.legacyKey(name, blob); ok {
+			_ = s.kr.Delete(keyringService, name)
+		}
+	}
 	for _, ext := range []string{profileExt, keyExt} {
 		if err := os.Remove(s.path(name, ext)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
@@ -300,24 +308,87 @@ func (s *fileStore) List() ([]string, error) {
 	return names, nil
 }
 
-// getKey returns the profile key from the keyring, else from the key file.
-// A keyring failure other than "not found" is returned as is, so callers
-// never mistake a locked keyring for a missing key.
-func (s *fileStore) getKey(name string) ([]byte, bool, error) {
-	v, kerr := s.kr.Get(keyringService, name)
+// keyUser is the keyring user name for a profile in this folder:
+// "<profile>@<first 12 hex digits of sha256(folder)>". The folder is the
+// absolute, cleaned profiles folder with links resolved (and 8.3 short
+// names expanded) when it exists, lower-cased on Windows. Scoping by folder
+// keeps two folders with the same profile name (NOTEBOOKLM_CONFIG_DIR, or
+// two AppData views under MSIX virtualization) from sharing one key.
+func (s *fileStore) keyUser(name string) string {
+	sum := sha256.Sum256([]byte(normDir(s.dir)))
+	return name + "@" + hex.EncodeToString(sum[:])[:12]
+}
+
+func normDir(dir string) string {
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	if r, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = r
+	}
+	dir = filepath.Clean(dir)
+	if runtime.GOOS == "windows" {
+		dir = strings.ToLower(dir)
+	}
+	return dir
+}
+
+// getKey returns the profile key: this folder's keyring entry, else the
+// legacy entry (user = profile name, as v0.2.0 wrote it) when it decrypts
+// blob, else the key file. legacy reports the second case. A legacy key
+// that does not decrypt blob, or any legacy key when blob is nil (no
+// profile yet), belongs to another folder and counts as missing. A keyring
+// failure other than "not found" is returned as is when no key file exists,
+// so callers never mistake a locked keyring for a missing key.
+func (s *fileStore) getKey(name string, blob []byte) (key []byte, inFile, legacy bool, err error) {
+	v, kerr := s.kr.Get(keyringService, s.keyUser(name))
 	if kerr == nil {
 		k, err := base64.StdEncoding.DecodeString(v)
-		return k, false, err
+		return k, false, false, err
+	}
+	// After a timeout a second lookup would only wait again.
+	if !errors.Is(kerr, ErrKeyringTimeout) {
+		if k, lerr := s.legacyGet(name, blob); lerr == nil {
+			return k, false, true, nil
+		} else if errors.Is(kerr, keyring.ErrNotFound) {
+			kerr = lerr // report a locked keyring even if the scoped lookup said "not found"
+		}
 	}
 	b, err := os.ReadFile(s.path(name, keyExt))
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) && !errors.Is(kerr, keyring.ErrNotFound) {
-			return nil, false, fmt.Errorf("session: keyring: %w", kerr)
+		if errors.Is(err, fs.ErrNotExist) && kerr != nil && !errors.Is(kerr, keyring.ErrNotFound) {
+			return nil, false, false, fmt.Errorf("session: keyring: %w", kerr)
 		}
-		return nil, true, err
+		return nil, true, false, err
 	}
 	k, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(b)))
-	return k, true, err
+	return k, true, false, err
+}
+
+// legacyGet returns the legacy keyring key when it decrypts blob. Any other
+// outcome is keyring.ErrNotFound, except a keyring failure, returned as is.
+func (s *fileStore) legacyGet(name string, blob []byte) ([]byte, error) {
+	if blob == nil {
+		return nil, keyring.ErrNotFound
+	}
+	v, err := s.kr.Get(keyringService, name)
+	if err != nil {
+		return nil, err
+	}
+	k, err := base64.StdEncoding.DecodeString(v)
+	if err != nil {
+		return nil, keyring.ErrNotFound
+	}
+	if _, err := decrypt(k, blob); err != nil {
+		return nil, keyring.ErrNotFound // another folder's key
+	}
+	return k, nil
+}
+
+// legacyKey reports whether the legacy entry is this profile's key.
+func (s *fileStore) legacyKey(name string, blob []byte) ([]byte, bool) {
+	k, err := s.legacyGet(name, blob)
+	return k, err == nil
 }
 
 func (s *fileStore) newKey(name string) ([]byte, bool, error) {
@@ -326,7 +397,7 @@ func (s *fileStore) newKey(name string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	enc := base64.StdEncoding.EncodeToString(k)
-	if err := s.kr.Set(keyringService, name, enc); err == nil {
+	if err := s.kr.Set(keyringService, s.keyUser(name), enc); err == nil {
 		return k, false, nil
 	}
 	if err := writeAtomic(s.path(name, keyExt), []byte(enc)); err != nil {

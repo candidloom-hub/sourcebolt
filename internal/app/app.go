@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -24,13 +25,17 @@ import (
 
 // Config comes from flags and environment.
 type Config struct {
-	ConfigDir string       // NOTEBOOKLM_CONFIG_DIR, default <user config>/sourcebolt
+	ConfigDir string       // NOTEBOOKLM_CONFIG_DIR, default %USERPROFILE%\.sourcebolt (Windows) or <user config>/sourcebolt
 	Profile   string       // NOTEBOOKLM_PROFILE, default "default"
 	Host      session.Host // NOTEBOOKLM_HOST overrides the profile's host
 	RPCIDs    string       // NOTEBOOKLM_RPC_IDS, default <config>/rpc-ids.json if present
 	// BrowserFallback enables the lazy headless-browser fallback transport.
 	// Default true; NOTEBOOKLM_BROWSER_FALLBACK=0 (or false/off/no) disables.
 	BrowserFallback bool
+
+	// legacyDir is the pre-0.3 Windows folder (%APPDATA%\sourcebolt) to
+	// migrate profiles from; empty when NOTEBOOKLM_CONFIG_DIR is set.
+	legacyDir string
 }
 
 func browserFallbackFromEnv() bool {
@@ -40,6 +45,9 @@ func browserFallbackFromEnv() bool {
 	}
 	return true
 }
+
+// dirEnv resolves the default folders; tests replace it.
+var dirEnv = session.OSDirEnv
 
 // ConfigFromEnv reads the NOTEBOOKLM_* variables.
 func ConfigFromEnv() (Config, error) {
@@ -52,11 +60,13 @@ func ConfigFromEnv() (Config, error) {
 		BrowserFallback: browserFallbackFromEnv(),
 	}
 	if c.ConfigDir == "" {
-		base, err := os.UserConfigDir()
+		e := dirEnv()
+		dir, err := e.ConfigDir()
 		if err != nil {
 			return c, err
 		}
-		c.ConfigDir = filepath.Join(base, "sourcebolt")
+		c.ConfigDir = dir
+		c.legacyDir = e.LegacyConfigDir() // only for the default folder
 	}
 	if c.Profile == "" {
 		c.Profile = "default"
@@ -64,9 +74,19 @@ func ConfigFromEnv() (Config, error) {
 	return c, nil
 }
 
-// Store opens the encrypted profile store.
+// Store opens the encrypted profile store. With the default folder on
+// Windows it first copies profiles that are only in the old %APPDATA%
+// folder (see session.MigrateProfiles); the old folder is left as it is.
 func (c Config) Store() session.Store {
-	return session.NewFileStore(filepath.Join(c.ConfigDir, "profiles"), session.OSKeyring{})
+	dir := filepath.Join(c.ConfigDir, "profiles")
+	if c.legacyDir != "" {
+		old := filepath.Join(c.legacyDir, "profiles")
+		names, _ := session.MigrateProfiles(old, dir, session.OSKeyring{})
+		for _, n := range names {
+			fmt.Fprintf(os.Stderr, "sourcebolt: copied profile %q from the old data folder %s to %s (the old folder was not changed)\n", n, c.legacyDir, c.ConfigDir)
+		}
+	}
+	return session.NewFileStore(dir, session.OSKeyring{})
 }
 
 // Runtime is a fully wired server for one profile.
