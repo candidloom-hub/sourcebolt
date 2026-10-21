@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [0.3.2] - 2026-10-21
 
-Sign in from an environment variable for containers and the Docker MCP Toolkit, npm trusted publishing, and a `status --help` fix.
+One sign-in for every app on Windows (the data folder moves out of AppData, so apps from the Microsoft Store see the same profile as the terminal), sign-in from an environment variable for containers and the Docker MCP Toolkit, npm trusted publishing, and a `status --help` fix.
 
 ### Added
 
