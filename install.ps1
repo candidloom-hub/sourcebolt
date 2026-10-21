@@ -132,8 +132,17 @@ $sourceboltState = @{ Failed = $false }
         }
     }
 
+    # The data folder: %USERPROFILE%\.sourcebolt, outside AppData, because apps from the
+    # Microsoft Store get a private copy of %APPDATA% for the programs they start.
     function Get-ConfigDir {
         if ($env:NOTEBOOKLM_CONFIG_DIR) { return $env:NOTEBOOKLM_CONFIG_DIR }
+        if (-not $env:USERPROFILE) { return $null }
+        return Join-Path $env:USERPROFILE '.sourcebolt'
+    }
+    # Versions up to 0.3.1 kept their data in %APPDATA%\sourcebolt. sourcebolt copies it to the
+    # new folder and never deletes it, so -Purge offers to delete it as well (asking first).
+    function Get-LegacyConfigDir {
+        if ($env:NOTEBOOKLM_CONFIG_DIR -or -not $env:APPDATA) { return $null }
         return Join-Path $env:APPDATA 'sourcebolt'
     }
 
@@ -194,20 +203,30 @@ $sourceboltState = @{ Failed = $false }
                 }
             }
             $data = Get-ConfigDir
-            if ($Purge) {
-                if (-not (Test-Path -LiteralPath $data)) {
-                    Step "no sourcebolt data at $data"
-                } else {
-                    Assert-SafeToPurge $data
-                    if ($Yes -or (Confirm-Yes "Also delete your sourcebolt sign-in data at ${data}? This signs you out for good." $false)) {
-                        Remove-Item -LiteralPath $data -Recurse -Force
-                        Step "deleted $data"
-                    } else {
-                        Step "kept your sourcebolt data at $data (run again with -Purge -Yes to delete it)"
+            $legacy = Get-LegacyConfigDir
+            if ($legacy -and (Test-Path -LiteralPath $legacy)) {
+                Step "found the data folder of an older version at $legacy"
+            }
+            foreach ($d in @($data, $legacy)) {
+                if (-not $d) { continue }
+                $what = 'sourcebolt sign-in data'
+                $why = 'This signs you out for good.'
+                if ($d -eq $legacy) { $what = 'older sourcebolt data'; $why = 'It holds an old copy of your sign-in, from before sourcebolt moved it.' }
+                if ($Purge) {
+                    if (-not (Test-Path -LiteralPath $d)) {
+                        if ($d -eq $data) { Step "no sourcebolt data at $d" }
+                        continue
                     }
+                    Assert-SafeToPurge $d
+                    if ($Yes -or (Confirm-Yes "Also delete your $what at ${d}? $why" $false)) {
+                        Remove-Item -LiteralPath $d -Recurse -Force
+                        Step "deleted $d"
+                    } else {
+                        Step "kept your $what at $d (run again with -Purge -Yes to delete it)"
+                    }
+                } elseif (Test-Path -LiteralPath $d) {
+                    Step "kept your $what at $d (add -Purge to delete it)"
                 }
-            } elseif (Test-Path -LiteralPath $data) {
-                Step "kept your sourcebolt data at $data (add -Purge to delete it)"
             }
             Say 'Done.'
             return

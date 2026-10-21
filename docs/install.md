@@ -134,7 +134,7 @@ To also delete your sign-in data (this signs you out for good), add `-Purge` / `
 curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.sh | sh -s -- --uninstall --purge
 ```
 
-The data folder is `%APPDATA%\sourcebolt` on Windows, `~/Library/Application Support/sourcebolt` on macOS and `~/.config/sourcebolt` on Linux.
+The data folder is `%USERPROFILE%\.sourcebolt` on Windows (versions up to 0.3.1 used `%APPDATA%\sourcebolt`; `-Purge` offers to delete that one too), `~/Library/Application Support/sourcebolt` on macOS and `~/.config/sourcebolt` on Linux.
 
 ### Prefer to read it first?
 

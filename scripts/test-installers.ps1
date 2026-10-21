@@ -235,6 +235,34 @@ try {
     if ((Invoke-Installer @('-Version', 'v1.2.0')) -ne 0 -and (Get-Ver) -eq 'sourcebolt 1.0.0' -and $script:out -match 'restored') {
         Ok 'rolls back a broken upgrade'
     } else { Bad 'rolls back a broken upgrade' }
+
+    # 15. without NOTEBOOKLM_CONFIG_DIR the data folder is %USERPROFILE%\.sourcebolt, and the old
+    #     %APPDATA%\sourcebolt from earlier versions is named, kept, and deleted only when confirmed.
+    #     USERPROFILE and APPDATA are temp folders here.
+    $home2 = Join-Path $work 'home2'
+    $newData = Join-Path $home2 '.sourcebolt'
+    $oldData = Join-Path $home2 'AppData\Roaming\sourcebolt'
+    New-Item -ItemType Directory -Force -Path $newData, $oldData | Out-Null
+    Set-Content -LiteralPath (Join-Path $newData 'profile') -Value new
+    Set-Content -LiteralPath (Join-Path $oldData 'profile') -Value old
+    Set-Content -LiteralPath (Join-Path $home2 'keep-me') -Value keep
+    $defaultEnv = @{ USERPROFILE = $home2; APPDATA = (Join-Path $home2 'AppData\Roaming'); NOTEBOOKLM_CONFIG_DIR = '' }
+    $script:envOverride = $defaultEnv
+    $code = Invoke-Installer @('-Uninstall')
+    if ($code -eq 0 -and (Test-Path -LiteralPath $newData) -and (Test-Path -LiteralPath $oldData) -and
+        $script:out.Contains($newData) -and $script:out.Contains($oldData)) {
+        Ok 'uninstall names and keeps both the new and the old data folder'
+    } else { Bad 'uninstall names and keeps both the new and the old data folder' }
+    $code = Invoke-Installer @('-Uninstall', '-Purge')
+    if ($code -eq 0 -and (Test-Path -LiteralPath $newData) -and (Test-Path -LiteralPath $oldData)) {
+        Ok '-Purge without confirmation keeps both data folders'
+    } else { Bad '-Purge without confirmation keeps both data folders' }
+    $code = Invoke-Installer @('-Uninstall', '-Purge', '-Yes')
+    $script:envOverride = $null
+    if ($code -eq 0 -and -not (Test-Path -LiteralPath $newData) -and -not (Test-Path -LiteralPath $oldData) -and
+        (Test-Path -LiteralPath (Join-Path $home2 'keep-me'))) {
+        Ok '-Purge -Yes deletes %USERPROFILE%\.sourcebolt and the old %APPDATA%\sourcebolt only'
+    } else { Bad '-Purge -Yes deletes %USERPROFILE%\.sourcebolt and the old %APPDATA%\sourcebolt only' }
 } finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
