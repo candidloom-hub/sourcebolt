@@ -109,6 +109,30 @@ func writeProfileBlob(t *testing.T, dir, name string, key []byte, sid string) {
 }
 
 // writeLegacy writes a profile the way v0.3.1 and older did: key under user = name.
+// lockedKeyring serializes calls to a keyring that is not safe for concurrent use.
+type lockedKeyring struct {
+	mu    sync.Mutex
+	inner Keyring
+}
+
+func (k *lockedKeyring) Get(s, u string) (string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.inner.Get(s, u)
+}
+
+func (k *lockedKeyring) Set(s, u, v string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.inner.Set(s, u, v)
+}
+
+func (k *lockedKeyring) Delete(s, u string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.inner.Delete(s, u)
+}
+
 func writeLegacy(t *testing.T, dir, name string, key []byte, sid string) {
 	t.Helper()
 	writeProfileBlob(t, dir, name, key, sid)
@@ -415,9 +439,12 @@ func TestMigrateConcurrentFirstRuns(t *testing.T) {
 	writeLegacy(t, old, "default", randKey(t), "race")
 	var wg sync.WaitGroup
 	var total atomic.Int32
+	// go-keyring's mock is a plain map with no lock; the real OS keyrings are
+	// safe for concurrent use. Serialize calls so -race tests our code, not the mock.
+	kr := &lockedKeyring{inner: OSKeyring{}}
 	for range 8 {
 		wg.Go(func() {
-			got, _ := MigrateProfiles(old, nw, OSKeyring{})
+			got, _ := MigrateProfiles(old, nw, kr)
 			total.Add(int32(len(got)))
 		})
 	}
