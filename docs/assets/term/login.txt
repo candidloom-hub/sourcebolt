@@ -1,0 +1,7 @@
+title: Windows PowerShell
+PS C:\Users\you> sourcebolt login
+A browser window opened. Sign in to your Google account there.
+This window will finish by itself once you see your notebooks (waiting up to 10m0s).
+Close the browser window to cancel.
+Saved profile "default" for notebook.google.com (10 notebooks visible).
+Signed in. The browser window was closed for you.

@@ -64,8 +64,7 @@ Setup opens a normal browser window on the Google sign-in page.
 1. Sign in to Google in that window. Type your password there, and nowhere else.
 2. Wait. When NotebookLM has loaded, the terminal shows a line that starts with `Saved profile`.
 
-![Step 4: the terminal confirms the saved sign-in](../assets/guides/vscode/step4.png)
-<!-- screenshot: terminal after sign-in finished, showing 'Saved profile "default" for notebook.google.com (N notebooks visible).'. Blur the account name. -->
+![Step 4: the terminal confirms the saved sign-in](../assets/term/login.svg)
 
 ### Step 5: Start sourcebolt in VS Code
 
@@ -74,8 +73,7 @@ Setup opens a normal browser window on the Google sign-in page.
 3. Type `MCP: List Servers` and press Enter.
 4. Click **sourcebolt**, then **Start Server**. If VS Code asks whether you trust the server, check that it runs `sourcebolt serve`, then allow it.
 
-![Step 5: sourcebolt in the MCP: List Servers picker in VS Code](../assets/guides/vscode/step5.png)
-<!-- screenshot: VS Code Command Palette after running "MCP: List Servers", sourcebolt selected, its action list open showing Start Server (or Running state) -->
+![Step 5: the MCP: List Servers actions for sourcebolt in VS Code. It is already running, so the first action is Stop Server; before it starts, the first action is Start Server.](../assets/guides/vscode/step5.png)
 
 Now go to [How to check it works](#how-to-check-it-works).
 
@@ -129,8 +127,7 @@ More options: [Connect your AI app](../clients.md#vs-code) and [one-click instal
 
 VS Code asks before it runs a sourcebolt tool. Allow it. You should see your notebook names.
 
-![Check: Copilot agent listing NotebookLM notebooks through sourcebolt](../assets/guides/vscode/check.png)
-<!-- screenshot: VS Code Chat view with Agent selected, the prompt "List my NotebookLM notebooks.", the allowed sourcebolt notebook_list tool call, and the reply listing notebooks. Use a test account or blur the titles. -->
+![Check: the VS Code agent answering a NotebookLM question through sourcebolt. This one asked how many notes there are, so the answer shows counts instead of notebook names.](../assets/guides/vscode/check.png)
 
 You can also type `sourcebolt doctor` in a terminal. Every line should start with `ok`.
 

@@ -63,8 +63,7 @@ Setup opens a normal browser window on the Google sign-in page.
 1. Sign in to Google in that window. Type your password there, and nowhere else.
 2. Wait. When NotebookLM has loaded, the terminal shows a line that starts with `Saved profile`.
 
-![Step 4: the terminal confirms the saved sign-in](../assets/guides/gemini-cli/step4.png)
-<!-- screenshot: terminal after sign-in finished, showing 'Saved profile "default" for notebook.google.com (N notebooks visible).'. Blur the account name. -->
+![Step 4: the terminal confirms the saved sign-in](../assets/term/login.svg)
 
 ### Step 5: Check the connection in Gemini CLI
 
