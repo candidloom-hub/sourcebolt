@@ -35,7 +35,18 @@ func cmdLogout(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func cmdStatus(stdout, stderr io.Writer) int {
+func cmdStatus(args []string, stdout, stderr io.Writer) int {
+	// status takes no flags, but -h/--help must print usage (exit 0) and a stray
+	// argument is a usage error (exit 2), not a silent status run.
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
+	if fs.NArg() > 0 {
+		fmt.Fprintf(stderr, "status takes no arguments, got %q\n", fs.Args())
+		return 2
+	}
 	cfg, err := app.ConfigFromEnv()
 	if err != nil {
 		return fail(stderr, err)

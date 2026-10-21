@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Data folder moved on Windows** to `%USERPROFILE%\.sourcebolt` (was `%APPDATA%\sourcebolt`). On start, every profile that exists only in the old folder and still decrypts is copied over with its key; the old folder is never changed or deleted, so you can remove it once everything works. `NOTEBOOKLM_CONFIG_DIR` still overrides the folder, and no profile is copied when it is set. macOS and Linux are unchanged. Browser login profiles (`browser/`), `rpc-ids.json` and `selectors.json` are not copied; `login` recreates the browser profile.
 - Keyring entries are now named `<profile>@<12 hex digits of SHA-256 of the profiles folder>`, so two config folders with the same profile name keep separate keys. Old entries named `<profile>` are still read when they decrypt the folder's profile, re-stored under the new name on the next save, and removed by `logout` only when they belong to that folder.
 - `install.ps1 -Uninstall -Purge` deletes `%USERPROFILE%\.sourcebolt` and, with its own confirmation (or `-Yes`), the old `%APPDATA%\sourcebolt`.
+- `sourcebolt status --help` prints usage and exits 0, and `status` with any argument is a usage error (exit 2); before, it ignored its arguments and printed the full status.
 - Release workflow: npm packages are staged with `npm stage publish`, run with a pinned npm CLI 11.21.0. Every version still waits for the owner's 2FA approval on npmjs.com. See `docs/registry.md`.
 
 ### Security
