@@ -15,8 +15,9 @@ The work has three phases:
 ## Current state (2026-10-21)
 
 - GitHub: candidloom-hub/sourcebolt is **public** with private vulnerability reporting on. History was rewritten with git filter-repo before going public; the old repo is the private `candidloom-hub/sourcebolt-archive` (local remote `archive`). Go module `github.com/candidloom-hub/sourcebolt` (Go 1.27).
-- **v0.3.1 released 2026-10-21** (v0.3.0 was tagged but its release run failed at GoReleaser; never re-tag). Adds one-line installers (`install.ps1`, `install.sh`), `sourcebolt setup`, no-flags `login`, Homebrew cask and Scoop manifest (auto-pushed on tag), beginner guides. npm 0.2.0+ is live (staged publishing: the owner approves each version with 2FA). v0.1.0 and v0.3.0 are immutable in the Go proxy.
-- **On hold until the owner approves:** PyPI (needs a trusted publisher) and launch posts. Approved 2026-10-21: MCP registry publish, winget PR, directory submissions (plan: `.superpowers/submissions-v0.3.0.md`, git-ignored). Donations are off (option C) until the owner says a page is live.
+- **v0.3.3 is the latest release (2026-10-21).** v0.3.0 was tagged but its release run failed at GoReleaser; never re-tag. 0.3.x adds one-line installers, `sourcebolt setup`, no-flags `login`, env-var sign-in (`NOTEBOOKLM_COOKIES`), the Windows data folder `%USERPROFILE%\.sourcebolt` (MSIX AppData virtualization split profiles), folder-scoped keyring keys, and `serve` starting with an unreadable profile. Channels: GitHub, GHCR, Homebrew tap, Scoop bucket, npm (staged; the owner approves all 7 packages with 2FA, platform packages first, `sourcebolt` last — check all 7 afterwards), official MCP Registry (`mcp-publisher` device login by the owner; the token expires in minutes, so publish right after login).
+- **Submissions (free plans only):** TensorBlock PR, Docker MCP Catalog PR (docker/mcp-registry#5929), Cline marketplace issue (cline/mcp-marketplace#3144), mcpservers.org (free), winget PR (microsoft/winget-pkgs#457468, CLA signed). Skipped as paid: Glama, punkpeye (needs Glama), mcp.so, Smithery.
+- **On hold until the owner approves:** PyPI (needs a trusted publisher) and launch posts. Donations are off (option C) until the owner says a page is live.
 - See `handoff.md`. Ledgers: `.superpowers/sdd/*/progress.md` (git-ignored).
 
 ## Commands

@@ -28,13 +28,13 @@ irm https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/install.ps1
 You should see something like:
 
 ```text
-Installing sourcebolt v0.3.2 for windows/amd64
-  - downloading sourcebolt_0.3.2_windows_amd64.zip
+Installing sourcebolt v0.3.3 for windows/amd64
+  - downloading sourcebolt_0.3.3_windows_amd64.zip
   - cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.
   - SHA-256 checksum verified
   - installed C:\Users\you\AppData\Local\Programs\sourcebolt\sourcebolt.exe
 
-Installed: sourcebolt 0.3.2
+Installed: sourcebolt 0.3.3
   - added C:\Users\you\AppData\Local\Programs\sourcebolt to your user PATH (open a new terminal to use 'sourcebolt')
 
 Next step: sign in to NotebookLM. run: sourcebolt login
@@ -47,7 +47,7 @@ sourcebolt --version
 ```
 
 ```text
-sourcebolt 0.3.2
+sourcebolt 0.3.3
 ```
 
 ### macOS and Linux
@@ -61,13 +61,13 @@ curl -fsSL https://raw.githubusercontent.com/candidloom-hub/sourcebolt/main/inst
 You should see something like this (macOS with zsh):
 
 ```text
-Installing sourcebolt v0.3.2 for darwin/arm64
-  - downloading sourcebolt_0.3.2_darwin_arm64.tar.gz
+Installing sourcebolt v0.3.3 for darwin/arm64
+  - downloading sourcebolt_0.3.3_darwin_arm64.tar.gz
   - cosign not installed: signature check skipped. The SHA-256 check below is integrity only: it proves the file matches checksums.txt, not who published it.
   - SHA-256 checksum verified
   - installed /Users/you/.local/bin/sourcebolt
 
-Installed: sourcebolt 0.3.2
+Installed: sourcebolt 0.3.3
 
 Adding /Users/you/.local/bin to your PATH:
   - added /Users/you/.local/bin to PATH in /Users/you/.zshrc
@@ -77,7 +77,7 @@ Until then, run it as: /Users/you/.local/bin/sourcebolt
 Next step: sign in to NotebookLM. run: sourcebolt login
 ```
 
-Then **open a new terminal window** and run `sourcebolt --version`. It prints `sourcebolt 0.3.2`.
+Then **open a new terminal window** and run `sourcebolt --version`. It prints `sourcebolt 0.3.3`.
 
 ### What the installer does
 
@@ -161,7 +161,7 @@ npx -y sourcebolt --version
 ```
 
 ```text
-sourcebolt 0.3.2
+sourcebolt 0.3.3
 ```
 
 In an AI app's MCP settings, use `npx` as the command:
@@ -206,14 +206,14 @@ Open a new terminal, then run `sourcebolt --version`. Undo: `winget uninstall ca
 ## Docker
 
 ```bash
-docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.2 --version
+docker run -i --rm -v sourcebolt-config:/config ghcr.io/candidloom-hub/sourcebolt:0.3.3 --version
 ```
 
 ```text
-sourcebolt 0.3.2
+sourcebolt 0.3.3
 ```
 
-Images are tagged by version only (there is no `latest` tag). The `0.2.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [auth.md](auth.md#docker). Undo: `docker image rm ghcr.io/candidloom-hub/sourcebolt:0.3.2` and `docker volume rm sourcebolt-config` (the volume holds your sign-in data).
+Images are tagged by version only (there is no `latest` tag). The `0.2.0-browser` tag adds a browser for the fallback path. Signing in inside a container: [auth.md](auth.md#docker). Undo: `docker image rm ghcr.io/candidloom-hub/sourcebolt:0.3.3` and `docker volume rm sourcebolt-config` (the volume holds your sign-in data).
 
 ## Manual download
 

@@ -29,7 +29,7 @@ import (
 )
 
 // Image is the pinned Docker image; there is no "latest" tag.
-const Image = "ghcr.io/candidloom-hub/sourcebolt:0.3.2"
+const Image = "ghcr.io/candidloom-hub/sourcebolt:0.3.3"
 
 // Server is an MCP stdio server config in the shape VS Code and Cursor use.
 type Server struct {
