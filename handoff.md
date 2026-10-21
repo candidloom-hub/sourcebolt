@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-21. v0.3.3 is being released (the PR that holds this file is its release prep). Everything the owner approved today is done or submitted; what is left needs the owner or is held.
+Updated 2026-10-21. v0.3.3 is released and verified on every approved channel (GitHub, GHCR, Homebrew, Scoop, npm 7/7, MCP Registry). Remaining work waits on reviewers, the next release, or an owner go.
 
 # Goal — what we're actually building
 
@@ -41,9 +41,7 @@ Bugs found by end-to-end runs of the real binary and fixed failing-test-first: `
 
 # Next steps — exactly what to do next
 
-1. Finish v0.3.3: merge this PR, tag, verify (checksums, binary version, GHCR, tap, bucket), publish the draft, run npm (owner approves 7, then check all 7), registry (owner device code, publish immediately).
-2. Watch the external PRs and answer reviewers: winget, TensorBlock, Docker catalog (its CI builds the entry), Cline issue.
-3. After one release staged through OIDC: delete the `NPM_TOKEN` secret, revoke the token, set "disallow tokens" on each package (owner).
-4. Next release: Cursor (owner installs it), then its two screenshots; Claude Desktop, Windsurf, Gemini CLI shots if those apps get installed.
-5. Held: PyPI (trusted publisher), launch posts.
-6. Owner housekeeping: delete the capture-3 test notebook in NotebookLM; the old `%APPDATA%\sourcebolt` folder can be removed after checking `sourcebolt status`.
+1. Watch the external submissions and answer reviewers: microsoft/winget-pkgs#457468 (CLA signed; 6 of 7 validation stages passed, installer scan pending), TensorBlock/awesome-mcp-servers#4256, docker/mcp-registry#5929 (its workflows wait for a maintainer), cline/mcp-marketplace#3144, mcpservers.org.
+2. Next release (owner decision 2026-10-21): Cursor support and its two screenshots (owner installs Cursor), and PyPI publishing (owner sets up a PyPI trusted publisher first). Claude Desktop, Windsurf and Gemini CLI screenshots only if those apps get installed.
+3. Held, needs an explicit go: launch posts.
+4. Ignored for now (owner, 2026-10-21): the NPM_TOKEN expiry and the switch to trusted publishing only; housekeeping (capture-3 notebook, old `%APPDATA%\sourcebolt`, upgrading the local install).
