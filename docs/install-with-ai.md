@@ -222,7 +222,7 @@ Please guide me, step by step, to install the sourcebolt MCP server and add it t
    Explain that a browser window opens, that I sign in to Google there, and that the command finishes by itself.
 4. Give me: sourcebolt doctor
    Every line should start with "ok". If I paste you a FAIL line, explain it in plain words.
-5. Walk me through adding the server in this app: Settings, MCP servers, Add server. Name: sourcebolt. Type: STDIO. Command: sourcebolt. Argument: serve. Then Save and Restart.
+5. Walk me through adding the server in this app: Settings, Plugins, the MCPs tab, Add. Name: sourcebolt. Type: STDIO. Command to launch: the full path that `(Get-Command sourcebolt).Source` printed (on a Mac: `command -v sourcebolt`). Arguments: serve. Then Save, and restart the app if it asks.
 6. Tell me to type /mcp in a new chat to see that sourcebolt is connected, then to ask: "List my NotebookLM notebooks."
 
 Rules: never ask me for my Google password, a verification code or cookies. I type my password only on Google's sign-in page in the browser. If I paste something that looks like a password or cookie, tell me to delete it.

@@ -210,7 +210,7 @@ Source: [Gemini CLI MCP servers](https://geminicli.com/docs/tools/mcp-server/). 
 
 ## ChatGPT
 
-- **ChatGPT desktop app: yes.** OpenAI's docs say the desktop app supports local (STDIO) servers under **Settings**, **MCP servers**, and shares its configuration with Codex. If you already added sourcebolt to Codex, it should appear. Not tested by us.
+- **ChatGPT desktop app: yes, tested.** Add it under **Settings**, **Plugins**, the **MCPs** tab, **Add** (type STDIO, the full path to `sourcebolt`, argument `serve`). The app shares this configuration with Codex, so a server added to Codex appears there too. Step by step: [ChatGPT desktop guide](guides/chatgpt-desktop.md).
 - **ChatGPT on the web: no.** The web version connects only to remote servers on a public HTTPS address. sourcebolt runs on your own computer on purpose: a hosted server would have to hold your Google cookies. There are tunnel tools that expose a local server to the internet, but we do not recommend them for a server that holds your Google session.
 
 Source: [Codex and ChatGPT MCP docs](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).

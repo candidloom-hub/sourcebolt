@@ -1,7 +1,8 @@
 # Set up sourcebolt in the ChatGPT desktop app
 
 <!-- Vendor facts checked 2026-10-21 at https://learn.chatgpt.com/docs/extend/mcp?surface=cli :
-     desktop app supports STDIO servers; Settings > MCP servers > Add server; name, STDIO or Streamable HTTP,
+     desktop app supports STDIO servers; Settings > MCP servers > Add server (seen in the app on 2026-10-21 as
+     Settings > Plugins > MCPs tab > Add; form: Name, Type, Command to launch, Arguments); name, STDIO or Streamable HTTP,
      command; Save, then Restart; /mcp in the composer lists connected servers; the desktop app, Codex CLI and
      IDE extension share ~/.codex/config.toml; `codex mcp add <name> -- <command>`; `enabled = false` turns a
      server off. The page does not document a remove command or a UI remove button, and does not say which
@@ -65,29 +66,33 @@ A normal browser window opens on the Google sign-in page.
 1. Sign in to Google in that window. Type your password there, and nowhere else.
 2. Wait. When NotebookLM has loaded, the terminal shows a line that starts with `Saved profile`.
 
-![Step 3: the terminal confirms the saved sign-in](../assets/guides/chatgpt-desktop/step3.png)
-<!-- screenshot: terminal after sourcebolt login finished, showing 'Saved profile "default" for notebook.google.com (N notebooks visible).'. Blur the account name. -->
+![Step 3: the terminal confirms the saved sign-in](../assets/term/login.svg)
 
 ### Step 4: Add sourcebolt in ChatGPT
 
-1. Open the ChatGPT desktop app.
-2. Open **Settings**, then **MCP servers**.
-3. Click **Add server** and fill in the form:
+1. Find the full path of the sourcebolt program. In PowerShell, run:
+
+   ```powershell
+   (Get-Command sourcebolt).Source
+   ```
+
+   It is usually `C:\Users\<you>\AppData\Local\Programs\sourcebolt\sourcebolt.exe`. On a Mac, run `command -v sourcebolt` in Terminal instead.
+2. Open the ChatGPT desktop app.
+3. Open **Settings** (your profile picture, bottom left), then **Plugins**, then the **MCPs** tab.
+4. Click **Add** (top right), choose the MCP server option, and fill in the form:
    - Name: `sourcebolt`
    - Type: **STDIO**
-   - Command: `sourcebolt`
-   - Argument: `serve`
-4. Click **Save**, then **Restart**.
+   - Command to launch: the full path from step 1
+   - Arguments: `serve`
+5. Click **Save**. Restart the app if it asks.
 
-![Step 4: the Add server form in ChatGPT filled in for sourcebolt](../assets/guides/chatgpt-desktop/step4.png)
-<!-- screenshot: ChatGPT desktop Settings > MCP servers > Add server form with Name "sourcebolt", type STDIO selected, command "sourcebolt", argument "serve", before clicking Save -->
+![Step 4: the MCP server form in ChatGPT filled in for sourcebolt: name sourcebolt, type STDIO, the full path to sourcebolt.exe, argument serve](../assets/guides/chatgpt-desktop/step4.png)
 
 ### Step 5: Check the connection
 
-In a new chat, type `/mcp`. You should see **sourcebolt** in the list of connected servers.
+Go back to **Settings**, **Plugins**, **MCPs**. **sourcebolt** should be in the list with its switch on.
 
-![Step 5: /mcp in ChatGPT shows sourcebolt connected](../assets/guides/chatgpt-desktop/step5.png)
-<!-- screenshot: ChatGPT desktop composer after typing /mcp, the server list showing sourcebolt as enabled/connected -->
+![Step 5: the MCPs tab in ChatGPT with sourcebolt switched on (other servers blurred)](../assets/guides/chatgpt-desktop/step5.png)
 
 Now go to [How to check it works](#how-to-check-it-works).
 
@@ -114,7 +119,7 @@ The ChatGPT desktop app shares its MCP settings with Codex, OpenAI's coding assi
    args = ["serve"]
    ```
 
-3. Restart the ChatGPT app, then check with `/mcp` (step 5).
+3. Restart the ChatGPT app, then check the **MCPs** tab (step 5).
 
 More options: [Connect your AI app](../clients.md#chatgpt).
 
@@ -126,8 +131,7 @@ In a new chat in the ChatGPT desktop app, type:
 
 Allow the sourcebolt tool if ChatGPT asks. You should see your notebook names.
 
-![Check: ChatGPT desktop listing NotebookLM notebooks through sourcebolt](../assets/guides/chatgpt-desktop/check.png)
-<!-- screenshot: ChatGPT desktop chat with the prompt "List my NotebookLM notebooks.", the sourcebolt notebook_list tool call, and the reply listing notebooks. Use a test account or blur the titles. -->
+![Check: ChatGPT answering through sourcebolt ("Used Sourcebolt integration") with the number of notebooks](../assets/guides/chatgpt-desktop/check.png)
 
 You can also type `sourcebolt doctor` in a terminal. Every line should start with `ok`.
 
