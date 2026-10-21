@@ -7,7 +7,7 @@ Follow these steps in order. Before each command, tell the user in one plain sen
 ## Rules
 
 - **Never ask the user for their Google password, a verification code or cookies, and never type, read or store them.** The user signs in only on Google's own page, in a browser window that `sourcebolt login` opens. If the user pastes something that looks like a password or cookie, tell them to delete it.
-- Do not open or read files in the sourcebolt data folder (`%APPDATA%\sourcebolt` on Windows, `~/Library/Application Support/sourcebolt` on macOS, `~/.config/sourcebolt` on Linux). They hold the encrypted session.
+- Do not open or read files in the sourcebolt data folder (`%USERPROFILE%\.sourcebolt` on Windows, or `%APPDATA%\sourcebolt` from older versions, `~/Library/Application Support/sourcebolt` on macOS, `~/.config/sourcebolt` on Linux). They hold the encrypted session.
 - Do not change anything on the computer other than what these steps describe.
 
 ## Step 1: Detect the operating system

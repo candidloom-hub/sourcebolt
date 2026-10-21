@@ -33,24 +33,24 @@ The browser must run on its own profile folder (`--user-data-dir`). Chrome 136 a
 
 | System | Config dir |
 |---|---|
-| Windows | `%APPDATA%\sourcebolt` |
+| Windows | `%USERPROFILE%\.sourcebolt` |
 | macOS | `~/Library/Application Support/sourcebolt` |
 | Linux | `~/.config/sourcebolt` |
 
-Set `NOTEBOOKLM_CONFIG_DIR` to use another folder.
+Set `NOTEBOOKLM_CONFIG_DIR` to use another folder. Versions up to 0.3.1 used `%APPDATA%\sourcebolt` on Windows; profiles there are copied to the new folder automatically (see [troubleshooting](troubleshooting.md#signed-in-but-another-app-says-you-are-not-windows)).
 
 **1. Start the browser.**
 
 Windows (PowerShell), Brave:
 
 ```powershell
-& "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
+& "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222 --user-data-dir="$env:USERPROFILE\.sourcebolt\browser\attach"
 ```
 
 Windows (PowerShell), Chrome:
 
 ```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:APPDATA\sourcebolt\browser\attach"
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:USERPROFILE\.sourcebolt\browser\attach"
 ```
 
 macOS, Brave:
@@ -149,7 +149,7 @@ docker run -i --rm \
 | Item | Location |
 |---|---|
 | Encrypted profile | `<config dir>/profiles/<name>.profile` (AES-256-GCM; holds cookies, host, revision, timestamp) |
-| Encryption key | OS keyring entry, service `sourcebolt`, user `<name>` (Windows Credential Manager, macOS Keychain, Linux Secret Service). Without a usable keyring: `<config dir>/profiles/<name>.key`, readable only by you (file mode `0600`). |
+| Encryption key | OS keyring entry, service `sourcebolt`, user `<name>@<folder id>` (Windows Credential Manager, macOS Keychain, Linux Secret Service). The folder id is the first 12 hex digits of the SHA-256 of the profiles folder path, so two config folders never share a key. Entries named just `<name>` come from versions up to 0.3.1: they are still read when they unlock this folder's profile, and copied to the new name on the next save. Without a usable keyring: `<config dir>/profiles/<name>.key`, readable only by you (file mode `0600`). |
 | Browser profile for `login --browser` and the fallback | `<config dir>/browser/<profile>` |
 | Optional request id overrides | `<config dir>/rpc-ids.json` (or `NOTEBOOKLM_RPC_IDS`) |
 | Optional page control overrides for the DOM fallback | `<config dir>/selectors.json` |

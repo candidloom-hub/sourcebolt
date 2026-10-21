@@ -31,7 +31,7 @@ sourcebolt sends nothing anywhere else. The code makes HTTP requests only to the
 
 ### What is stored on your computer
 
-All under the sourcebolt config directory: `%APPDATA%\sourcebolt` on Windows, `~/Library/Application Support/sourcebolt` on macOS, `~/.config/sourcebolt` on Linux, or `NOTEBOOKLM_CONFIG_DIR` if you set it. In the Docker image it is the `/config` volume.
+All under the sourcebolt config directory: `%USERPROFILE%\.sourcebolt` on Windows (versions up to 0.3.1 used `%APPDATA%\sourcebolt`, which is left in place after the automatic copy), `~/Library/Application Support/sourcebolt` on macOS, `~/.config/sourcebolt` on Linux, or `NOTEBOOKLM_CONFIG_DIR` if you set it. In the Docker image it is the `/config` volume.
 
 | Item | Details |
 |---|---|
