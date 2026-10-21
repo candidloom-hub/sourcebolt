@@ -80,7 +80,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "logout":
 		return cmdLogout(rest, stdout, stderr)
 	case "status":
-		return cmdStatus(stdout, stderr)
+		return cmdStatus(rest, stdout, stderr)
 	case "doctor":
 		return cmdDoctor(ctx, rest, stdout, stderr)
 	}
