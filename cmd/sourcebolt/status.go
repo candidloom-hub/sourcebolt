@@ -130,6 +130,9 @@ func cmdDoctor(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	}())
 
 	rt, err := app.Build(cfg)
+	if err == nil && rt.ProfileErr != nil {
+		err = rt.ProfileErr // serve starts anyway; doctor reports it
+	}
 	check("profile "+cfg.Profile, err)
 	if err == nil && rt.CookieSource != "" {
 		check("cookies from "+rt.CookieSource+" (in memory, not saved)", nil)

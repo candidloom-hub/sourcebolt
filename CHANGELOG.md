@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `serve` no longer exits before the MCP handshake when the saved profile exists but cannot be read (its key does not match, the key is missing from both the keyring and the key file, the file is damaged, or the keyring does not answer). MCP clients showed only "connection closed". The server now starts like it does with no profile: `initialize` and `tools/list` work, a line on stderr names the problem, nothing is sent to Google, and tool calls return `AUTH_REQUIRED` saying the profile could not be read and to run `sourcebolt login`. Once `login` has replaced the profile, the running server picks it up on the next call. `status` and `doctor` still report the profile as unreadable.
+- `login` now replaces a profile its key cannot decrypt (a key that does not match, or a damaged file) the same way it already replaced a profile whose key is missing, instead of asking you to run `logout` first. A keyring that is locked or does not answer still stops `login`, so a working profile is never deleted.
+
 ## [0.3.2] - 2026-10-21
 
 One sign-in for every app on Windows (the data folder moves out of AppData, so apps from the Microsoft Store see the same profile as the terminal), sign-in from an environment variable for containers and the Docker MCP Toolkit, npm trusted publishing, and a `status --help` fix.

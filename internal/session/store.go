@@ -423,21 +423,37 @@ func encrypt(key []byte, dp diskProfile) ([]byte, error) {
 	return gcm.Seal(out, nonce, plain, []byte{fileVersion}), nil
 }
 
+// ErrUndecryptable marks a profile file that its key cannot decrypt: the
+// key does not match (it was replaced), or the file is damaged. Such a
+// profile can never be read again. A keyring that cannot answer is not
+// this error.
+var ErrUndecryptable = errors.New("session: profile cannot be decrypted")
+
+// undecryptable keeps the original message and matches ErrUndecryptable.
+type undecryptable struct{ err error }
+
+func (e undecryptable) Error() string   { return e.err.Error() }
+func (e undecryptable) Unwrap() []error { return []error{ErrUndecryptable, e.err} }
+
 func decrypt(key, blob []byte) (diskProfile, error) {
 	var dp diskProfile
 	gcm, err := newGCM(key)
 	if err != nil {
-		return dp, err
+		return dp, undecryptable{err}
 	}
 	if len(blob) < 1+gcm.NonceSize() || blob[0] != fileVersion {
-		return dp, errors.New("session: unsupported profile file")
+		return dp, undecryptable{errors.New("session: unsupported profile file")}
 	}
 	nonce, ct := blob[1:1+gcm.NonceSize()], blob[1+gcm.NonceSize():]
 	plain, err := gcm.Open(nil, nonce, ct, []byte{fileVersion})
 	if err != nil {
-		return dp, fmt.Errorf("session: decrypt profile: %w", err)
+		return dp, undecryptable{fmt.Errorf("session: decrypt profile: %w", err)}
 	}
-	return dp, json.Unmarshal(plain, &dp)
+	if err := json.Unmarshal(plain, &dp); err != nil {
+		// Not wrapped: a decode error may quote the decrypted cookies.
+		return dp, undecryptable{errors.New("session: decode profile: invalid data")}
+	}
+	return dp, nil
 }
 
 func newGCM(key []byte) (cipher.AEAD, error) {

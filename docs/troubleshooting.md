@@ -142,11 +142,11 @@ FAIL  os keyring             <reason> (profiles fall back to a 0600 key file)
 
 No usable keyring, which is common on servers, in containers and on Linux without a desktop session. This is not fatal: profiles use a key file readable only by you. Protect the config folder accordingly.
 
-### `Replaced profile "default": its encryption key was missing from the OS keyring, so the old session could not be read.`
+### `Replaced profile "default": the old session could not be read (its encryption key was missing or did not match, or the file was damaged).`
 
-This is a notice, not an error. The profile existed, but its key was gone from both the keyring and the key file (for example the keyring entry was deleted, or the config folder was copied to another machine). Such a profile can never be read again, so `login` deletes it and saves your new session in its place. Nothing else to do.
+This is a notice, not an error. The profile existed, but it could never be read again: its key was gone from both the keyring and the key file (for example the keyring entry was deleted, or the config folder was copied to another machine), the key no longer matched the file (`session: decrypt profile: ...`), or the file was damaged. So `login` deletes it and saves your new session in its place. Nothing else to do.
 
-Until you log in again, tools and `doctor` fail to load that profile. Fix: run `login` again.
+Until you log in again, `doctor` fails to load that profile, and the MCP server still starts but every tool call returns `AUTH_REQUIRED` with `the saved profile "default" could not be read (...); run: sourcebolt login to replace it`. Fix: run `login` again. A running server picks up the new login on its next call.
 
 ```bash
 sourcebolt login --attach http://127.0.0.1:9222
@@ -154,7 +154,7 @@ sourcebolt login --attach http://127.0.0.1:9222
 
 ### `error: profile "default" exists but cannot be read (...); run: sourcebolt logout --profile default, then log in again`
 
-`login` found a profile it cannot read for another reason, for example a locked keyring (`session: keyring: ...`) or a key that does not match the file (`session: decrypt profile: ...`). sourcebolt does not delete it on its own, so a locked keyring never costs you a working profile.
+`login` found a profile it cannot read for a reason that may pass, for example a locked keyring (`session: keyring: ...`) or a file it is not allowed to open. sourcebolt does not delete it on its own, so a locked keyring never costs you a working profile.
 
 If the keyring is only locked, unlock it (sign in to your desktop session) and retry. Otherwise do what the message says:
 
