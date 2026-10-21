@@ -60,8 +60,7 @@ Setup opens a normal browser window on the Google sign-in page.
 1. Sign in to Google in that window. Type your password there, and nowhere else.
 2. Wait. When NotebookLM has loaded, the terminal shows a line that starts with `Saved profile`.
 
-![Step 4: the terminal confirms the saved sign-in](../assets/guides/claude-code/step4.png)
-<!-- screenshot: terminal after sign-in finished, showing 'Saved profile "default" for notebook.google.com (N notebooks visible).'. Blur the account name. -->
+![Step 4: the terminal confirms the saved sign-in](../assets/term/login.svg)
 
 ### Step 5: Restart Claude Code and check the connection
 
@@ -73,8 +72,7 @@ If Claude Code was open, type `/exit` and start it again with `claude`. Then typ
 
 You should see **sourcebolt** with a status that says it is connected.
 
-![Step 5: /mcp in Claude Code shows sourcebolt connected](../assets/guides/claude-code/step5.png)
-<!-- screenshot: Claude Code in a terminal after typing /mcp: the MCP server list with sourcebolt and a connected status -->
+![Step 5: /mcp in Claude Code shows sourcebolt connected with 30 tools (config paths blurred)](../assets/guides/claude-code/step5.png)
 
 Now go to [How to check it works](#how-to-check-it-works).
 
@@ -120,8 +118,7 @@ In Claude Code, type:
 
 Claude asks for permission to use a sourcebolt tool the first time. Allow it. You should see your notebook names.
 
-![Check: Claude Code listing NotebookLM notebooks through sourcebolt](../assets/guides/claude-code/check.png)
-<!-- screenshot: Claude Code showing the prompt "List my NotebookLM notebooks.", the sourcebolt notebook_list tool call, and the reply listing notebooks. Use a test account or blur the titles. -->
+![Check: Claude Code answering through sourcebolt with a table of notebooks, sources and dates (notebook titles blurred)](../assets/guides/claude-code/check.png)
 
 You can also type `sourcebolt doctor` in a terminal. Every line should start with `ok`.
 

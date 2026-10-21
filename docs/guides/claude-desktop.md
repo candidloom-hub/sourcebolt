@@ -68,8 +68,7 @@ Setup now opens a normal browser window on the Google sign-in page.
 1. Sign in to Google in that window. Type your password there, and nowhere else.
 2. Wait. When NotebookLM has loaded, the window closes or says you can close it, and the terminal shows a line that starts with `Saved profile`.
 
-![Step 4: the terminal confirms the saved sign-in](../assets/guides/claude-desktop/step4.png)
-<!-- screenshot: terminal after sign-in finished, showing 'Saved profile "default" for notebook.google.com (N notebooks visible).'; the browser window may be visible behind it showing the NotebookLM notebook list. Blur the account name and notebook titles. -->
+![Step 4: the terminal confirms the saved sign-in](../assets/term/login.svg)
 
 ### Step 5: Restart Claude Desktop
 
