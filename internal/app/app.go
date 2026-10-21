@@ -33,7 +33,7 @@ type Config struct {
 	// Default true; NOTEBOOKLM_BROWSER_FALLBACK=0 (or false/off/no) disables.
 	BrowserFallback bool
 
-	// legacyDir is the pre-0.3 Windows folder (%APPDATA%\sourcebolt) to
+	// legacyDir is the old Windows folder (%APPDATA%\sourcebolt) to
 	// migrate profiles from; empty when NOTEBOOKLM_CONFIG_DIR is set.
 	legacyDir string
 }

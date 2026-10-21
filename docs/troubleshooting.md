@@ -165,6 +165,26 @@ sourcebolt login --attach http://127.0.0.1:9222
 
 Use your profile name in place of `default`, and add `--profile <name>` to `login` too. `logout` only deletes the local profile and key; it does not sign you out of Google.
 
+### Signed in, but another app says you are not (Windows)
+
+You ran `sourcebolt login` in a terminal, but Claude Desktop (or another app) still says you are signed out, or reports `session: decrypt profile: cipher: message authentication failed` or `key file not found`.
+
+Versions up to 0.3.1 kept their data in `%APPDATA%\sourcebolt`. Apps installed from the Microsoft Store (packaged MSIX apps, such as Claude Desktop from the Store) get a private copy of `%APPDATA%` for every program they start. So the terminal and the app each saw their own profile file, but both used the same key in Windows Credential Manager, and a login in one replaced the key the other's file needed.
+
+Newer versions fix this:
+
+- The data folder on Windows is now `%USERPROFILE%\.sourcebolt`, which Windows does not redirect.
+- On start, a profile that is only in the old `%APPDATA%\sourcebolt` folder is copied over if it can still be read. The old folder is not changed or deleted; remove it yourself once everything works.
+- Each data folder has its own Credential Manager entry (`sourcebolt:<profile>@<folder id>`), so two folders never share a key again.
+
+Fix: update sourcebolt, restart the app, and sign in once more if it still says you are signed out:
+
+```bash
+sourcebolt login
+```
+
+`NOTEBOOKLM_CONFIG_DIR` still wins over the default folder, and no profile is copied when it is set.
+
 ## Limits from Google
 
 ### `RATE_LIMITED`

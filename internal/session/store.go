@@ -334,7 +334,7 @@ func normDir(dir string) string {
 }
 
 // getKey returns the profile key: this folder's keyring entry, else the
-// legacy entry (user = profile name, as v0.2.0 wrote it) when it decrypts
+// legacy entry (user = profile name, as versions up to 0.3.1 wrote it) when it decrypts
 // blob, else the key file. legacy reports the second case. A legacy key
 // that does not decrypt blob, or any legacy key when blob is nil (no
 // profile yet), belongs to another folder and counts as missing. A keyring

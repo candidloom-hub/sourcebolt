@@ -99,7 +99,7 @@ Download the new release the same way you installed it, and replace the old file
 1. Delete your saved sessions: `sourcebolt logout` (add `--profile <name>` for other profiles).
 2. Remove sourcebolt from your AI app's config.
 3. Delete the program file.
-4. Optionally delete the config folder: `%APPDATA%\sourcebolt` (Windows), `~/Library/Application Support/sourcebolt` (macOS) or `~/.config/sourcebolt` (Linux).
+4. Optionally delete the config folder: `%USERPROFILE%\.sourcebolt` (Windows; versions up to 0.3.1 used `%APPDATA%\sourcebolt`), `~/Library/Application Support/sourcebolt` (macOS) or `~/.config/sourcebolt` (Linux).
 
 To end the Google session itself, sign out of Google in the browser you used, or from your Google account's security page.
 

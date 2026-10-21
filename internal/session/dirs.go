@@ -42,7 +42,7 @@ func (e DirEnv) ConfigDir() (string, error) {
 	return filepath.Join(base, "sourcebolt"), nil
 }
 
-// LegacyConfigDir is the folder versions up to 0.2.0 used on Windows
+// LegacyConfigDir is the folder versions up to 0.3.1 used on Windows
 // (%APPDATA%\sourcebolt), or "" when there is none to migrate from.
 func (e DirEnv) LegacyConfigDir() string {
 	if e.GOOS != "windows" {

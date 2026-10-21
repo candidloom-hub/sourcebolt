@@ -108,7 +108,7 @@ func writeProfileBlob(t *testing.T, dir, name string, key []byte, sid string) {
 	}
 }
 
-// writeLegacy writes a profile the way v0.2.0 did: key under user = name.
+// writeLegacy writes a profile the way v0.3.1 and older did: key under user = name.
 func writeLegacy(t *testing.T, dir, name string, key []byte, sid string) {
 	t.Helper()
 	writeProfileBlob(t, dir, name, key, sid)
@@ -180,7 +180,7 @@ func TestLegacyKeyIsReadAndRestoredScopedOnSave(t *testing.T) {
 	s := NewFileStore(dir, OSKeyring{})
 	p, err := s.Load("work")
 	if err != nil {
-		t.Fatalf("a v0.2.0 profile must still load: %v", err)
+		t.Fatalf("a legacy profile must still load: %v", err)
 	}
 	if err := s.Save(p); err != nil {
 		t.Fatal(err)
@@ -221,7 +221,7 @@ func TestLegacyKeyOfAnotherFolderIsNotOurs(t *testing.T) {
 
 func TestDeleteRemovesScopedAndOnlyOurLegacyEntry(t *testing.T) {
 	keyring.MockInit()
-	// Folder A holds a v0.2.0 profile (legacy entry); folder B a new one.
+	// Folder A holds a legacy profile (legacy entry); folder B a new one.
 	dirA, dirB := t.TempDir(), t.TempDir()
 	writeLegacy(t, dirA, "work", randKey(t), "a")
 	b := NewFileStore(dirB, OSKeyring{})
@@ -427,5 +427,39 @@ func TestMigrateConcurrentFirstRuns(t *testing.T) {
 	}
 	if s := sidOf(t, NewFileStore(nw, OSKeyring{}), "default"); s != "race" {
 		t.Fatalf("SID = %q", s)
+	}
+}
+
+// A key file that does not decrypt the old profile is not a reason to copy it.
+func TestMigrateSkipsAProfileWhoseKeyFileIsWrong(t *testing.T) {
+	keyring.MockInit()
+	old, nw := t.TempDir(), t.TempDir()
+	writeProfileBlob(t, old, "work", randKey(t), "x")
+	if err := os.WriteFile(filepath.Join(old, "work"+keyExt), []byte(base64.StdEncoding.EncodeToString(randKey(t))), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := MigrateProfiles(old, nw, OSKeyring{}); err != nil || len(got) != 0 {
+		t.Fatalf("MigrateProfiles = %v, %v; want nothing", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(nw, "work"+profileExt)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal("a profile with a wrong key file was copied")
+	}
+}
+
+// Once the new folder has the profile, a start does no keyring lookups
+// and no decryption for it.
+func TestMigrateIsCheapWhenAlreadyDone(t *testing.T) {
+	keyring.MockInit()
+	old, nw := t.TempDir(), t.TempDir()
+	writeLegacy(t, old, "default", randKey(t), "done")
+	if _, err := MigrateProfiles(old, nw, OSKeyring{}); err != nil {
+		t.Fatal(err)
+	}
+	gets := &atomic.Int32{}
+	if _, err := MigrateProfiles(old, nw, countingKeyring{Keyring: OSKeyring{}, gets: gets}); err != nil {
+		t.Fatal(err)
+	}
+	if n := gets.Load(); n != 0 {
+		t.Fatalf("an already migrated profile cost %d keyring lookups", n)
 	}
 }
