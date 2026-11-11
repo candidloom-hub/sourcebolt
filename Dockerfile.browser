@@ -1,6 +1,6 @@
 # Browser-fallback image: sourcebolt built with -tags browser on top of headless Chrome.
 # Base pinned by tag and digest (stable channel); Dependabot (docker) bumps it.
-FROM chromedp/headless-shell:156.0.8078.17@sha256:e45d36d818636b955eb47cc1b40b91068be4aebc3490bcad239c1849f16eff1f
+FROM chromedp/headless-shell:158.0.8127.2@sha256:84fc19d85ada48c6bfa850cb648f01a9f93153872a9a405ea322d79fcc98ef3a
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/sourcebolt /usr/local/bin/sourcebolt
 ENV NOTEBOOKLM_CONFIG_DIR=/config
